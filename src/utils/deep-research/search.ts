@@ -131,7 +131,7 @@ export async function createSearchProvider({
   apiKey = "",
   query,
   maxResult = 5,
-  scope = "all",
+  scope,
 }: SearchProviderOptions) {
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -209,7 +209,7 @@ export async function createSearchProvider({
         credentials: "omit",
         body: JSON.stringify({
           query,
-          category: scope || "general",
+          category: scope || "research paper",
           contents: {
             text: true,
             summary: {
@@ -313,12 +313,12 @@ export async function createSearchProvider({
     for (const [key, value] of Object.entries(params)) {
       searchQuery.append(key, value.toString());
     }
-
+    const local = global.location || {};
     const response = await fetch(
       `${completePath(
         baseURL || SEARXNG_BASE_URL
       )}/search?${searchQuery.toString()}`,
-      baseURL?.startsWith(location.origin)
+      baseURL?.startsWith(local.origin)
         ? { method: "POST", credentials: "omit", headers }
         : { method: "GET", credentials: "omit" }
     );

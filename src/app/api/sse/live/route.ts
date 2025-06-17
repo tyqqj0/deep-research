@@ -62,7 +62,9 @@ export async function GET(req: NextRequest) {
           maxResult,
         },
         onMessage: (event, data) => {
-          if (event === "progress") {
+          if (event === "message") {
+            controller.enqueue(encoder.encode(data.text));
+          } else if (event === "progress") {
             console.log(
               `[${data.step}]: ${data.name ? `"${data.name}" ` : ""}${
                 data.status
@@ -74,9 +76,6 @@ export async function GET(req: NextRequest) {
           } else if (event === "error") {
             console.error(data);
             controller.close();
-          }
-          if (event === "message") {
-            controller.enqueue(encoder.encode(data.text));
           }
         },
       });

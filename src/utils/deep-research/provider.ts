@@ -84,14 +84,14 @@ export async function createAIProvider({
     return openaicompatible(model, settings);
   } else if (provider === "pollinations") {
     const { createOpenAI } = await import("@ai-sdk/openai");
+    const local = global.location || {};
     const pollinations = createOpenAI({
       baseURL,
       apiKey: apiKey ?? "",
       compatibility: "compatible",
       fetch: async (input, init) => {
         const headers = (init?.headers || {}) as Record<string, string>;
-        if (!baseURL?.startsWith(location.origin))
-          delete headers["Authorization"];
+        if (!baseURL?.startsWith(local.origin)) delete headers["Authorization"];
         return await fetch(input, {
           ...init,
           headers,
@@ -102,13 +102,13 @@ export async function createAIProvider({
     return pollinations(model, settings);
   } else if (provider === "ollama") {
     const { createOllama } = await import("ollama-ai-provider");
+    const local = global.location || {};
     const ollama = createOllama({
       baseURL,
       headers,
       fetch: async (input, init) => {
         const headers = (init?.headers || {}) as Record<string, string>;
-        if (!baseURL?.startsWith(location.origin))
-          delete headers["Authorization"];
+        if (!baseURL?.startsWith(local.origin)) delete headers["Authorization"];
         return await fetch(input, {
           ...init,
           headers,
