@@ -5,6 +5,7 @@ import copy from "copy-to-clipboard";
 import { Button } from "@/components/Internal/Button";
 import { capitalize, get } from "radash";
 
+import "./highlight.css";
 import "./style.css";
 
 const langAlias = {

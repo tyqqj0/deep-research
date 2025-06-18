@@ -485,8 +485,8 @@ function useDeepResearch() {
         writeFinalReportPrompt(
           reportPlan,
           learnings,
-          sources.map((item) => pick(item, ["title", "url"])),
-          images,
+          enableReferences ? sources.map((item) => pick(item, ["title", "url"])) : [],
+          enableCitationImage ? images : [],
           requirement,
           enableCitationImage,
           enableReferences

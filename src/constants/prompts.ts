@@ -212,24 +212,23 @@ Here are all the learnings from previous research:
 {learnings}
 </LEARNINGS>
 
-Here are all the sources from previous research:
+Here are all the sources from previous research, if any:
 <SOURCES>
 {sources}
 </SOURCES>
 
-Here are all the images from previous research:
+Here are all the images from previous research, if any:
 <IMAGES>
 {images}
 </IMAGES>
 
-Please write according to the user's writing requirements:
+Please write according to the user's writing requirements, if any:
 <REQUIREMENT>
 {requirement}
 </REQUIREMENT>
 
 Write a final report based on the report plan using the learnings from research.
-Make it as as detailed as possible, aim for 5 pages or more, the more the better, include ALL the learnings from research.
-**Including meaningful images from the previous research in the report is very helpful.**
+Make it as detailed as possible, aim for 5 pages or more, the more the better, include ALL the learnings from research.
 **Respond only the final report content, and no additional text before or after.**`;
 
 export const rewritingPrompt = `You are tasked with re-writing the following text to markdown. Ensure you do not change the meaning or story behind the text. 

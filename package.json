@@ -55,6 +55,7 @@
     "katex": "^0.16.22",
     "localforage": "^1.10.0",
     "lucide-react": "^0.475.0",
+    "marked": "^15.0.12",
     "mermaid": "^11.6.0",
     "nanoid": "^5.1.5",
     "next": "^15.3.1",

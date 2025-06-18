@@ -134,7 +134,9 @@ export function writeFinalReportPrompt(
   );
   return (
     finalReportPrompt +
-    (enableCitationImage ? `\n\n${finalReportCitationImagePrompt}` : "") +
+    (enableCitationImage
+      ? `\n**Including meaningful images from the previous research in the report is very helpful.**\n\n${finalReportCitationImagePrompt}`
+      : "") +
     (enableReferences ? `\n\n${finalReportReferencesPrompt}` : "")
   )
     .replace("{plan}", plan)
