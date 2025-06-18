@@ -2923,6 +2923,9 @@ function Setting({ open, onClose }: SettingProps) {
                                 <SelectItem value="news">
                                   {t("setting.scopeValue.news")}
                                 </SelectItem>
+                                <SelectItem value="academic">
+                                  {t("setting.scopeValue.academic")}
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                           </FormControl>
