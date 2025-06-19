@@ -334,6 +334,20 @@
       "custom": "Custom Websites",
       "customPlaceholder": "Enter domains, separated by commas or spaces",
       "add": "Add"
+    },
+    "advancedSettings": {
+      "title": "Advanced Settings"
+    },
+    "domainLimit": {
+      "title": "Specify Search Websites (leave blank to search all)",
+      "groups": {
+        "academic": "Academic & Research",
+        "search_engine": "Search Engines",
+        "community": "Content Communities"
+      },
+      "custom": "Custom Websites",
+      "customPlaceholder": "Enter domains, separated by commas or spaces",
+      "add": "Add"
     }
   },
   "header": {

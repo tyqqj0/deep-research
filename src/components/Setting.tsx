@@ -82,6 +82,7 @@ import { researchStore } from "@/utils/storage";
 import { cn } from "@/utils/style";
 import { capitalize } from "radash";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 type SettingProps = {
   open: boolean;
@@ -94,22 +95,23 @@ const DISABLED_AI_PROVIDER = process.env.NEXT_PUBLIC_DISABLED_AI_PROVIDER || "";
 const DISABLED_SEARCH_PROVIDER =
   process.env.NEXT_PUBLIC_DISABLED_SEARCH_PROVIDER || "";
 const MODEL_LIST = process.env.NEXT_PUBLIC_MODEL_LIST || "";
-const PREDEFINED_ACADEMIC_DOMAINS = [
-  "scholar.google.com",
-  "arxiv.org",
-  "nature.com",
-  "pubmed.ncbi.nlm.nih.gov",
-  "acm.org",
-  "ieee.org",
-  "sci-hub.se",
-];
+const PREDEFINED_DOMAINS = {
+  academic: [
+    "scholar.google.com",
+    "arxiv.org",
+    "nature.com",
+    "pubmed.ncbi.nlm.nih.gov",
+    "acm.org",
+    "ieee.org",
+    "sci-hub.se",
+  ],
+  search_engine: ["google.com", "bing.com", "baidu.com"],
+  community: ["zhihu.com", "weibo.com", "stackoverflow.com"],
+};
 
-const domainStrategySchema = z.object({
-  scope: z.enum(["general", "news", "academic"]),
-  academicDomains: z.object({
-    predefined: z.array(z.string()),
-    custom: z.array(z.string()),
-  }),
+const domainLimitSchema = z.object({
+  predefined: z.array(z.string()),
+  custom: z.array(z.string()),
 });
 
 const formSchema = z.object({
@@ -163,7 +165,7 @@ const formSchema = z.object({
   searchProvider: z.string().optional(),
   tavilyApiKey: z.string().optional(),
   tavilyApiProxy: z.string().optional(),
-  tavilyScope: z.string().optional(), // This will be removed, but kept for now to avoid breaking other parts.
+  tavilyScope: z.string().optional(),
   firecrawlApiKey: z.string().optional(),
   firecrawlApiProxy: z.string().optional(),
   exaApiKey: z.string().optional(),
@@ -181,7 +183,9 @@ const formSchema = z.object({
   references: z.string().optional(),
   citationImage: z.string().optional(),
   searchDomainStrategy: z.object({
-    tavily: domainStrategySchema,
+    tavily: z.object({
+      domains: domainLimitSchema,
+    }),
   }),
 });
 
@@ -273,6 +277,13 @@ function Setting({ open, onClose }: SettingProps) {
       preLoading = true;
       const values = await useSettingStore.getState();
       preLoading = false;
+      // Compatibility for old structure
+      if ((values as any).searchDomainStrategy?.tavily?.academicDomains) {
+        (values as any).searchDomainStrategy.tavily.domains = (
+          values as any
+        ).searchDomainStrategy.tavily.academicDomains;
+        delete (values as any).searchDomainStrategy.tavily.academicDomains;
+      }
       return values;
     },
   });
@@ -352,17 +363,12 @@ function Setting({ open, onClose }: SettingProps) {
   }
 
   async function handleProviderChange(provider: string) {
-    update({ provider });
-    await fetchModelList();
+    await refresh(provider);
+    form.setValue("provider", provider);
   }
 
   async function handleSearchProviderChange(searchProvider: string) {
-    update({ searchProvider });
-  }
-
-  async function updateSetting(key: string, value?: string | number) {
-    update({ [key]: value });
-    await fetchModelList();
+    form.setValue("searchProvider", searchProvider);
   }
 
   function handleReset() {
@@ -380,6 +386,33 @@ function Setting({ open, onClose }: SettingProps) {
     });
   }
 
+  function handleAddCustomDomain() {
+    if (customDomainInput.trim() === "") return;
+    const currentDomains =
+      form.getValues("searchDomainStrategy.tavily.domains.custom") || [];
+    const newDomains = customDomainInput
+      .split(/[\s,]+/)
+      .map((d) => d.trim().replace(/https?:\/\//, ""))
+      .filter((d) => d && !currentDomains.includes(d));
+
+    if (newDomains.length > 0) {
+      form.setValue(
+        "searchDomainStrategy.tavily.domains.custom",
+        [...currentDomains, ...newDomains]
+      );
+    }
+    setCustomDomainInput("");
+  }
+
+  function handleRemoveCustomDomain(domainToRemove: string) {
+    const currentDomains =
+      form.getValues("searchDomainStrategy.tavily.domains.custom") || [];
+    form.setValue(
+      "searchDomainStrategy.tavily.domains.custom",
+      currentDomains.filter((d) => d !== domainToRemove)
+    );
+  }
+
   useLayoutEffect(() => {
     if (open && !preLoading) {
       preLoading = true;
@@ -395,35 +428,6 @@ function Setting({ open, onClose }: SettingProps) {
       form.setValue("mode", requestMode);
     }
   }, [open, mode, form]);
-
-  function handleAddCustomDomain() {
-    if (customDomainInput.trim() === "") return;
-    const currentDomains =
-      form.getValues("searchDomainStrategy.tavily.academicDomains.custom") ||
-      [];
-    const newDomains = customDomainInput
-      .split(/[\s,]+/)
-      .map((d) => d.trim().replace(/https?:\/\//, ""))
-      .filter((d) => d && !currentDomains.includes(d));
-
-    if (newDomains.length > 0) {
-      form.setValue(
-        "searchDomainStrategy.tavily.academicDomains.custom",
-        [...currentDomains, ...newDomains]
-      );
-    }
-    setCustomDomainInput("");
-  }
-
-  function handleRemoveCustomDomain(domainToRemove: string) {
-    const currentDomains =
-      form.getValues("searchDomainStrategy.tavily.academicDomains.custom") ||
-      [];
-    form.setValue(
-      "searchDomainStrategy.tavily.academicDomains.custom",
-      currentDomains.filter((d) => d !== domainToRemove)
-    );
-  }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -2982,118 +2986,100 @@ function Setting({ open, onClose }: SettingProps) {
                                 <SelectItem value="news">
                                   {t("setting.scopeValue.news")}
                                 </SelectItem>
-                                <SelectItem value="academic">
-                                  {t("setting.scopeValue.academic")}
-                                </SelectItem>
                               </SelectContent>
                             </Select>
                           </FormControl>
                         </FormItem>
                       )}
                     />
-                    {form.watch("searchDomainStrategy.tavily.scope") ===
-                      "academic" && (
-                      <div className="space-y-4 rounded-md border p-4">
-                        <h4 className="text-sm font-medium">
-                          {t("setting.academicScope.title")}
-                        </h4>
-                        <FormField
-                          control={form.control}
-                          name="searchDomainStrategy.tavily.academicDomains.predefined"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="mb-4">
-                                <FormLabel className="text-base">
-                                  {t("setting.academicScope.predefined")}
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem value="advanced-settings">
+                        <AccordionTrigger>{t("setting.advancedSettings.title")}</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-4 rounded-md border p-4">
+                            <h4 className="text-sm font-medium">
+                              {t("setting.domainLimit.title")}
+                            </h4>
+                            {Object.entries(PREDEFINED_DOMAINS).map(([group, domains]) => (
+                               <div key={group} className="mb-4">
+                                <FormLabel className="text-base font-semibold">
+                                  {t(`setting.domainLimit.groups.${group}`)}
                                 </FormLabel>
-                              </div>
-                              {PREDEFINED_ACADEMIC_DOMAINS.map((domain) => (
-                                <FormItem
-                                  key={domain}
-                                  className="flex flex-row items-start space-x-3 space-y-0"
-                                >
-                                  <FormControl>
-                                    <Checkbox
-                                      checked={field.value?.includes(domain)}
-                                      onCheckedChange={(
-                                        checked: boolean
-                                      ) => {
-                                        return checked
-                                          ? field.onChange([
-                                              ...(field.value || []),
-                                              domain,
-                                            ])
-                                          : field.onChange(
-                                              field.value?.filter(
-                                                (value) => value !== domain
-                                              )
-                                            );
-                                      }}
-                                    />
-                                  </FormControl>
-                                  <FormLabel className="font-normal">
-                                    {domain}
-                                  </FormLabel>
-                                </FormItem>
-                              ))}
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="searchDomainStrategy.tavily.academicDomains.custom"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>
-                                {t("setting.academicScope.custom")}
-                              </FormLabel>
-                              <div className="flex gap-2">
-                                <Input
-                                  value={customDomainInput}
-                                  onChange={(e) =>
-                                    setCustomDomainInput(e.target.value)
-                                  }
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      handleAddCustomDomain();
-                                    }
-                                  }}
-                                  placeholder={t(
-                                    "setting.academicScope.customPlaceholder"
-                                  )}
-                                />
-                                <Button
-                                  type="button"
-                                  onClick={handleAddCustomDomain}
-                                >
-                                  {t("setting.academicScope.add")}
-                                </Button>
-                              </div>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {field.value?.map((domain) => (
-                                  <div
+                                {domains.map((domain) => (
+                                  <FormField
                                     key={domain}
-                                    className="flex items-center gap-1 rounded-full bg-gray-200 px-2 py-1 text-xs dark:bg-gray-700"
-                                  >
-                                    {domain}
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleRemoveCustomDomain(domain)
-                                      }
-                                      className="text-red-500 hover:text-red-700"
-                                    >
-                                      &times;
-                                    </button>
-                                  </div>
+                                    control={form.control}
+                                    name="searchDomainStrategy.tavily.domains.predefined"
+                                    render={({ field }) => (
+                                      <FormItem
+                                        key={domain}
+                                        className="flex flex-row items-start space-x-3 space-y-0 mt-2"
+                                      >
+                                        <FormControl>
+                                          <Checkbox
+                                            checked={field.value?.includes(domain)}
+                                            onCheckedChange={(checked: boolean) => {
+                                              return checked
+                                                ? field.onChange([...(field.value || []), domain])
+                                                : field.onChange(field.value?.filter((value) => value !== domain));
+                                            }}
+                                          />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">{domain}</FormLabel>
+                                      </FormItem>
+                                    )}
+                                  />
                                 ))}
                               </div>
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    )}
+                            ))}
+                            <FormField
+                              control={form.control}
+                              name="searchDomainStrategy.tavily.domains.custom"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>
+                                    {t("setting.domainLimit.custom")}
+                                  </FormLabel>
+                                  <div className="flex gap-2">
+                                    <Input
+                                      value={customDomainInput}
+                                      onChange={(e) => setCustomDomainInput(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          handleAddCustomDomain();
+                                        }
+                                      }}
+                                      placeholder={t("setting.domainLimit.customPlaceholder")}
+                                    />
+                                    <Button type="button" onClick={handleAddCustomDomain}>
+                                      {t("setting.domainLimit.add")}
+                                    </Button>
+                                  </div>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {field.value?.map((domain) => (
+                                      <div
+                                        key={domain}
+                                        className="flex items-center gap-1 rounded-full bg-gray-200 px-2 py-1 text-xs dark:bg-gray-700"
+                                      >
+                                        {domain}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveCustomDomain(domain)}
+                                          className="text-red-500 hover:text-red-700"
+                                        >
+                                          &times;
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
                   </div>
                   <div
                     className={cn("space-y-4", {
@@ -3411,7 +3397,9 @@ function Setting({ open, onClose }: SettingProps) {
                       <FormControl>
                         <Select
                           value={field.value}
-                          onValueChange={field.onChange}
+                          onValueChange={(value) =>
+                            form.setValue("language", value)
+                          }
                         >
                           <SelectTrigger className="form-field">
                             <SelectValue />
@@ -3439,7 +3427,9 @@ function Setting({ open, onClose }: SettingProps) {
                       <FormControl>
                         <Select
                           value={field.value}
-                          onValueChange={field.onChange}
+                          onValueChange={(value) =>
+                            form.setValue("theme", value)
+                          }
                         >
                           <SelectTrigger className="form-field">
                             <SelectValue />
@@ -3471,7 +3461,12 @@ function Setting({ open, onClose }: SettingProps) {
                         </HelpTip>
                       </FormLabel>
                       <FormControl>
-                        <Select {...field} onValueChange={field.onChange}>
+                        <Select
+                          {...field}
+                          onValueChange={(value) =>
+                            form.setValue("debug", value)
+                          }
+                        >
                           <SelectTrigger className="form-field">
                             <SelectValue />
                           </SelectTrigger>
@@ -3552,7 +3547,12 @@ function Setting({ open, onClose }: SettingProps) {
                         </HelpTip>
                       </FormLabel>
                       <FormControl>
-                        <Select {...field} onValueChange={field.onChange}>
+                        <Select
+                          {...field}
+                          onValueChange={(value) =>
+                            form.setValue("references", value)
+                          }
+                        >
                           <SelectTrigger className="form-field">
                             <SelectValue />
                           </SelectTrigger>
@@ -3580,7 +3580,12 @@ function Setting({ open, onClose }: SettingProps) {
                         </HelpTip>
                       </FormLabel>
                       <FormControl>
-                        <Select {...field} onValueChange={field.onChange}>
+                        <Select
+                          {...field}
+                          onValueChange={(value) =>
+                            form.setValue("citationImage", value)
+                          }
+                        >
                           <SelectTrigger className="form-field">
                             <SelectValue />
                           </SelectTrigger>

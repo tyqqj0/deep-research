@@ -328,6 +328,20 @@
     "save": "保存",
     "confirm": "确认",
     "cancel": "取消",
+    "advancedSettings": {
+      "title": "高级设置"
+    },
+    "domainLimit": {
+      "title": "指定搜索网站 (留空则搜索所有网站)",
+      "groups": {
+        "academic": "学术科研",
+        "search_engine": "搜索引擎",
+        "community": "内容社区"
+      },
+      "custom": "自定义网站",
+      "customPlaceholder": "输入域名，用逗号或空格分隔",
+      "add": "添加"
+    },
     "academicScope": {
       "title": "学术范围设置",
       "predefined": "权威学术网站 (预设)",

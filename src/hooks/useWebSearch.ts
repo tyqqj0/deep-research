@@ -31,11 +31,10 @@ function useWebSearch() {
           options.baseURL = location.origin + "/api/search/tavily";
         }
         const tavilyStrategy = searchDomainStrategy["tavily"];
-        options.scope = tavilyStrategy.scope;
-        if (tavilyStrategy.scope === "academic") {
+        if (tavilyStrategy.domains) {
           options.domains = [
-            ...tavilyStrategy.academicDomains.predefined,
-            ...tavilyStrategy.academicDomains.custom,
+            ...tavilyStrategy.domains.predefined,
+            ...tavilyStrategy.domains.custom,
           ];
         }
         break;

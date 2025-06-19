@@ -1,12 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export interface DomainStrategy {
-  scope: "general" | "news" | "academic";
-  academicDomains: {
-    predefined: string[];
-    custom: string[];
-  };
+export interface DomainLimit {
+  predefined: string[];
+  custom: string[];
 }
 
 export interface SettingStore {
@@ -79,7 +76,9 @@ export interface SettingStore {
   references: string;
   citationImage: string;
   searchDomainStrategy: {
-    [provider: string]: DomainStrategy;
+    [provider: string]: {
+      domains: DomainLimit;
+    };
   };
 }
 
@@ -93,8 +92,8 @@ export const defaultValues: SettingStore = {
   mode: "",
   apiKey: "",
   apiProxy: "",
-  thinkingModel: "gemini-2.0-flash-thinking-exp",
-  networkingModel: "gemini-2.0-flash-exp",
+  thinkingModel: "Gemini 2.5 Pro Preview 06 05",
+  networkingModel: "Gemini 2.5 Flash Preview 05 20",
   openRouterApiKey: "",
   openRouterApiProxy: "",
   openRouterThinkingModel: "",
@@ -139,7 +138,7 @@ export const defaultValues: SettingStore = {
   searchProvider: "model",
   tavilyApiKey: "",
   tavilyApiProxy: "",
-  tavilyScope: "general",
+  tavilyScope: "academic",
   firecrawlApiKey: "",
   firecrawlApiProxy: "",
   exaApiKey: "",
@@ -159,8 +158,7 @@ export const defaultValues: SettingStore = {
   citationImage: "enable",
   searchDomainStrategy: {
     tavily: {
-      scope: "general",
-      academicDomains: {
+      domains: {
         predefined: [],
         custom: [],
       },
