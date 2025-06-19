@@ -8,8 +8,13 @@ import { generateSignature } from "@/utils/signature";
 
 function useWebSearch() {
   async function search(query: string) {
-    const { mode, searchProvider, searchMaxResult, accessPassword } =
-      useSettingStore.getState();
+    const {
+      mode,
+      searchProvider,
+      searchMaxResult,
+      accessPassword,
+      searchDomainStrategy,
+    } = useSettingStore.getState();
     const options: SearchProviderOptions = {
       provider: searchProvider,
       maxResult: searchMaxResult,
@@ -18,15 +23,21 @@ function useWebSearch() {
 
     switch (searchProvider) {
       case "tavily":
-        const { tavilyApiKey, tavilyApiProxy, tavilyScope } =
-          useSettingStore.getState();
+        const { tavilyApiKey, tavilyApiProxy } = useSettingStore.getState();
         if (mode === "local") {
           options.baseURL = tavilyApiProxy;
           options.apiKey = multiApiKeyPolling(tavilyApiKey);
         } else {
           options.baseURL = location.origin + "/api/search/tavily";
         }
-        options.scope = tavilyScope;
+        const tavilyStrategy = searchDomainStrategy["tavily"];
+        options.scope = tavilyStrategy.scope;
+        if (tavilyStrategy.scope === "academic") {
+          options.domains = [
+            ...tavilyStrategy.academicDomains.predefined,
+            ...tavilyStrategy.academicDomains.custom,
+          ];
+        }
         break;
       case "firecrawl":
         const { firecrawlApiKey, firecrawlApiProxy } =

@@ -327,6 +327,16 @@
     "citationImageTip": "Enabling reference images will attempt to add content-related images to the final report through a prompt.",
     "save": "Save",
     "confirm": "Confirm",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "academicScope": {
+      "title": "Academic Scope Settings",
+      "predefined": "Authoritative Academic Websites (Presets)",
+      "custom": "Custom Websites",
+      "customPlaceholder": "Enter domains, separated by commas or spaces",
+      "add": "Add"
+    }
+  },
+  "header": {
+    "title": "Deep Research"
   }
 }

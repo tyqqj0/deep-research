@@ -279,7 +279,7 @@
     "modelListLoading": "模型列表加载中",
     "search": "搜索参数",
     "webSearch": "联网搜索",
-    "webSearchTip": "开启联网搜索功能可以获取最新数据，有利于减少大语言模型的“幻觉”。强烈推荐启用。",
+    "webSearchTip": "开启联网搜索功能可以获取最新数据，有利于减少大语言模型的"幻觉"。强烈推荐启用。",
     "enable": "启用",
     "disable": "禁用",
     "searchProvider": "搜索服务",
@@ -302,7 +302,7 @@
       "company": "公司",
       "personalSite": "个人网站",
       "github": "Github",
-      "linkedin": "领英",
+      "linkedin": "领英个人资料",
       "pdf": "PDF"
     },
     "language": "界面语言",
@@ -327,6 +327,16 @@
     "citationImageTip": "启用引用图片，会通过 prompt 尝试在最终报告中添加与内容相关的图片。",
     "save": "保存",
     "confirm": "确认",
-    "cancel": "取消"
+    "cancel": "取消",
+    "academicScope": {
+      "title": "学术范围设置",
+      "predefined": "权威学术网站 (预设)",
+      "custom": "自定义网站",
+      "customPlaceholder": "输入域名，用逗号或空格分隔",
+      "add": "添加"
+    }
+  },
+  "header": {
+    "title": "深度研究"
   }
 }

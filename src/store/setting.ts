@@ -1,6 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export interface DomainStrategy {
+  scope: "general" | "news" | "academic";
+  academicDomains: {
+    predefined: string[];
+    custom: string[];
+  };
+}
+
 export interface SettingStore {
   provider: string;
   mode: string;
@@ -70,6 +78,9 @@ export interface SettingStore {
   debug: string;
   references: string;
   citationImage: string;
+  searchDomainStrategy: {
+    [provider: string]: DomainStrategy;
+  };
 }
 
 interface SettingFunction {
@@ -146,6 +157,15 @@ export const defaultValues: SettingStore = {
   debug: "disable",
   references: "enable",
   citationImage: "enable",
+  searchDomainStrategy: {
+    tavily: {
+      scope: "general",
+      academicDomains: {
+        predefined: [],
+        custom: [],
+      },
+    },
+  },
 };
 
 export const useSettingStore = create(

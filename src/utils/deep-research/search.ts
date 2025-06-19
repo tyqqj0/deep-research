@@ -123,6 +123,7 @@ export interface SearchProviderOptions {
   query: string;
   maxResult?: number;
   scope?: string;
+  domains?: string[];
 }
 
 export async function createSearchProvider({
@@ -132,6 +133,7 @@ export async function createSearchProvider({
   query,
   maxResult = 5,
   scope,
+  domains,
 }: SearchProviderOptions) {
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -139,22 +141,27 @@ export async function createSearchProvider({
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
   if (provider === "tavily") {
+    const body: any = {
+      query,
+      search_depth: "advanced",
+      topic: scope || "general",
+      max_results: Number(maxResult),
+      include_images: true,
+      include_image_descriptions: true,
+      include_answer: false,
+      include_raw_content: true,
+    };
+
+    if (domains && domains.length > 0) {
+      body.include_domains = domains;
+    }
     const response = await fetch(
       `${completePath(baseURL || TAVILY_BASE_URL)}/search`,
       {
         method: "POST",
         headers,
         credentials: "omit",
-        body: JSON.stringify({
-          query,
-          search_depth: "advanced",
-          topic: scope || "general",
-          max_results: Number(maxResult),
-          include_images: true,
-          include_image_descriptions: true,
-          include_answer: false,
-          include_raw_content: true,
-        }),
+        body: JSON.stringify(body),
       }
     );
     const { results = [], images = [] } = await response.json();
@@ -290,21 +297,21 @@ export async function createSearchProvider({
       engines:
         scope === "academic"
           ? [
-              "arxiv",
-              "google scholar",
-              "pubmed",
-              "wikispecies",
-              "google_images",
-            ]
+            "arxiv",
+            "google scholar",
+            "pubmed",
+            "wikispecies",
+            "google_images",
+          ]
           : [
-              "google",
-              "bing",
-              "duckduckgo",
-              "brave",
-              "wikipedia",
-              "bing_images",
-              "google_images",
-            ],
+            "google",
+            "bing",
+            "duckduckgo",
+            "brave",
+            "wikipedia",
+            "bing_images",
+            "google_images",
+          ],
       lang: "auto",
       format: "json",
       autocomplete: "google",
