@@ -1,6 +1,6 @@
 export interface AIProviderOptions {
   provider: string;
-  baseURL?: string;
+  baseURL: string;
   apiKey?: string;
   headers?: Record<string, string>;
   model: string;
@@ -75,29 +75,23 @@ export async function createAIProvider({
     });
     return openrouter(model, settings);
   } else if (provider === "openaicompatible") {
-    const { createOpenAI } = await import("@ai-sdk/openai");
-    const openaicompatible = createOpenAI({
+    const { createOpenAICompatible } = await import(
+      "@ai-sdk/openai-compatible"
+    );
+    const openaicompatible = createOpenAICompatible({
+      name: "openaicompatible",
       baseURL,
       apiKey,
-      compatibility: "compatible",
     });
     return openaicompatible(model, settings);
   } else if (provider === "pollinations") {
-    const { createOpenAI } = await import("@ai-sdk/openai");
-    const local = global.location || {};
-    const pollinations = createOpenAI({
+    const { createOpenAICompatible } = await import(
+      "@ai-sdk/openai-compatible"
+    );
+    const pollinations = createOpenAICompatible({
+      name: "pollinations",
       baseURL,
-      apiKey: apiKey ?? "",
-      compatibility: "compatible",
-      fetch: async (input, init) => {
-        const headers = (init?.headers || {}) as Record<string, string>;
-        if (!baseURL?.startsWith(local.origin)) delete headers["Authorization"];
-        return await fetch(input, {
-          ...init,
-          headers,
-          credentials: "omit",
-        });
-      },
+      apiKey,
     });
     return pollinations(model, settings);
   } else if (provider === "ollama") {

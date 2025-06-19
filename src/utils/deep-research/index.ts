@@ -18,14 +18,14 @@ import { pick, unique, flat, isFunction } from "radash";
 
 export interface DeepResearchOptions {
   AIProvider: {
-    baseURL?: string;
+    baseURL: string;
     apiKey?: string;
     provider: string;
     thinkingModel: string;
     taskModel: string;
   };
   searchProvider: {
-    baseURL?: string;
+    baseURL: string;
     apiKey?: string;
     provider: string;
     maxResult?: number;

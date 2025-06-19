@@ -22,6 +22,7 @@ function useModelProvider() {
   async function createModelProvider(model: string, settings?: any) {
     const { mode, provider, accessPassword } = useSettingStore.getState();
     const options: AIProviderOptions = {
+      baseURL: "",
       provider,
       model,
       settings,

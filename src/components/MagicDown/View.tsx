@@ -19,15 +19,15 @@ const Code = dynamic(() => import("./Code"));
 const Mermaid = dynamic(() => import("./Mermaid"));
 
 export type MarkdownProps = {
-  children: string;
   id?: string;
   className?: string;
+  children: string;
   components?: Partial<Components>;
 };
 
 function parseMarkdownIntoBlocks(markdown: string): string[] {
   const tokens = marked.lexer(markdown);
-  return tokens.map((token: any) => token.raw);
+  return tokens.map((token) => token.raw);
 }
 
 function MarkdownBlock({ children: content, ...rest }: Options) {
@@ -171,9 +171,19 @@ function MarkdownBlock({ children: content, ...rest }: Options) {
   );
 }
 
-const MemoizedMarkdownBlock = memo(MarkdownBlock);
+const MemoizedMarkdownBlock = memo(
+  ({ children }: MarkdownProps) => {
+    return <MarkdownBlock>{children}</MarkdownBlock>;
+  },
+  (prevProps, nextProps) => {
+    if (prevProps.children !== nextProps.children) return false;
+    return true;
+  }
+);
 
-function Markdown({ children, id, className, components }: MarkdownProps) {
+MemoizedMarkdownBlock.displayName = "MemoizedMarkdownBlock";
+
+function MarkdownView({ children, id, className, components }: MarkdownProps) {
   const generatedId = useId();
   const blockId = id ?? generatedId;
   const blocks = useMemo(() => parseMarkdownIntoBlocks(children), [children]);
@@ -192,4 +202,6 @@ function Markdown({ children, id, className, components }: MarkdownProps) {
   );
 }
 
-export default memo(Markdown);
+MarkdownView.displayName = "MarkdownView";
+
+export default memo(MarkdownView);
