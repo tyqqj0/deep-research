@@ -279,7 +279,7 @@
     "modelListLoading": "模型列表加载中",
     "search": "搜索参数",
     "webSearch": "联网搜索",
-    "webSearchTip": "开启联网搜索功能可以获取最新数据，有利于减少大语言模型的"幻觉"。强烈推荐启用。",
+    "webSearchTip": "开启联网搜索功能可以获取最新数据，有利于减少大语言模型的\"幻觉\"。强烈推荐启用。",
     "enable": "启用",
     "disable": "禁用",
     "searchProvider": "搜索服务",
