@@ -39,6 +39,7 @@ interface Source {
 interface SearchTask {
   state: "unprocessed" | "processing" | "completed" | "failed";
   query: string;
+  title: string;
   researchGoal: string;
   learning: string;
   sources: Source[];
@@ -48,10 +49,10 @@ interface SearchTask {
 interface PartialJson {
   value: JSONValue | undefined;
   state:
-    | "undefined-input"
-    | "successful-parse"
-    | "repaired-parse"
-    | "failed-parse";
+  | "undefined-input"
+  | "successful-parse"
+  | "repaired-parse"
+  | "failed-parse";
 }
 
 interface WebSearchResult {

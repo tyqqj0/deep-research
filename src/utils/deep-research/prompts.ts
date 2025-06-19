@@ -21,13 +21,18 @@ export function getSERPQuerySchema() {
       z
         .object({
           query: z.string().describe("The SERP query."),
+          title: z
+            .string()
+            .describe(
+              "A very short, concise, and user-friendly title for this research task. Just the title, without any other text. JSON reserved words should be escaped."
+            ),
           researchGoal: z
             .string()
             .describe(
               "First talk about the goal of the research that this query is meant to accomplish, then go deeper into how to advance the research once the results are found, mention additional research directions. Be as specific as possible, especially for additional research directions. JSON reserved words should be escaped."
             ),
         })
-        .required({ query: true, researchGoal: true })
+        .required({ query: true, researchGoal: true, title: true })
     )
     .describe(`List of SERP queries.`);
 }
@@ -69,8 +74,7 @@ export function processSearchResultPrompt(
 ) {
   const context = results.map(
     (result, idx) =>
-      `<content index="${idx + 1}" url="${result.url}">\n${
-        result.content
+      `<content index="${idx + 1}" url="${result.url}">\n${result.content
       }\n</content>`
   );
   return (
@@ -88,8 +92,7 @@ export function processSearchKnowledgeResultPrompt(
 ) {
   const context = results.map(
     (result, idx) =>
-      `<content index="${idx + 1}" url="${location.host}">\n${
-        result.content
+      `<content index="${idx + 1}" url="${location.host}">\n${result.content
       }\n</content>`
   );
   return searchKnowledgeResultPrompt

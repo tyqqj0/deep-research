@@ -146,10 +146,11 @@ function SearchResult() {
     toast.message(t("research.common.addToKnowledgeBaseTip"));
   }
 
-  async function handleRetry(query: string, researchGoal: string) {
+  async function handleRetry(query: string, title: string, researchGoal: string) {
     const { updateTask } = useTaskStore.getState();
     const newTask: SearchTask = {
       query,
+      title,
       researchGoal,
       learning: "",
       sources: [],
@@ -185,7 +186,7 @@ function SearchResult() {
                   <AccordionTrigger>
                     <div className="flex">
                       <TaskState state={item.state} />
-                      <span className="ml-1">{item.query}</span>
+                      <span className="ml-1">{item.title}</span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="prose prose-slate dark:prose-invert max-w-full min-h-20">
@@ -212,7 +213,7 @@ function SearchResult() {
                             side="left"
                             sideoffset={8}
                             onClick={() =>
-                              handleRetry(item.query, item.researchGoal)
+                              handleRetry(item.query, item.title, item.researchGoal)
                             }
                           >
                             <RotateCcw />

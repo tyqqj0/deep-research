@@ -100,9 +100,13 @@ const PREDEFINED_DOMAINS = {
     "scholar.google.com",
     "arxiv.org",
     "nature.com",
-    "pubmed.ncbi.nlm.nih.gov",
-    "acm.org",
+    "openaccess.thecvf.com", // CVPR, ICCV
+    "neurips.cc", // NeurIPS
+    "icml.cc", // ICML
+    "jmlr.org", // JMLR
     "ieee.org",
+    "acm.org",
+    "pubmed.ncbi.nlm.nih.gov",
     "sci-hub.se",
   ],
   search_engine: ["google.com", "bing.com", "baidu.com"],
@@ -429,6 +433,10 @@ function Setting({ open, onClose }: SettingProps) {
     }
   }, [open, mode, form]);
 
+  // async function form.setValue(key: keyof z.infer<typeof formSchema>, value?: string | number) {
+  //   form.setValue(key, value as any);
+  // }
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg max-lg:max-w-md print:hidden">
@@ -586,7 +594,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={t("setting.apiKeyPlaceholder")}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "apiKey",
                                   form.getValues("apiKey")
                                 )
@@ -609,7 +617,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={GEMINI_BASE_URL}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "apiProxy",
                                   form.getValues("apiProxy")
                                 )
@@ -642,7 +650,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={t("setting.apiKeyPlaceholder")}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "openRouterApiKey",
                                   form.getValues("openRouterApiKey")
                                 )
@@ -665,7 +673,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={OPENROUTER_BASE_URL}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "openRouterApiProxy",
                                   form.getValues("openRouterApiProxy")
                                 )
@@ -698,7 +706,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={t("setting.apiKeyPlaceholder")}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "openAIApiKey",
                                   form.getValues("openAIApiKey")
                                 )
@@ -721,7 +729,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={OPENAI_BASE_URL}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "openAIApiProxy",
                                   form.getValues("openAIApiProxy")
                                 )
@@ -754,7 +762,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={t("setting.apiKeyPlaceholder")}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "anthropicApiKey",
                                   form.getValues("anthropicApiKey")
                                 )
@@ -777,7 +785,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={ANTHROPIC_BASE_URL}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "anthropicApiProxy",
                                   form.getValues("anthropicApiProxy")
                                 )
@@ -810,7 +818,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={t("setting.apiKeyPlaceholder")}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "deepseekApiKey",
                                   form.getValues("deepseekApiKey")
                                 )
@@ -833,7 +841,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={DEEPSEEK_BASE_URL}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "deepseekApiProxy",
                                   form.getValues("deepseekApiProxy")
                                 )
@@ -866,7 +874,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={t("setting.apiKeyPlaceholder")}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "xAIApiKey",
                                   form.getValues("xAIApiKey")
                                 )
@@ -889,7 +897,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={XAI_BASE_URL}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "xAIApiProxy",
                                   form.getValues("xAIApiProxy")
                                 )
@@ -922,7 +930,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={t("setting.apiKeyPlaceholder")}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "mistralApiKey",
                                   form.getValues("mistralApiKey")
                                 )
@@ -945,7 +953,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={MISTRAL_BASE_URL}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "mistralApiProxy",
                                   form.getValues("mistralApiProxy")
                                 )
@@ -978,7 +986,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={t("setting.apiKeyPlaceholder")}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "azureApiKey",
                                   form.getValues("azureApiKey")
                                 )
@@ -1004,7 +1012,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={t("setting.resourceNamePlaceholder")}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "azureResourceName",
                                   form.getValues("azureResourceName")
                                 )
@@ -1027,7 +1035,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={t("setting.apiVersionPlaceholder")}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "azureApiVersion",
                                   form.getValues("azureApiVersion")
                                 )
@@ -1060,7 +1068,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={t("setting.apiKeyPlaceholder")}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "openAICompatibleApiKey",
                                   form.getValues("openAICompatibleApiKey")
                                 )
@@ -1083,7 +1091,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={t("setting.apiUrlPlaceholder")}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "openAICompatibleApiProxy",
                                   form.getValues("openAICompatibleApiProxy")
                                 )
@@ -1112,7 +1120,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={POLLINATIONS_BASE_URL}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "pollinationsApiProxy",
                                   form.getValues("pollinationsApiProxy")
                                 )
@@ -1141,7 +1149,7 @@ function Setting({ open, onClose }: SettingProps) {
                               placeholder={OLLAMA_BASE_URL}
                               {...field}
                               onBlur={() =>
-                                updateSetting(
+                                form.setValue(
                                   "ollamaApiProxy",
                                   form.getValues("ollamaApiProxy")
                                 )
@@ -1177,7 +1185,7 @@ function Setting({ open, onClose }: SettingProps) {
                             placeholder={t("setting.accessPasswordPlaceholder")}
                             {...field}
                             onBlur={() =>
-                              updateSetting(
+                              form.setValue(
                                 "accessPassword",
                                 form.getValues("accessPassword")
                               )
@@ -2963,7 +2971,7 @@ function Setting({ open, onClose }: SettingProps) {
                     />
                     <FormField
                       control={form.control}
-                      name="searchDomainStrategy.tavily.scope"
+                      name="tavilyScope"
                       render={({ field }) => (
                         <FormItem className="from-item">
                           <FormLabel className="from-label">
@@ -2972,9 +2980,9 @@ function Setting({ open, onClose }: SettingProps) {
                           <FormControl className="form-field">
                             <Select
                               value={field.value}
-                              onValueChange={(value) => {
-                                field.onChange(value);
-                              }}
+                              onValueChange={(value) =>
+                                form.setValue("tavilyScope", value)
+                              }
                             >
                               <SelectTrigger className="form-field">
                                 <SelectValue />
