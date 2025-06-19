@@ -80,8 +80,7 @@ import {
 } from "@/utils/model";
 import { researchStore } from "@/utils/storage";
 import { cn } from "@/utils/style";
-import { omit, capitalize } from "radash";
-import { type DomainStrategy } from "@/store/setting";
+import { capitalize } from "radash";
 import { Checkbox } from "@/components/ui/checkbox";
 
 type SettingProps = {
