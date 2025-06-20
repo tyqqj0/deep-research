@@ -150,9 +150,8 @@ export function initMcpServer() {
           content: [
             {
               type: "text",
-              text: `Error: ${
-                error instanceof Error ? error.message : "Unknown error"
-              }`,
+              text: `Error: ${error instanceof Error ? error.message : "Unknown error"
+                }`,
             },
           ],
         };
@@ -186,9 +185,8 @@ export function initMcpServer() {
           content: [
             {
               type: "text",
-              text: `Error: ${
-                error instanceof Error ? error.message : "Unknown error"
-              }`,
+              text: `Error: ${error instanceof Error ? error.message : "Unknown error"
+                }`,
             },
           ],
         };
@@ -220,9 +218,8 @@ export function initMcpServer() {
           content: [
             {
               type: "text",
-              text: `Error: ${
-                error instanceof Error ? error.message : "Unknown error"
-              }`,
+              text: `Error: ${error instanceof Error ? error.message : "Unknown error"
+                }`,
             },
           ],
         };
@@ -238,6 +235,7 @@ export function initMcpServer() {
         .array(
           z.object({
             query: z.string().describe("Information to be queried."),
+            title: z.string().describe("The title of this query task."),
             researchGoal: z.string().describe("The goal of this query task."),
           })
         )
@@ -279,9 +277,8 @@ export function initMcpServer() {
           content: [
             {
               type: "text",
-              text: `Error: ${
-                error instanceof Error ? error.message : "Unknown error"
-              }`,
+              text: `Error: ${error instanceof Error ? error.message : "Unknown error"
+                }`,
             },
           ],
         };
@@ -298,6 +295,7 @@ export function initMcpServer() {
         .array(
           z.object({
             query: z.string().describe("Information to be queried."),
+            title: z.string().describe("The title of this query task."),
             researchGoal: z.string().describe("The goal of this query task."),
             learning: z
               .string()
@@ -390,9 +388,8 @@ export function initMcpServer() {
           content: [
             {
               type: "text",
-              text: `Error: ${
-                error instanceof Error ? error.message : "Unknown error"
-              }`,
+              text: `Error: ${error instanceof Error ? error.message : "Unknown error"
+                }`,
             },
           ],
         };
