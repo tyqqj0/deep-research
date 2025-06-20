@@ -277,8 +277,7 @@ function useDeepResearch() {
               } catch (err) {
                 console.error(err);
                 handleError(
-                  `[${searchProvider}]: ${
-                    err instanceof Error ? err.message : "Search Failed"
+                  `[${searchProvider}]: ${err instanceof Error ? err.message : "Search Failed"
                   }`
                 );
                 return plimit.clearQueue();
@@ -376,8 +375,7 @@ function useDeepResearch() {
               sources
                 .map(
                   (item, idx) =>
-                    `[${idx + 1}]: ${item.url}${
-                      item.title ? ` "${item.title.replaceAll('"', " ")}"` : ""
+                    `[${idx + 1}]: ${item.url}${item.title ? ` "${item.title.replaceAll('"', " ")}"` : ""
                     }`
                 )
                 .join("\n");
@@ -428,11 +426,30 @@ function useDeepResearch() {
           ) {
             if (data.value) {
               queries = data.value.map(
-                (item: { query: string; researchGoal: string }) => ({
-                  state: "unprocessed",
-                  learning: "",
-                  ...pick(item, ["query", "researchGoal"]),
-                })
+                (item: {
+                  query: string;
+                  title: string;
+                  researchGoal: string;
+                }) => {
+                  const researchGoal = item.researchGoal || "";
+                  // Priority 1: Use AI-generated title if available and not empty.
+                  // Priority 2: Extract the first sentence of researchGoal as the title.
+                  // Priority 3: Fallback to query if title is still empty.
+                  const title =
+                    item.title?.trim() ||
+                    researchGoal.split(/[.!?。！？]/)[0].trim() ||
+                    item.query;
+
+                  return {
+                    query: item.query,
+                    researchGoal: researchGoal,
+                    title: title,
+                    state: "unprocessed",
+                    learning: "",
+                    sources: [],
+                    images: [],
+                  };
+                }
               );
             }
           }
@@ -520,8 +537,7 @@ function useDeepResearch() {
         sources
           .map(
             (item, idx) =>
-              `[${idx + 1}]: ${item.url}${
-                item.title ? ` "${item.title.replaceAll('"', " ")}"` : ""
+              `[${idx + 1}]: ${item.url}${item.title ? ` "${item.title.replaceAll('"', " ")}"` : ""
               }`
           )
           .join("\n");
@@ -574,11 +590,30 @@ function useDeepResearch() {
               ) {
                 if (data.value) {
                   queries = data.value.map(
-                    (item: { query: string; researchGoal: string }) => ({
-                      state: "unprocessed",
-                      learning: "",
-                      ...pick(item, ["query", "researchGoal"]),
-                    })
+                    (item: {
+                      query: string;
+                      title: string;
+                      researchGoal: string;
+                    }) => {
+                      const researchGoal = item.researchGoal || "";
+                      // Priority 1: Use AI-generated title if available and not empty.
+                      // Priority 2: Extract the first sentence of researchGoal as the title.
+                      // Priority 3: Fallback to query if title is still empty.
+                      const title =
+                        item.title?.trim() ||
+                        researchGoal.split(/[.!?。！？]/)[0].trim() ||
+                        item.query;
+
+                      return {
+                        query: item.query,
+                        researchGoal: researchGoal,
+                        title: title,
+                        state: "unprocessed",
+                        learning: "",
+                        sources: [],
+                        images: [],
+                      };
+                    }
                   );
                   taskStore.update(queries);
                 }

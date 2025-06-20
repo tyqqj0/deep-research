@@ -87,6 +87,7 @@ Expected output:
 [
   {
     query: "This is a sample query.",
+    title: "This is a sample title.",
     researchGoal: "This is the reason for the query."
   }
 ]

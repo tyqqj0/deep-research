@@ -3559,7 +3559,7 @@ function Setting({ open, onClose }: SettingProps) {
                       (
                       <a
                         className="hover:underline hover:underline-offset-4 hover:text-blue-500"
-                        href="https://github.com/u14app/deep-research"
+                        href="https://github.com/tyqqj0/deep-research.git"
                         target="_blank"
                       >
                         {t("setting.checkForUpdate")}
