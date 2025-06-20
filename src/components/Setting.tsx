@@ -3032,7 +3032,7 @@ function Setting({ open, onClose }: SettingProps) {
                                     value={group}
                                     className="mt-4 max-h-48 overflow-y-auto"
                                   >
-                                    <div className="space-y-2">
+                                    <div className="grid grid-cols-1 gap-y-2 md:grid-cols-2 md:gap-x-8">
                                       {domains.map((domain) => (
                                         <FormField
                                           key={domain}
