@@ -109,7 +109,7 @@ const PREDEFINED_DOMAINS = {
     "pubmed.ncbi.nlm.nih.gov",
     "sci-hub.se",
   ],
-  search_engine: ["google.com", "bing.com", "baidu.com"],
+  // search_engine: ["google.com", "bing.com", "baidu.com"],
   community: ["zhihu.com", "weibo.com", "stackoverflow.com"],
 };
 
@@ -3008,82 +3008,124 @@ function Setting({ open, onClose }: SettingProps) {
                             <h4 className="text-sm font-medium">
                               {t("setting.domainLimit.title")}
                             </h4>
-                            {Object.entries(PREDEFINED_DOMAINS).map(([group, domains]) => (
-                               <div key={group} className="mb-4">
-                                <FormLabel className="text-base font-semibold">
-                                  {t(`setting.domainLimit.groups.${group}`)}
-                                </FormLabel>
-                                {domains.map((domain) => (
-                                  <FormField
-                                    key={domain}
-                                    control={form.control}
-                                    name="searchDomainStrategy.tavily.domains.predefined"
-                                    render={({ field }) => (
-                                      <FormItem
-                                        key={domain}
-                                        className="flex flex-row items-start space-x-3 space-y-0 mt-2"
-                                      >
-                                        <FormControl>
-                                          <Checkbox
-                                            checked={field.value?.includes(domain)}
-                                            onCheckedChange={(checked: boolean) => {
-                                              return checked
-                                                ? field.onChange([...(field.value || []), domain])
-                                                : field.onChange(field.value?.filter((value) => value !== domain));
-                                            }}
-                                          />
-                                        </FormControl>
-                                        <FormLabel className="font-normal">{domain}</FormLabel>
-                                      </FormItem>
-                                    )}
-                                  />
+                            <Tabs
+                              defaultValue={
+                                Object.keys(PREDEFINED_DOMAINS).length > 0
+                                  ? Object.keys(PREDEFINED_DOMAINS)[0]
+                                  : "custom"
+                              }
+                            >
+                              <TabsList className="grid w-full grid-cols-3">
+                                {Object.keys(PREDEFINED_DOMAINS).map((group) => (
+                                  <TabsTrigger key={group} value={group}>
+                                    {t(`setting.domainLimit.groups.${group}`)}
+                                  </TabsTrigger>
                                 ))}
-                              </div>
-                            ))}
-                            <FormField
-                              control={form.control}
-                              name="searchDomainStrategy.tavily.domains.custom"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>
-                                    {t("setting.domainLimit.custom")}
-                                  </FormLabel>
-                                  <div className="flex gap-2">
-                                    <Input
-                                      value={customDomainInput}
-                                      onChange={(e) => setCustomDomainInput(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                          e.preventDefault();
-                                          handleAddCustomDomain();
-                                        }
-                                      }}
-                                      placeholder={t("setting.domainLimit.customPlaceholder")}
-                                    />
-                                    <Button type="button" onClick={handleAddCustomDomain}>
-                                      {t("setting.domainLimit.add")}
-                                    </Button>
-                                  </div>
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    {field.value?.map((domain) => (
-                                      <div
-                                        key={domain}
-                                        className="flex items-center gap-1 rounded-full bg-gray-200 px-2 py-1 text-xs dark:bg-gray-700"
-                                      >
-                                        {domain}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleRemoveCustomDomain(domain)}
-                                          className="text-red-500 hover:text-red-700"
-                                        >
-                                          &times;
-                                        </button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </FormItem>
+                                <TabsTrigger value="custom">
+                                  {t("setting.domainLimit.custom")}
+                                </TabsTrigger>
+                              </TabsList>
+                              {Object.entries(PREDEFINED_DOMAINS).map(
+                                ([group, domains]) => (
+                                  <TabsContent
+                                    key={group}
+                                    value={group}
+                                    className="mt-4 max-h-48 overflow-y-auto"
+                                  >
+                                    <div className="space-y-2">
+                                      {domains.map((domain) => (
+                                        <FormField
+                                          key={domain}
+                                          control={form.control}
+                                          name="searchDomainStrategy.tavily.domains.predefined"
+                                          render={({ field }) => (
+                                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                              <FormControl>
+                                                <Checkbox
+                                                  checked={field.value?.includes(
+                                                    domain
+                                                  )}
+                                                  onCheckedChange={(
+                                                    checked: boolean
+                                                  ) => {
+                                                    return checked
+                                                      ? field.onChange([
+                                                          ...(field.value || []),
+                                                          domain,
+                                                        ])
+                                                      : field.onChange(
+                                                          field.value?.filter(
+                                                            (value) =>
+                                                              value !== domain
+                                                          )
+                                                        );
+                                                  }}
+                                                />
+                                              </FormControl>
+                                              <FormLabel className="font-normal">
+                                                {domain}
+                                              </FormLabel>
+                                            </FormItem>
+                                          )}
+                                        />
+                                      ))}
+                                    </div>
+                                  </TabsContent>
+                                )
                               )}
-                            />
+                              <TabsContent value="custom" className="mt-4">
+                                <FormField
+                                  control={form.control}
+                                  name="searchDomainStrategy.tavily.domains.custom"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <div className="flex gap-2">
+                                        <Input
+                                          value={customDomainInput}
+                                          onChange={(e) =>
+                                            setCustomDomainInput(e.target.value)
+                                          }
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                              e.preventDefault();
+                                              handleAddCustomDomain();
+                                            }
+                                          }}
+                                          placeholder={t(
+                                            "setting.domainLimit.customPlaceholder"
+                                          )}
+                                        />
+                                        <Button
+                                          type="button"
+                                          onClick={handleAddCustomDomain}
+                                        >
+                                          {t("setting.domainLimit.add")}
+                                        </Button>
+                                      </div>
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        {field.value?.map((domain) => (
+                                          <div
+                                            key={domain}
+                                            className="flex items-center gap-1 rounded-full bg-gray-200 px-2 py-1 text-xs dark:bg-gray-700"
+                                          >
+                                            {domain}
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleRemoveCustomDomain(domain)
+                                              }
+                                              className="text-red-500 hover:text-red-700"
+                                            >
+                                              &times;
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </FormItem>
+                                  )}
+                                />
+                              </TabsContent>
+                            </Tabs>
                           </div>
                         </AccordionContent>
                       </AccordionItem>
