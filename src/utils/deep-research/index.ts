@@ -44,11 +44,13 @@ interface FinalReportResult {
 
 export interface DeepResearchSearchTask {
   query: string;
+  title: string;
   researchGoal: string;
 }
 
 export interface DeepResearchSearchResult {
   query: string;
+  title: string;
   researchGoal: string;
   learning: string;
   sources?: {
@@ -70,7 +72,7 @@ function addQuoteBeforeAllLine(text: string = "") {
 
 class DeepResearch {
   protected options: DeepResearchOptions;
-  onMessage: (event: string, data: any) => void = () => {};
+  onMessage: (event: string, data: any) => void = () => { };
   constructor(options: DeepResearchOptions) {
     this.options = options;
     if (isFunction(options.onMessage)) {
@@ -96,7 +98,7 @@ class DeepResearch {
       model: AIProvider.taskModel,
       settings:
         AIProvider.provider === "google" &&
-        isNetworkingModel(AIProvider.taskModel)
+          isNetworkingModel(AIProvider.taskModel)
           ? { useSearchGrounding: true }
           : undefined,
       ...AIProviderBaseOptions,
@@ -170,8 +172,9 @@ class DeepResearch {
     const result = querySchema.safeParse(data);
     if (result.success) {
       const tasks: DeepResearchSearchTask[] = data.map(
-        (item: { query: string; researchGoal?: string }) => ({
+        (item: { query: string; title?: string; researchGoal?: string }) => ({
           query: item.query,
+          title: item.title || "",
           researchGoal: item.researchGoal || "",
         })
       );
@@ -262,9 +265,8 @@ class DeepResearch {
           sources = result.sources;
           images = result.images;
         } catch (err) {
-          const errorMessage = `[${provider}]: ${
-            err instanceof Error ? err.message : "Search Failed"
-          }`;
+          const errorMessage = `[${provider}]: ${err instanceof Error ? err.message : "Search Failed"
+            }`;
           throw new Error(errorMessage);
         }
         searchResult = streamText({
@@ -351,8 +353,7 @@ class DeepResearch {
           sources
             .map(
               (item, idx) =>
-                `[${idx + 1}]: ${item.url}${
-                  item.title ? ` "${item.title.replaceAll('"', " ")}"` : ""
+                `[${idx + 1}]: ${item.url}${item.title ? ` "${item.title.replaceAll('"', " ")}"` : ""
                 }`
             )
             .join("\n");
@@ -363,6 +364,7 @@ class DeepResearch {
 
       const task: SearchTask = {
         query: item.query,
+        title: (item as any).title,
         researchGoal: item.researchGoal,
         state: "completed",
         learning: content,
@@ -439,8 +441,7 @@ class DeepResearch {
             sources
               .map(
                 (item, idx) =>
-                  `[${idx + 1}]: ${item.url}${
-                    item.title ? ` "${item.title.replaceAll('"', " ")}"` : ""
+                  `[${idx + 1}]: ${item.url}${item.title ? ` "${item.title.replaceAll('"', " ")}"` : ""
                   }`
               )
               .join("\n");
