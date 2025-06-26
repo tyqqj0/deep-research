@@ -21,6 +21,7 @@ import {
   Play,
   Pencil,
   Save,
+  BrainCircuit,
 } from "lucide-react";
 import { Button } from "@/components/Internal/Button";
 import {
@@ -45,6 +46,7 @@ import useKnowledge from "@/hooks/useKnowledge";
 import { useTaskStore } from "@/store/task";
 import { useKnowledgeStore } from "@/store/knowledge";
 import { downloadFile } from "@/utils/file";
+import type { SearchTask, ThinkingTask, Knowledge, Source } from "@/types";
 
 const MagicDown = dynamic(() => import("@/components/MagicDown"));
 const MagicDownView = dynamic(() => import("@/components/MagicDown/View"));
@@ -75,6 +77,23 @@ function TaskState({ state }: { state: SearchTask["state"] }) {
   }
 }
 
+function ThinkingBlock({ item }: { item: ThinkingTask }) {
+  const { t } = useTranslation();
+  return (
+    <AccordionItem value={item.id} className="border-blue-500/50">
+      <AccordionTrigger>
+        <div className="flex items-center text-blue-500">
+          <BrainCircuit className="h-5 w-5" />
+          <span className="ml-1 font-semibold">{item.title}</span>
+        </div>
+      </AccordionTrigger>
+      <AccordionContent className="prose prose-slate dark:prose-invert max-w-full">
+        <MagicDownView>{item.reasoning}</MagicDownView>
+      </AccordionContent>
+    </AccordionItem>
+  );
+}
+
 function SearchResult() {
   const { t } = useTranslation();
   const taskStore = useTaskStore();
@@ -98,10 +117,12 @@ function SearchResult() {
   const [originalTasks, setOriginalTasks] = useState<Record<string, SearchTask>>({});
 
   const isThinkingDeeper = useMemo(() => {
-    return isThinking && taskStore.thinkingProcess !== "";
-  }, [isThinking, taskStore.thinkingProcess]);
+    return isThinking && !taskStore.tasks.some(t => t.type === 'thinking' && t.depth > 0);
+  }, [isThinking, taskStore.tasks]);
   const unfinishedTasks = useMemo(() => {
-    return taskStore.tasks.filter((item) => item.state !== "completed");
+    return taskStore.tasks.filter(
+      (item): item is SearchTask => item.type === "search" && item.state !== "completed"
+    );
   }, [taskStore.tasks]);
   const taskFinished = useMemo(() => {
     return taskStore.tasks.length > 0 && unfinishedTasks.length === 0;
@@ -131,7 +152,7 @@ function SearchResult() {
       item.sources?.length > 0
         ? `#### ${t("research.common.sources")}\n\n${item.sources
           .map(
-            (source, idx) =>
+            (source: Source, idx: number) =>
               `${idx + 1}. [${source.title || source.url}][${idx + 1}]`
           )
           .join("\n")}`
@@ -244,6 +265,10 @@ function SearchResult() {
         <div>
           <Accordion className="mb-4" type="multiple">
             {taskStore.tasks.map((item) => {
+              if (item.type === "thinking") {
+                return <ThinkingBlock key={item.id} item={item} />;
+              }
+
               const isEditing = editingTaskId === item.id;
               return (
                 <AccordionItem key={item.id} value={item.id}>
@@ -376,7 +401,7 @@ function SearchResult() {
                         <hr className="my-6" />
                         <h4>{t("research.common.sources")}</h4>
                         <ol>
-                          {item.sources.map((source, idx) => {
+                          {item.sources.map((source: Source, idx: number) => {
                             return (
                               <li className="ml-2" key={idx}>
                                 <a href={source.url} target="_blank">
@@ -399,9 +424,6 @@ function SearchResult() {
                 <LoaderCircle className="animate-spin mr-2" />
                 Deeper Research in Progress...
               </h4>
-              <div className="prose prose-sm dark:prose-invert max-w-full mt-2">
-                <MagicDownView>{taskStore.thinkingProcess}</MagicDownView>
-              </div>
             </div>
           )}
           <Form {...form}>

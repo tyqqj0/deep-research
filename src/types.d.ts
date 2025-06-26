@@ -36,8 +36,17 @@ interface Source {
   images?: ImageSource[];
 }
 
+interface ThinkingTask {
+  id: string;
+  type: "thinking";
+  depth: number;
+  title: string;
+  reasoning: string;
+}
+
 interface SearchTask {
   id: string;
+  type: "search";
   state:
   | "unprocessed"
   | "processing"
@@ -54,6 +63,8 @@ interface SearchTask {
   depth: number;
   timerId?: NodeJS.Timeout;
 }
+
+export type ResearchItem = ThinkingTask | SearchTask;
 
 interface PartialJson {
   value: JSONValue | undefined;

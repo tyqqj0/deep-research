@@ -33,6 +33,14 @@ import { parseError } from "@/utils/error";
 import { pick, flat, unique } from "radash";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import type {
+  SearchTask,
+  ThinkingTask,
+  Knowledge,
+  Source,
+  ImageSource,
+  PartialJson,
+} from "@/types";
 
 type ProviderOptions = Record<string, Record<string, JSONValue>>;
 type Tools = Record<string, Tool>;
@@ -502,19 +510,15 @@ function useDeepResearch() {
   }
 
   async function runDeeperResearch() {
-    const { tasks, maxDepth, updateThinkingProcess } = useTaskStore.getState();
+    const { tasks, maxDepth, addTasks } = useTaskStore.getState();
     let currentDepth = tasks.length > 0 ? Math.max(...tasks.map((t) => t.depth)) : 0;
     const { thinkingModel } = getModel();
 
     while (currentDepth < maxDepth) {
       setStatus(t("research.common.deeperResearch"));
       const learningsAtCurrentDepth = tasks
-        .filter((t) => t.depth === currentDepth)
+        .filter((t): t is SearchTask => t.type === "search" && t.depth === currentDepth)
         .map((t) => t.learning);
-
-      updateThinkingProcess(
-        `Synthesizing findings at depth ${currentDepth}...`
-      );
 
       const result = streamText({
         model: await createModelProvider(thinkingModel),
@@ -528,8 +532,10 @@ function useDeepResearch() {
 
       const deepStepSchema = getDeepStepSchema();
       let content = "";
-      let reasoning = "";
-      let deepStepResult: { query: string; reasoning: string } | undefined;
+      let deepStepResult: {
+        reasoning: string;
+        queries: { query: string; title: string; researchGoal: string }[];
+      } | undefined;
 
       for await (const textPart of result.textStream) {
         content += textPart;
@@ -539,9 +545,6 @@ function useDeepResearch() {
           (data.state === "repaired-parse" || data.state === "successful-parse")
         ) {
           deepStepResult = data.value;
-          if (deepStepResult) {
-            updateThinkingProcess(deepStepResult.reasoning);
-          }
         }
       }
 
@@ -550,30 +553,33 @@ function useDeepResearch() {
         break; // Exit loop if AI fails
       }
 
-      const finalDeepStepResult = deepStepResult; // Create a new, non-undefined variable
-
-      const newDeepTask: SearchTask = {
+      const thinkingTask: ThinkingTask = {
         id: nanoid(),
-        query: finalDeepStepResult.query,
-        title: `Deep Dive: ${finalDeepStepResult.query}`,
-        researchGoal: finalDeepStepResult.reasoning,
-        state: "unprocessed",
+        type: 'thinking',
         depth: currentDepth + 1,
-        learning: "",
-        sources: [],
-        images: [],
+        title: `Decision process for Depth ${currentDepth + 1}`,
+        reasoning: deepStepResult.reasoning,
       };
 
-      // Add the new task and run it
-      const currentTasks = useTaskStore.getState().tasks;
-      taskStore.update([...currentTasks, newDeepTask]);
-      await runSearchTask([newDeepTask]);
+      const newSearchTasks: SearchTask[] = deepStepResult.queries.map(q => ({
+        ...q,
+        id: nanoid(),
+        type: 'search',
+        depth: currentDepth + 1,
+        state: 'unprocessed',
+        learning: '',
+        sources: [],
+        images: [],
+      }));
+
+      // Add the new tasks and run them
+      addTasks([thinkingTask, ...newSearchTasks]);
+      await runSearchTask(newSearchTasks);
 
       // Move to the next depth level
       currentDepth++;
     }
 
-    updateThinkingProcess(""); // Clear thinking process
     setStatus(t("research.common.researchCompleted"));
   }
 

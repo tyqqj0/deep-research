@@ -1,5 +1,6 @@
 import { z } from "zod";
 import zodToJsonSchema from "zod-to-json-schema";
+import type { Source, Knowledge, ImageSource } from "@/types";
 import {
   systemInstruction,
   systemQuestionPrompt,
@@ -38,14 +39,16 @@ export function getSERPQuerySchema() {
 }
 
 export function getDeepStepSchema() {
-  return z.object({
-    reasoning: z
-      .string()
-      .describe(
-        "First, write a detailed summary and synthesis of the findings from the previous step. What are the key takeaways? What are the contradictions or unanswered questions? Then, based on your synthesis, strategize and determine the single most critical and logical next step to deepen this research."
-      ),
-    query: z.string().describe("The single, highly specific SERP query that will accomplish this next step."),
-  }).required({ reasoning: true, query: true });
+  return z
+    .object({
+      reasoning: z
+        .string()
+        .describe(
+          "A detailed summary and synthesis of the findings from the previous step, including key takeaways, contradictions, or unanswered questions. This reasoning should justify the new set of queries."
+        ),
+      queries: getSERPQuerySchema(),
+    })
+    .required({ reasoning: true, queries: true });
 }
 
 export function getSERPQueryOutputSchema() {
@@ -137,12 +140,12 @@ export function planNextDeepStepPrompt(learning: string[]) {
     (detail) => `<learning>\n${detail}\n</learning>`
   );
   // This is a placeholder for a new, more sophisticated prompt.
-  const deepStepPrompt = `You are an expert researcher. Below are the research findings from the previous step.
-1. **Synthesize**: First, write a detailed summary and synthesis of these findings. What are the key takeaways? What are the contradictions or unanswered questions?
-2. **Strategize**: Based on your synthesis, determine the single most critical and logical next step to deepen this research.
-3. **Formulate**: Generate a single, highly specific search query that will accomplish this next step.
+  const deepStepPrompt = `You are an expert researcher. Below are the research findings from the previous step. Your goal is to plan the next step of the research by digging deeper.
 
-Respond in the JSON format described in the following schema:
+1.  **Synthesize**: First, write a detailed summary and synthesis of these findings. What are the key takeaways? What are the contradictions or unanswered questions? This will be your reasoning.
+2.  **Strategize & Formulate**: Based on your synthesis, generate a list of 2-3 new, parallel SERP queries to explore different facets of the topic at a greater depth. For each query, provide a short, user-friendly title and a detailed research goal.
+
+Respond in the JSON format described in the following schema. The 'reasoning' should be your synthesis, and the 'queries' should be the list of new search tasks.
 {outputSchema}`;
 
   return deepStepPrompt

@@ -12,7 +12,7 @@ export interface TaskStore {
   feedback: string;
   reportPlan: string;
   suggestion: string;
-  tasks: SearchTask[];
+  tasks: ResearchItem[];
   requirement: string;
   title: string;
   finalReport: string;
@@ -20,20 +20,17 @@ export interface TaskStore {
   images: ImageSource[];
   knowledgeGraph: string;
   maxDepth: number;
-  thinkingProcess: string;
 }
 
 interface TaskFunction {
-  update: (tasks: SearchTask[]) => void;
+  update: (tasks: ResearchItem[]) => void;
   setId: (id: string) => void;
   setTitle: (title: string) => void;
   setSuggestion: (suggestion: string) => void;
   setRequirement: (requirement: string) => void;
   setQuery: (query: string) => void;
-  addTask: (
-    task: Omit<SearchTask, "id" | "state" | "learning" | "sources" | "images">
-  ) => SearchTask;
-  updateTask: (id: string, task: Partial<SearchTask>) => void;
+  addTasks: (tasks: ResearchItem[]) => void;
+  updateTask: (id: string, task: Partial<SearchTask | ThinkingTask>) => void;
   removeTask: (id: string) => boolean;
   setQuestion: (question: string) => void;
   addResource: (resource: Resource) => void;
@@ -47,10 +44,9 @@ interface TaskFunction {
   setFeedback: (feedback: string) => void;
   updateKnowledgeGraph: (knowledgeGraph: string) => void;
   setMaxDepth: (depth: number) => void;
-  updateThinkingProcess: (text: string) => void;
   clear: () => void;
   reset: () => void;
-  backup: () => TaskStore;
+  backup: () => Omit<TaskStore, "thinkingProcess">;
   restore: (taskStore: TaskStore) => void;
 }
 
@@ -71,7 +67,6 @@ const defaultValues: TaskStore = {
   images: [],
   knowledgeGraph: "",
   maxDepth: 3,
-  thinkingProcess: "",
 };
 
 export const useTaskStore = create(
@@ -84,17 +79,8 @@ export const useTaskStore = create(
       setSuggestion: (suggestion) => set(() => ({ suggestion })),
       setRequirement: (requirement) => set(() => ({ requirement })),
       setQuery: (query) => set(() => ({ query })),
-      addTask: (task) => {
-        const newTask: SearchTask = {
-          ...task,
-          id: nanoid(),
-          state: "unprocessed",
-          learning: "",
-          sources: [],
-          images: [],
-        };
-        set((state) => ({ tasks: [...state.tasks, newTask] }));
-        return newTask;
+      addTasks: (tasks) => {
+        set((state) => ({ tasks: [...state.tasks, ...tasks] }));
       },
       updateTask: (id, task) => {
         const newTasks = get().tasks.map((item) => {
@@ -134,12 +120,12 @@ export const useTaskStore = create(
       setFeedback: (feedback) => set(() => ({ feedback })),
       updateKnowledgeGraph: (knowledgeGraph) => set(() => ({ knowledgeGraph })),
       setMaxDepth: (depth) => set(() => ({ maxDepth: depth })),
-      updateThinkingProcess: (text) => set(() => ({ thinkingProcess: text })),
       clear: () => set(() => ({ tasks: [] })),
       reset: () => set(() => ({ ...defaultValues })),
       backup: () => {
+        const { thinkingProcess, ...rest } = get();
         return {
-          ...pick(get(), Object.keys(defaultValues) as (keyof TaskStore)[]),
+          ...pick(rest, Object.keys(defaultValues) as (keyof TaskStore)[]),
         } as TaskStore;
       },
       restore: (taskStore) => set(() => ({ ...taskStore })),
