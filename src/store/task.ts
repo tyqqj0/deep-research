@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { pick } from "radash";
+import { nanoid } from "nanoid";
 
 export interface TaskStore {
   id: string;
@@ -18,6 +19,8 @@ export interface TaskStore {
   sources: Source[];
   images: ImageSource[];
   knowledgeGraph: string;
+  maxDepth: number;
+  thinkingProcess: string;
 }
 
 interface TaskFunction {
@@ -27,8 +30,11 @@ interface TaskFunction {
   setSuggestion: (suggestion: string) => void;
   setRequirement: (requirement: string) => void;
   setQuery: (query: string) => void;
-  updateTask: (query: string, task: Partial<SearchTask>) => void;
-  removeTask: (query: string) => boolean;
+  addTask: (
+    task: Omit<SearchTask, "id" | "state" | "learning" | "sources" | "images">
+  ) => SearchTask;
+  updateTask: (id: string, task: Partial<SearchTask>) => void;
+  removeTask: (id: string) => boolean;
   setQuestion: (question: string) => void;
   addResource: (resource: Resource) => void;
   updateResource: (id: string, resource: Partial<Resource>) => void;
@@ -40,6 +46,8 @@ interface TaskFunction {
   setImages: (images: Source[]) => void;
   setFeedback: (feedback: string) => void;
   updateKnowledgeGraph: (knowledgeGraph: string) => void;
+  setMaxDepth: (depth: number) => void;
+  updateThinkingProcess: (text: string) => void;
   clear: () => void;
   reset: () => void;
   backup: () => TaskStore;
@@ -62,6 +70,8 @@ const defaultValues: TaskStore = {
   sources: [],
   images: [],
   knowledgeGraph: "",
+  maxDepth: 3,
+  thinkingProcess: "",
 };
 
 export const useTaskStore = create(
@@ -74,15 +84,30 @@ export const useTaskStore = create(
       setSuggestion: (suggestion) => set(() => ({ suggestion })),
       setRequirement: (requirement) => set(() => ({ requirement })),
       setQuery: (query) => set(() => ({ query })),
-      updateTask: (query, task) => {
+      addTask: (task) => {
+        const newTask: SearchTask = {
+          ...task,
+          id: nanoid(),
+          state: "unprocessed",
+          learning: "",
+          sources: [],
+          images: [],
+        };
+        set((state) => ({ tasks: [...state.tasks, newTask] }));
+        return newTask;
+      },
+      updateTask: (id, task) => {
         const newTasks = get().tasks.map((item) => {
-          return item.query === query ? { ...item, ...task } : item;
+          if (item.id === id) {
+            return { ...item, ...task };
+          }
+          return item;
         });
         set(() => ({ tasks: [...newTasks] }));
       },
-      removeTask: (query) => {
+      removeTask: (id) => {
         set((state) => ({
-          tasks: state.tasks.filter((task) => task.query !== query),
+          tasks: state.tasks.filter((task) => task.id !== id),
         }));
         return true;
       },
@@ -108,6 +133,8 @@ export const useTaskStore = create(
       setImages: (images) => set(() => ({ images })),
       setFeedback: (feedback) => set(() => ({ feedback })),
       updateKnowledgeGraph: (knowledgeGraph) => set(() => ({ knowledgeGraph })),
+      setMaxDepth: (depth) => set(() => ({ maxDepth: depth })),
+      updateThinkingProcess: (text) => set(() => ({ thinkingProcess: text })),
       clear: () => set(() => ({ tasks: [] })),
       reset: () => set(() => ({ ...defaultValues })),
       backup: () => {

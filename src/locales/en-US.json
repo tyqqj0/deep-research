@@ -29,7 +29,9 @@
       "save": "Save",
       "copy": "Copy",
       "export": "Export",
-      "delete": "Delete"
+      "delete": "Delete",
+      "widerResearch": "Wider Research",
+      "deeperResearch": "Deeper Research"
     },
     "topic": {
       "title": "1. Research Topics",

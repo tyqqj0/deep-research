@@ -24,12 +24,14 @@
       "newResearch": "Nueva Investigación",
       "addToKnowledgeBase": "Añadir a la Base de Conocimiento",
       "addToKnowledgeBaseTip": "Añadido a la Base de Conocimiento",
-      "restudy": "Reestudiar",
+      "restudy": "Re-estudiar",
       "edit": "Editar",
       "save": "Guardar",
       "copy": "Copiar",
       "export": "Exportar",
-      "delete": "Eliminar"
+      "delete": "Eliminar",
+      "widerResearch": "Investigación más Amplia",
+      "deeperResearch": "Investigación más Profunda"
     },
     "topic": {
       "title": "1. Definición de la investigación",

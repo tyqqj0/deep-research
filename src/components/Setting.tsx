@@ -2906,7 +2906,7 @@ function Setting({ open, onClose }: SettingProps) {
                               </SelectItem>
                             ) : null}
                             {!isDisabledSearchProvider("exa") &&
-                            mode === "proxy" ? (
+                              mode === "proxy" ? (
                               <SelectItem value="exa">Exa</SelectItem>
                             ) : null}
                             {!isDisabledSearchProvider("bocha") ? (
@@ -3001,13 +3001,10 @@ function Setting({ open, onClose }: SettingProps) {
                       )}
                     />
                     <Accordion type="single" collapsible className="w-full">
-                      <AccordionItem value="advanced-settings">
-                        <AccordionTrigger>{t("setting.advancedSettings.title")}</AccordionTrigger>
+                      <AccordionItem value="domain-settings">
+                        <AccordionTrigger>{t("setting.domainLimit.title")}</AccordionTrigger>
                         <AccordionContent>
                           <div className="space-y-4 rounded-md border p-4">
-                            <h4 className="text-sm font-medium">
-                              {t("setting.domainLimit.title")}
-                            </h4>
                             <Tabs
                               defaultValue={
                                 Object.keys(PREDEFINED_DOMAINS).length > 0
@@ -3050,15 +3047,15 @@ function Setting({ open, onClose }: SettingProps) {
                                                   ) => {
                                                     return checked
                                                       ? field.onChange([
-                                                          ...(field.value || []),
-                                                          domain,
-                                                        ])
+                                                        ...(field.value || []),
+                                                        domain,
+                                                      ])
                                                       : field.onChange(
-                                                          field.value?.filter(
-                                                            (value) =>
-                                                              value !== domain
-                                                          )
-                                                        );
+                                                        field.value?.filter(
+                                                          (value) =>
+                                                            value !== domain
+                                                        )
+                                                      );
                                                   }}
                                                 />
                                               </FormControl>
@@ -3126,6 +3123,71 @@ function Setting({ open, onClose }: SettingProps) {
                                 />
                               </TabsContent>
                             </Tabs>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                      
+                      {/* <AccordionItem value="academic-settings">
+                        <AccordionTrigger>{t("setting.advancedSettings.title")}</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-4 rounded-md border p-4">
+                            {}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem> */}
+                      
+                      <AccordionItem value="task-settings">
+                        <AccordionTrigger>{t("setting.enableTaskWaitingTime")}</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-4 rounded-md border p-4">
+                            <FormField
+                              control={form.control}
+                              name="enableTaskWaitingTime"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                  <div className="space-y-0.5">
+                                    <FormLabel className="text-base">
+                                      {t("setting.enableTaskWaitingTime")}
+                                    </FormLabel>
+                                  </div>
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="taskWaitingTime"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <Label>
+                                    {t("setting.taskWaitingTime")}
+                                  </Label>
+                                  <div className="flex items-center">
+                                    <Slider
+                                      className="w-10/12"
+                                      disabled={!form.watch("enableTaskWaitingTime")}
+                                      value={[field.value]}
+                                      onValueChange={(value) => field.onChange(value[0])}
+                                      min={0}
+                                      max={120}
+                                      step={1}
+                                    />
+                                    <Input
+                                      className="ml-4 w-2/12"
+                                      type="number"
+                                      disabled={!form.watch("enableTaskWaitingTime")}
+                                      value={field.value}
+                                      onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
+                                    />
+                                  </div>
+                                </FormItem>
+                              )}
+                            />
                           </div>
                         </AccordionContent>
                       </AccordionItem>

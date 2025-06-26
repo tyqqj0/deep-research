@@ -17,19 +17,22 @@
       "continueResearch": "继续研究",
       "indepthResearch": "进一步研究",
       "rewriteReport": "重写报告",
-      "sources": "资料来源",
+      "sources": "参考文献",
       "thinking": "思考中...",
       "research": "研究中...",
       "writing": "撰写中...",
       "newResearch": "开始新研究",
       "addToKnowledgeBase": "添加到知识库",
-      "addToKnowledgeBaseTip": "已添加到知识库",
+      "addToKnowledgeBaseTip": "已成功添加到知识库",
       "restudy": "重新研究",
       "edit": "编辑",
       "save": "保存",
       "copy": "复制",
       "export": "导出",
-      "delete": "删除"
+      "delete": "删除",
+      "widerResearch": "扩展研究广度",
+      "deeperResearch": "深入研究",
+      "startNow": "立即开始"
     },
     "topic": {
       "title": "1. 研究方向",
@@ -331,6 +334,8 @@
     "advancedSettings": {
       "title": "高级设置"
     },
+    "enableTaskWaitingTime": "启用任务等待",
+    "taskWaitingTime": "任务等待时间 (秒)",
     "domainLimit": {
       "title": "指定搜索网站 (留空则搜索所有网站)",
       "groups": {

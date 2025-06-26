@@ -37,13 +37,22 @@ interface Source {
 }
 
 interface SearchTask {
-  state: "unprocessed" | "processing" | "completed" | "failed";
+  id: string;
+  state:
+  | "unprocessed"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "waiting"
+  | "cancelled";
   query: string;
   title: string;
   researchGoal: string;
   learning: string;
   sources: Source[];
   images: ImageSource[];
+  depth: number;
+  timerId?: NodeJS.Timeout;
 }
 
 interface PartialJson {

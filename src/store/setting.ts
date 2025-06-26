@@ -80,6 +80,8 @@ export interface SettingStore {
       domains: DomainLimit;
     };
   };
+  enableTaskWaitingTime: boolean;
+  taskWaitingTime: number;
 }
 
 interface SettingFunction {
@@ -164,6 +166,8 @@ export const defaultValues: SettingStore = {
       },
     },
   },
+  enableTaskWaitingTime: false,
+  taskWaitingTime: 10,
 };
 
 export const useSettingStore = create(

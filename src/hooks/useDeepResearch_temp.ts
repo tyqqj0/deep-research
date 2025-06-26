@@ -24,19 +24,14 @@ import {
   reviewSerpQueriesPrompt,
   writeFinalReportPrompt,
   getSERPQuerySchema,
-  planNextDeepStepPrompt,
-  getDeepStepSchema,
 } from "@/utils/deep-research/prompts";
 import { isNetworkingModel } from "@/utils/model";
 import { ThinkTagStreamProcessor, removeJsonMarkdown } from "@/utils/text";
 import { parseError } from "@/utils/error";
 import { pick, flat, unique } from "radash";
-import { nanoid } from "nanoid";
 
 type ProviderOptions = Record<string, Record<string, JSONValue>>;
 type Tools = Record<string, Tool>;
-
-// const taskControllers = new Map<string, AbortController>();
 
 function getResponseLanguagePrompt() {
   return `\n\n**Respond in the same language as the user's language**`;
@@ -125,7 +120,7 @@ function useDeepResearch() {
     return content;
   }
 
-  async function searchLocalKnowledges(task: SearchTask) {
+  async function searchLocalKnowledges(query: string, researchGoal: string) {
     const { resources } = useTaskStore.getState();
     const knowledgeStore = useKnowledgeStore.getState();
     const knowledges: Knowledge[] = [];
@@ -145,7 +140,7 @@ function useDeepResearch() {
       model: await createModelProvider(networkingModel),
       system: getSystemPrompt(),
       prompt: [
-        processSearchKnowledgeResultPrompt(task.query, task.researchGoal, knowledges),
+        processSearchKnowledgeResultPrompt(query, researchGoal, knowledges),
         getResponseLanguagePrompt(),
       ].join("\n\n"),
       onError: handleError,
@@ -158,7 +153,7 @@ function useDeepResearch() {
           part.textDelta,
           (data) => {
             content += data;
-            taskStore.updateTask(task.id, { learning: content });
+            taskStore.updateTask(query, { learning: content });
           },
           (data) => {
             reasoning += data;
@@ -180,10 +175,8 @@ function useDeepResearch() {
       parallelSearch,
       searchMaxResult,
       references,
-      enableTaskWaitingTime,
-      taskWaitingTime,
     } = useSettingStore.getState();
-    const { resources, updateTask } = useTaskStore.getState();
+    const { resources } = useTaskStore.getState();
     const { networkingModel } = getModel();
     setStatus(t("research.common.research"));
     const plimit = Plimit(parallelSearch);
@@ -252,180 +245,154 @@ function useDeepResearch() {
     await Promise.all(
       queries.map((item) => {
         plimit(async () => {
-          if (enableTaskWaitingTime) {
-            updateTask(item.id, { state: "waiting" });
-            const timerId = setTimeout(() => {
-              startExecution(item);
-            }, taskWaitingTime * 1000);
-            updateTask(item.id, { timerId });
-          } else {
-            startExecution(item);
+          let content = "";
+          let reasoning = "";
+          let searchResult;
+          let sources: Source[] = [];
+          let images: ImageSource[] = [];
+          taskStore.updateTask(item.query, { state: "processing" });
+          if (resources.length > 0) {
+            const knowledges = await searchLocalKnowledges(
+              item.query,
+              item.researchGoal
+            );
+            content += [
+              knowledges,
+              `### ${t("research.searchResult.references")}`,
+              resources.map((item) => `- ${item.name}`).join("\n"),
+              "---",
+              "",
+            ].join("\n\n");
           }
-        });
-      })
-    );
+          if (enableSearch) {
+            if (searchProvider !== "model") {
+              try {
+                const results = await search(item.query);
+                sources = results.sources;
+                images = results.images;
 
-    async function startExecution(item: SearchTask) {
-      let content = "";
-      let reasoning = "";
-      let searchResult;
-      let sources: Source[] = [];
-      let images: ImageSource[] = [];
-
-      // const controller = new AbortController();
-      // taskControllers.set(item.id, controller);
-
-      try {
-        updateTask(item.id, { state: "processing" });
-        if (resources.length > 0) {
-          const knowledges = await searchLocalKnowledges(
-            item
-          );
-          content += [
-            knowledges,
-            `### ${t("research.searchResult.references")}`,
-            resources.map((item) => `- ${item.name}`).join("\n"),
-            "---",
-            "",
-          ].join("\n\n");
-        }
-        if (enableSearch) {
-          if (searchProvider !== "model") {
-            try {
-              const results = await search(item.query);
-              sources = results.sources;
-              images = results.images;
-
-              if (sources.length === 0) {
-                throw new Error("Invalid Search Results");
+                if (sources.length === 0) {
+                  throw new Error("Invalid Search Results");
+                }
+              } catch (err) {
+                console.error(err);
+                handleError(
+                  `[${searchProvider}]: ${err instanceof Error ? err.message : "Search Failed"
+                  }`
+                );
+                return plimit.clearQueue();
               }
-            } catch (err) {
-              console.error(err);
-              handleError(
-                `[${searchProvider}]: ${err instanceof Error ? err.message : "Search Failed"
-                }`
-              );
-              return plimit.clearQueue();
+              const enableReferences =
+                sources.length > 0 && references === "enable";
+              searchResult = streamText({
+                model: await createModel(networkingModel),
+                system: getSystemPrompt(),
+                prompt: [
+                  processSearchResultPrompt(
+                    item.query,
+                    item.researchGoal,
+                    sources,
+                    enableReferences
+                  ),
+                  getResponseLanguagePrompt(),
+                ].join("\n\n"),
+                onError: handleError,
+              });
+            } else {
+              searchResult = streamText({
+                model: await createModel(networkingModel),
+                system: getSystemPrompt(),
+                prompt: [
+                  processResultPrompt(item.query, item.researchGoal),
+                  getResponseLanguagePrompt(),
+                ].join("\n\n"),
+                tools: getTools(networkingModel),
+                providerOptions: getProviderOptions(networkingModel),
+                onError: handleError,
+              });
             }
-            const enableReferences =
-              sources.length > 0 && references === "enable";
-            searchResult = streamText({
-              model: await createModel(networkingModel),
-              system: getSystemPrompt(),
-              prompt: [
-                processSearchResultPrompt(
-                  item.query,
-                  item.researchGoal,
-                  sources,
-                  enableReferences
-                ),
-                getResponseLanguagePrompt(),
-              ].join("\n\n"),
-              // signal: controller.signal,
-              onError: handleError,
-            });
           } else {
             searchResult = streamText({
-              model: await createModel(networkingModel),
+              model: await createModelProvider(networkingModel),
               system: getSystemPrompt(),
               prompt: [
                 processResultPrompt(item.query, item.researchGoal),
                 getResponseLanguagePrompt(),
               ].join("\n\n"),
-              tools: getTools(networkingModel),
-              providerOptions: getProviderOptions(networkingModel),
-              // signal: controller.signal,
-              onError: handleError,
+              onError: (err) => {
+                taskStore.updateTask(item.query, { state: "failed" });
+                handleError(err);
+              },
             });
           }
-        } else {
-          searchResult = streamText({
-            model: await createModelProvider(networkingModel),
-            system: getSystemPrompt(),
-            prompt: [
-              processResultPrompt(item.query, item.researchGoal),
-              getResponseLanguagePrompt(),
-            ].join("\n\n"),
-            // signal: controller.signal,
-            onError: (err: any) => {
-              updateTask(item.id, { state: "failed" });
-              handleError(err);
-            },
-          });
-        }
-        for await (const part of searchResult.fullStream) {
-          // if (controller.signal.aborted) {
-          //   updateTask(item.id, { state: "cancelled" });
-          //   break;
-          // }
-          if (part.type === "text-delta") {
-            thinkTagStreamProcessor.processChunk(
-              part.textDelta,
-              (data) => {
-                content += data;
-                updateTask(item.id, { learning: content });
-              },
-              (data) => {
-                reasoning += data;
-              }
-            );
-          } else if (part.type === "reasoning") {
-            reasoning += part.textDelta;
-          } else if (part.type === "source") {
-            sources.push(part.source);
-          } else if (part.type === "finish") {
-            if (part.providerMetadata?.google) {
-              const { groundingMetadata } = part.providerMetadata.google;
-              const googleGroundingMetadata =
-                groundingMetadata as GoogleGenerativeAIProviderMetadata["groundingMetadata"];
-              if (googleGroundingMetadata?.groundingSupports) {
-                googleGroundingMetadata.groundingSupports.forEach(
-                  ({ segment, groundingChunkIndices }) => {
-                    if (segment.text && groundingChunkIndices) {
-                      const index = groundingChunkIndices.map(
-                        (idx: number) => `[${idx + 1}]`
-                      );
-                      content = content.replaceAll(
-                        segment.text,
-                        `${segment.text}${index.join("")}`
-                      );
+          for await (const part of searchResult.fullStream) {
+            if (part.type === "text-delta") {
+              thinkTagStreamProcessor.processChunk(
+                part.textDelta,
+                (data) => {
+                  content += data;
+                  taskStore.updateTask(item.query, { learning: content });
+                },
+                (data) => {
+                  reasoning += data;
+                }
+              );
+            } else if (part.type === "reasoning") {
+              reasoning += part.textDelta;
+            } else if (part.type === "source") {
+              sources.push(part.source);
+            } else if (part.type === "finish") {
+              if (part.providerMetadata?.google) {
+                const { groundingMetadata } = part.providerMetadata.google;
+                const googleGroundingMetadata =
+                  groundingMetadata as GoogleGenerativeAIProviderMetadata["groundingMetadata"];
+                if (googleGroundingMetadata?.groundingSupports) {
+                  googleGroundingMetadata.groundingSupports.forEach(
+                    ({ segment, groundingChunkIndices }) => {
+                      if (segment.text && groundingChunkIndices) {
+                        const index = groundingChunkIndices.map(
+                          (idx: number) => `[${idx + 1}]`
+                        );
+                        content = content.replaceAll(
+                          segment.text,
+                          `${segment.text}${index.join("")}`
+                        );
+                      }
                     }
-                  }
-                );
+                  );
+                }
+              } else if (part.providerMetadata?.openai) {
+                // Fixed the problem that OpenAI cannot generate markdown reference link syntax properly in Chinese context
+                content = content.replaceAll("【", "[").replaceAll("】", "]");
               }
-            } else if (part.providerMetadata?.openai) {
-              // Fixed the problem that OpenAI cannot generate markdown reference link syntax properly in Chinese context
-              content = content.replaceAll("【", "[").replaceAll("】", "]");
             }
           }
-        }
-        if (reasoning) console.log(reasoning);
+          if (reasoning) console.log(reasoning);
 
-        if (sources.length > 0) {
-          content +=
-            "\n\n" +
-            sources
-              .map(
-                (item, idx) =>
-                  `[${idx + 1}]: ${item.url}${item.title ? ` "${item.title.replaceAll('"', " ")}"` : ""
-                  }`
-              )
-              .join("\n");
-        }
-        updateTask(item.id, {
-          state: "completed",
-          learning: content,
-          sources,
-          images,
+          if (sources.length > 0) {
+            content +=
+              "\n\n" +
+              sources
+                .map(
+                  (item, idx) =>
+                    `[${idx + 1}]: ${item.url}${item.title ? ` "${item.title.replaceAll('"', " ")}"` : ""
+                    }`
+                )
+                .join("\n");
+          }
+          taskStore.updateTask(item.query, {
+            state: "completed",
+            learning: content,
+            sources,
+            images,
+          });
+          return content;
         });
-        return content;
-      } finally {
-        // taskControllers.delete(item.id);
-      }
-    }
+      })
+    );
   }
 
-  async function runWiderResearch() {
+  async function reviewSearchResult() {
     const { reportPlan, tasks, suggestion } = useTaskStore.getState();
     const { thinkingModel } = getModel();
     setStatus(t("research.common.research"));
@@ -494,86 +461,9 @@ function useDeepResearch() {
     }
     if (reasoning) console.log(reasoning);
     if (queries.length > 0) {
-      const newTasks = queries.map(q => ({ ...q, id: nanoid() }))
-      taskStore.update([...tasks, ...newTasks]);
-      await runSearchTask(newTasks);
+      taskStore.update([...tasks, ...queries]);
+      await runSearchTask(queries);
     }
-  }
-
-  async function runDeeperResearch() {
-    const { tasks, maxDepth, updateThinkingProcess } = useTaskStore.getState();
-    let currentDepth = tasks.length > 0 ? Math.max(...tasks.map((t) => t.depth)) : 0;
-    const { thinkingModel } = getModel();
-
-    while (currentDepth < maxDepth) {
-      setStatus(t("research.common.deeperResearch"));
-      const learningsAtCurrentDepth = tasks
-        .filter((t) => t.depth === currentDepth)
-        .map((t) => t.learning);
-
-      updateThinkingProcess(
-        `Synthesizing findings at depth ${currentDepth}...`
-      );
-
-      const result = streamText({
-        model: await createModelProvider(thinkingModel),
-        system: getSystemPrompt(),
-        prompt: [
-          planNextDeepStepPrompt(learningsAtCurrentDepth),
-          getResponseLanguagePrompt(),
-        ].join("\n\n"),
-        onError: handleError,
-      });
-
-      const deepStepSchema = getDeepStepSchema();
-      let content = "";
-      let reasoning = "";
-      let deepStepResult: { query: string; reasoning: string } | undefined;
-
-      for await (const textPart of result.textStream) {
-        content += textPart;
-        const data: PartialJson = parsePartialJson(removeJsonMarkdown(content));
-        if (
-          deepStepSchema.safeParse(data.value) &&
-          (data.state === "repaired-parse" || data.state === "successful-parse")
-        ) {
-          deepStepResult = data.value;
-          if (deepStepResult) {
-            updateThinkingProcess(deepStepResult.reasoning);
-          }
-        }
-      }
-
-      if (!deepStepResult) {
-        toast.error("AI failed to determine the next step for deeper research.");
-        break; // Exit loop if AI fails
-      }
-
-      const finalDeepStepResult = deepStepResult; // Create a new, non-undefined variable
-
-      const newDeepTask: SearchTask = {
-        id: nanoid(),
-        query: finalDeepStepResult.query,
-        title: `Deep Dive: ${finalDeepStepResult.query}`,
-        researchGoal: finalDeepStepResult.reasoning,
-        state: "unprocessed",
-        depth: currentDepth + 1,
-        learning: "",
-        sources: [],
-        images: [],
-      };
-
-      // Add the new task and run it
-      const currentTasks = useTaskStore.getState().tasks;
-      taskStore.update([...currentTasks, newDeepTask]);
-      await runSearchTask([newDeepTask]);
-
-      // Move to the next depth level
-      currentDepth++;
-    }
-
-    updateThinkingProcess(""); // Clear thinking process
-    setStatus(t("research.common.researchCompleted"));
   }
 
   async function writeFinalReport() {
@@ -665,32 +555,6 @@ function useDeepResearch() {
     return content;
   }
 
-  async function cancelTask(taskId: string) {
-    const { updateTask, tasks } = useTaskStore.getState();
-    const task = tasks.find(t => t.id === taskId);
-
-    if (task?.timerId) {
-      clearTimeout(task.timerId);
-    }
-
-    // const controller = taskControllers.get(taskId);
-    // if (controller) {
-    //   controller.abort();
-    //   taskControllers.delete(taskId);
-    // }
-    updateTask(taskId, { state: "cancelled" });
-  }
-
-  async function rerunTask(taskId: string) {
-    const { tasks, updateTask } = useTaskStore.getState();
-    const task = tasks.find(t => t.id === taskId);
-    if (task) {
-      await cancelTask(taskId);
-      updateTask(taskId, { state: 'unprocessed', learning: '' });
-      await runSearchTask([task]);
-    }
-  }
-
   async function deepResearch() {
     const { reportPlan } = useTaskStore.getState();
     const { thinkingModel } = getModel();
@@ -741,7 +605,6 @@ function useDeepResearch() {
                         item.query;
 
                       return {
-                        id: nanoid(),
                         query: item.query,
                         researchGoal: researchGoal,
                         title: title,
@@ -749,11 +612,10 @@ function useDeepResearch() {
                         learning: "",
                         sources: [],
                         images: [],
-                        depth: 0,
                       };
                     }
                   );
-                  taskStore.update(queries.map(q => ({ ...q, id: nanoid() })));
+                  taskStore.update(queries);
                 }
               }
             }
@@ -776,11 +638,8 @@ function useDeepResearch() {
     askQuestions,
     writeReportPlan,
     runSearchTask,
-    runWiderResearch,
-    runDeeperResearch,
+    reviewSearchResult,
     writeFinalReport,
-    rerunTask,
-    cancelTask
   };
 }
 
