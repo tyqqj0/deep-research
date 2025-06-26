@@ -285,8 +285,8 @@ function useDeepResearch() {
       // taskControllers.set(item.id, controller);
 
       try {
-        updateTask(item.id, { state: "processing" });
         if (resources.length > 0) {
+          updateTask(item.id, { state: "processing" });
           const knowledges = await searchLocalKnowledges(
             item
           );
@@ -301,6 +301,7 @@ function useDeepResearch() {
         if (enableSearch) {
           if (searchProvider !== "model") {
             try {
+              updateTask(item.id, { state: "searching" });
               const results = await search(item.query);
               sources = results.sources;
               images = results.images;
@@ -318,6 +319,7 @@ function useDeepResearch() {
             }
             const enableReferences =
               sources.length > 0 && references === "enable";
+            updateTask(item.id, { state: "summarizing" });
             searchResult = streamText({
               model: await createModel(networkingModel),
               system: getSystemPrompt(),
@@ -334,6 +336,7 @@ function useDeepResearch() {
               onError: handleError,
             });
           } else {
+            updateTask(item.id, { state: "summarizing" });
             searchResult = streamText({
               model: await createModel(networkingModel),
               system: getSystemPrompt(),
@@ -348,6 +351,7 @@ function useDeepResearch() {
             });
           }
         } else {
+          updateTask(item.id, { state: "summarizing" });
           searchResult = streamText({
             model: await createModelProvider(networkingModel),
             system: getSystemPrompt(),
@@ -805,6 +809,84 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
     }
   }
 
+  async function regenerateSummary(taskId: string) {
+    const { tasks, updateTask } = useTaskStore.getState();
+    const { references } = useSettingStore.getState();
+    const { networkingModel } = getModel();
+
+    const task = tasks.find((t) => t.id === taskId);
+
+    if (!task || task.type !== "search") {
+      toast.error("Task not found or not a search task.");
+      return;
+    }
+
+    if (!task.sources || task.sources.length === 0) {
+      toast.error("No sources available to regenerate summary.");
+      return;
+    }
+
+    updateTask(taskId, { state: "summarizing", learning: "" });
+    setStatus(t("research.common.writing"));
+
+    const thinkTagStreamProcessor = new ThinkTagStreamProcessor();
+    let content = "";
+    let reasoning = "";
+    const enableReferences = task.sources.length > 0 && references === "enable";
+
+    try {
+      const searchResult = streamText({
+        model: await createModelProvider(networkingModel),
+        system: getSystemPrompt(),
+        prompt: [
+          processSearchResultPrompt(
+            task.query,
+            task.researchGoal,
+            task.sources,
+            enableReferences
+          ),
+          getResponseLanguagePrompt(),
+        ].join("\n\n"),
+        onError: handleError,
+      });
+
+      for await (const part of searchResult.fullStream) {
+        if (part.type === "text-delta") {
+          thinkTagStreamProcessor.processChunk(
+            part.textDelta,
+            (data) => {
+              content += data;
+              updateTask(task.id, { learning: content });
+            },
+            (data) => {
+              reasoning += part.textDelta;
+            }
+          );
+        } else if (part.type === "reasoning") {
+          reasoning += part.textDelta;
+        }
+      }
+      if (reasoning) console.log(reasoning);
+
+      if (task.sources.length > 0 && enableReferences) {
+        content +=
+          "\n\n" +
+          task.sources
+            .map(
+              (item: Source, idx: number) =>
+                `[${idx + 1}]: ${item.url}${item.title ? ` "${item.title.replaceAll('"', " ")}"` : ""
+                }`
+            )
+            .join("\n");
+      }
+
+      updateTask(taskId, { state: "completed", learning: content });
+    } catch (error) {
+      handleError(error);
+      updateTask(taskId, { state: "failed" });
+    }
+  }
+
   async function deepResearch() {
     const { reportPlan } = useTaskStore.getState();
     const { thinkingModel } = getModel();
@@ -867,7 +949,7 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
                       };
                     }
                   );
-                  taskStore.update(queries.map(q => ({ ...q, id: nanoid() })));
+                  taskStore.update(queries);
                 }
               }
             }
@@ -895,7 +977,8 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
     writeFinalReport,
     rerunTask,
     regenerateAndRerunTask,
-    cancelTask
+    cancelTask,
+    regenerateSummary,
   };
 }
 

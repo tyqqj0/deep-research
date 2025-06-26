@@ -32,7 +32,14 @@
       "delete": "删除",
       "widerResearch": "扩展研究广度",
       "deeperResearch": "深入研究",
-      "startNow": "立即开始"
+      "startNow": "立即开始",
+      "regenerateSummary": "重新摘要"
+    },
+    "status": {
+      "searching": "搜索中...",
+      "summarizing": "摘要中...",
+      "waiting": "等待中...",
+      "processing": "处理中..."
     },
     "topic": {
       "title": "1. 研究方向",

@@ -22,6 +22,7 @@ import {
   Pencil,
   Save,
   BrainCircuit,
+  FilePenLine,
 } from "lucide-react";
 import { Button } from "@/components/Internal/Button";
 import {
@@ -65,13 +66,19 @@ function addQuoteBeforeAllLine(text: string = "") {
 
 function TaskState({ state }: { state: SearchTask["state"] }) {
   if (state === "completed") {
-    return <CircleCheck className="h-5 w-5" />;
+    return <CircleCheck className="h-5 w-5 text-green-500" />;
   } else if (state === "processing") {
     return <LoaderCircle className="animate-spin h-5 w-5" />;
+  } else if (state === "searching") {
+    return <Search className="animate-pulse h-5 w-5 text-blue-500" />;
+  } else if (state === "summarizing") {
+    return <NotebookText className="animate-pulse h-5 w-5 text-blue-500" />;
   } else if (state === "waiting") {
-    return <Hourglass className="h-5 w-5" />;
+    return <Hourglass className="h-5 w-5 text-yellow-500" />;
   } else if (state === "cancelled") {
-    return <XCircle className="h-5 w-5" />;
+    return <XCircle className="h-5 w-5 text-gray-500" />;
+  } else if (state === "failed") {
+    return <XCircle className="h-5 w-5 text-red-500" />;
   } else {
     return <TextSearch className="h-5 w-5" />;
   }
@@ -105,6 +112,7 @@ function SearchResult() {
     regenerateAndRerunTask,
     rerunTask,
     cancelTask,
+    regenerateSummary,
   } = useDeepResearch();
   const { generateId } = useKnowledge();
   const {
@@ -273,9 +281,19 @@ function SearchResult() {
               return (
                 <AccordionItem key={item.id} value={item.id}>
                   <AccordionTrigger>
-                    <div className="flex">
+                    <div className="flex items-center">
                       <TaskState state={item.state} />
                       <span className="ml-1">{item.title}</span>
+                      {[
+                        "searching",
+                        "summarizing",
+                        "waiting",
+                        "processing",
+                      ].includes(item.state) && (
+                          <span className="ml-2 text-muted-foreground text-sm">
+                            ({t(`research.status.${item.state}`, '...')})
+                          </span>
+                        )}
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="prose prose-slate dark:prose-invert max-w-full min-h-20">
@@ -353,6 +371,19 @@ function SearchResult() {
                       >
                         <RotateCcw className="mr-1 h-4 w-4" />
                         {t("research.common.restudy")}
+                      </Button>
+                      <Button
+                        onClick={() => regenerateSummary(item.id)}
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          item.state !== "completed" ||
+                          !item.sources ||
+                          item.sources.length === 0
+                        }
+                      >
+                        <FilePenLine className="mr-1 h-4 w-4" />
+                        {t("research.common.regenerateSummary")}
                       </Button>
                       <Button
                         onClick={() => handleRemove(item.id)}

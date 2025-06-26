@@ -53,7 +53,9 @@ interface SearchTask {
   | "completed"
   | "failed"
   | "waiting"
-  | "cancelled";
+  | "cancelled"
+  | "searching"
+  | "summarizing";
   query: string;
   title: string;
   researchGoal: string;

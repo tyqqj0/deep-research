@@ -31,7 +31,15 @@
       "export": "Export",
       "delete": "Delete",
       "widerResearch": "Wider Research",
-      "deeperResearch": "Deeper Research"
+      "deeperResearch": "Deeper Research",
+      "startNow": "Start Now",
+      "regenerateSummary": "Re-summarize"
+    },
+    "status": {
+      "searching": "Searching...",
+      "summarizing": "Summarizing...",
+      "waiting": "Waiting...",
+      "processing": "Processing..."
     },
     "topic": {
       "title": "1. Research Topics",
