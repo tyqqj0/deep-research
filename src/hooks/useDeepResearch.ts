@@ -32,6 +32,7 @@ import { ThinkTagStreamProcessor, removeJsonMarkdown } from "@/utils/text";
 import { parseError } from "@/utils/error";
 import { pick, flat, unique } from "radash";
 import { nanoid } from "nanoid";
+import { z } from "zod";
 
 type ProviderOptions = Record<string, Record<string, JSONValue>>;
 type Tools = Record<string, Tool>;
@@ -666,7 +667,7 @@ function useDeepResearch() {
   }
 
   async function cancelTask(taskId: string) {
-    const { updateTask, tasks } = useTaskStore.getState();
+    const { updateTask, tasks, removeTask } = useTaskStore.getState();
     const task = tasks.find(t => t.id === taskId);
 
     if (task?.timerId) {
@@ -679,15 +680,122 @@ function useDeepResearch() {
     //   taskControllers.delete(taskId);
     // }
     updateTask(taskId, { state: "cancelled" });
+    setTimeout(() => removeTask(taskId), 300);
   }
 
   async function rerunTask(taskId: string) {
     const { tasks, updateTask } = useTaskStore.getState();
     const task = tasks.find(t => t.id === taskId);
     if (task) {
-      await cancelTask(taskId);
-      updateTask(taskId, { state: 'unprocessed', learning: '' });
-      await runSearchTask([task]);
+      // Manually cancel without deleting
+      if (task.timerId) {
+        clearTimeout(task.timerId);
+      }
+      // const controller = taskControllers.get(taskId);
+      // if (controller) {
+      //   controller.abort();
+      //   taskControllers.delete(taskId);
+      // }
+      const updatedTask = { ...task, state: 'unprocessed' as const, learning: '', sources: [], images: [] };
+      updateTask(taskId, { state: 'unprocessed', learning: '', timerId: undefined, sources: [], images: [] });
+      await runSearchTask([updatedTask]);
+    }
+  }
+
+  async function regenerateAndRerunTask(taskId: string) {
+    const { tasks, reportPlan, updateTask } = useTaskStore.getState();
+    const { thinkingModel } = getModel();
+
+    const taskToRegenerate = tasks.find((t) => t.id === taskId);
+    if (!taskToRegenerate) {
+      toast.error("Task not found.");
+      return;
+    }
+
+    // Cancel any pending execution first
+    if (taskToRegenerate.timerId) {
+      clearTimeout(taskToRegenerate.timerId);
+    }
+
+    updateTask(taskId, { state: "processing", learning: "" }); // Show immediate feedback
+    setStatus(t("research.common.thinking"));
+
+    const otherTasksLearnings = tasks
+      .filter((t) => t.id !== taskId && t.state === "completed")
+      .map((t) => `Topic: ${t.title}\n${t.learning}`)
+      .join("\n\n---\n\n");
+
+    const prompt = `You are a research assistant. The user has updated the topic for a research task. Your goal is to regenerate a specific, machine-friendly search query and a detailed research goal based on this new topic.
+Consider the original high-level research plan and the findings from other completed tasks for context.
+
+Original Research Plan:
+${reportPlan}
+
+Findings from other tasks:
+${otherTasksLearnings}
+
+The user has provided a new title for this task:
+New Title: ${taskToRegenerate.title}
+
+Based on the new title and the overall research context, generate a new search query and a new research goal. The search query should be optimized for a web search engine. The research goal should be a clear and concise paragraph outlining what information to find.
+
+Respond with a single JSON object with two keys: "query" and "researchGoal". Do not include any other text or markdown formatting.`;
+
+    try {
+      const result = await streamText({
+        model: await createModelProvider(thinkingModel),
+        system: getSystemPrompt(),
+        prompt: prompt,
+        onError: handleError,
+      });
+
+      const RegeneratedTaskSchema = z.object({
+        query: z
+          .string()
+          .describe("The new, specific, machine-friendly search query."),
+        researchGoal: z.string().describe("The new, detailed research goal."),
+      });
+
+      let content = "";
+      let regeneratedData:
+        | { query: string; researchGoal: string }
+        | undefined;
+
+      for await (const textPart of result.textStream) {
+        content += textPart;
+        const data: PartialJson = parsePartialJson(
+          removeJsonMarkdown(content)
+        );
+        if (
+          RegeneratedTaskSchema.safeParse(data.value) &&
+          (data.state === "repaired-parse" ||
+            data.state === "successful-parse")
+        ) {
+          regeneratedData = data.value;
+        }
+      }
+
+      if (regeneratedData) {
+        updateTask(taskId, {
+          query: regeneratedData.query,
+          researchGoal: regeneratedData.researchGoal,
+          state: "unprocessed",
+          learning: "",
+          sources: [],
+          images: [],
+        });
+        const updatedTask = useTaskStore
+          .getState()
+          .tasks.find((t) => t.id === taskId);
+        if (updatedTask) {
+          await runSearchTask([updatedTask]);
+        }
+      } else {
+        throw new Error("Failed to regenerate task details from AI.");
+      }
+    } catch (error) {
+      handleError(error);
+      updateTask(taskId, { state: "failed" });
     }
   }
 
@@ -780,6 +888,7 @@ function useDeepResearch() {
     runDeeperResearch,
     writeFinalReport,
     rerunTask,
+    regenerateAndRerunTask,
     cancelTask
   };
 }

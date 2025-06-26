@@ -83,6 +83,7 @@ function SearchResult() {
     runSearchTask,
     runWiderResearch,
     runDeeperResearch,
+    regenerateAndRerunTask,
     rerunTask,
     cancelTask,
   } = useDeepResearch();
@@ -94,6 +95,7 @@ function SearchResult() {
   } = useAccurateTimer();
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [originalTasks, setOriginalTasks] = useState<Record<string, SearchTask>>({});
 
   const isThinkingDeeper = useMemo(() => {
     return isThinking && taskStore.thinkingProcess !== "";
@@ -205,7 +207,22 @@ function SearchResult() {
   }
 
   async function handleRetry(item: SearchTask) {
-    await rerunTask(item.id);
+    const originalTask = originalTasks[item.id];
+    const runIntelligently = originalTask && originalTask.title !== item.title;
+
+    if (runIntelligently) {
+      await regenerateAndRerunTask(item.id);
+    } else {
+      await rerunTask(item.id);
+    }
+
+    if (originalTask) {
+      setOriginalTasks((prev) => {
+        const newOriginals = { ...prev };
+        delete newOriginals[item.id];
+        return newOriginals;
+      });
+    }
   }
 
   function handleRemove(id: string) {
@@ -248,9 +265,8 @@ function SearchResult() {
                         />
                         <Textarea
                           value={item.researchGoal}
-                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                            taskStore.updateTask(item.id, { researchGoal: e.target.value })
-                          }
+                          readOnly
+                          className="bg-muted/50"
                           rows={3}
                         />
                       </div>
@@ -282,7 +298,10 @@ function SearchResult() {
                         </Button>
                       ) : (
                         <Button
-                          onClick={() => setEditingTaskId(item.id)}
+                          onClick={() => {
+                            setEditingTaskId(item.id);
+                            setOriginalTasks((prev) => ({ ...prev, [item.id]: item }));
+                          }}
                           variant="outline"
                           size="sm"
                         >
