@@ -268,96 +268,83 @@ function SearchResult() {
                       onChange={(value) =>
                         taskStore.updateTask(item.id, { learning: value })
                       }
-                      tools={
-                        <>
-                          <div className="px-1">
-                            <Separator className="dark:bg-slate-700" />
-                          </div>
-                          {isEditing ? (
-                            <Button
-                              className="float-menu-button"
-                              type="button" size="icon" variant="ghost"
-                              title={t("research.common.save")}
-                              onClick={() => setEditingTaskId(null)}
-                            >
-                              <Save />
-                            </Button>
-                          ) : (
-                            <Button
-                              className="float-menu-button"
-                              type="button" size="icon" variant="ghost"
-                              title={t("research.common.edit")}
-                              onClick={() => setEditingTaskId(item.id)}
-                            >
-                              <Pencil />
-                            </Button>
-                          )}
+                      tools={<></>}
+                    />
+                    <div className="flex items-center justify-end space-x-2 mt-4 pt-2 border-t">
+                      {isEditing ? (
+                        <Button
+                          onClick={() => setEditingTaskId(null)}
+                          variant="default"
+                          size="sm"
+                        >
+                          <Save className="mr-1 h-4 w-4" />
+                          {t("research.common.save")}
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => setEditingTaskId(item.id)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Pencil className="mr-1 h-4 w-4" />
+                          {t("research.common.edit")}
+                        </Button>
+                      )}
 
-                          <Button
-                            className="float-menu-button"
-                            type="button" size="icon" variant="ghost"
-                            title={t("research.common.restudy")}
-                            side="left" sideoffset={8}
-                            onClick={() => handleRetry(item)}
-                          >
-                            <RotateCcw />
-                          </Button>
-                          <Button
-                            className="float-menu-button"
-                            type="button" size="icon" variant="ghost"
-                            title={t("research.common.delete")}
-                            side="left" sideoffset={8}
-                            onClick={() => handleRemove(item.id)}
-                          >
-                            <Trash />
-                          </Button>
-                          <div className="px-1">
-                            <Separator className="dark:bg-slate-700" />
-                          </div>
-                          {item.state === "waiting" && (
-                            <Button
-                              className="float-menu-button"
-                              type="button" size="icon" variant="ghost"
-                              title={t("research.common.startNow")}
-                              side="left" sideoffset={8}
-                              onClick={() => startTaskNow(item)}
-                            >
-                              <Play />
-                            </Button>
-                          )}
-                          <Button
-                            className="float-menu-button"
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            title={t("research.common.addToKnowledgeBase")}
-                            side="left"
-                            sideoffset={8}
-                            onClick={() => addToKnowledgeBase(item)}
-                          >
-                            <NotebookText />
-                          </Button>
-                          <Button
-                            className="float-menu-button"
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            title={t("research.common.export")}
-                            side="left"
-                            sideoffset={8}
-                            onClick={() =>
-                              downloadFile(
-                                getSearchResultContent(item),
-                                `${item.query}.md`,
-                                "text/markdown;charset=utf-8"
-                              )
-                            }
-                          >
-                            <Download />
-                          </Button>
-                        </>
-                      }
-                    ></MagicDown>
+                      {item.state === "waiting" && (
+                        <Button
+                          onClick={() => startTaskNow(item)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Play className="mr-1 h-4 w-4" />
+                          {t("research.common.startNow")}
+                        </Button>
+                      )}
+
+                      <Button
+                        onClick={() => handleRetry(item)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <RotateCcw className="mr-1 h-4 w-4" />
+                        {t("research.common.restudy")}
+                      </Button>
+                      <Button
+                        onClick={() => handleRemove(item.id)}
+                        variant="destructive"
+                        size="sm"
+                      >
+                        <Trash className="mr-1 h-4 w-4" />
+                        {t("research.common.delete")}
+                      </Button>
+
+                      <Separator orientation="vertical" className="h-6" />
+
+                      <Button
+                        onClick={() => addToKnowledgeBase(item)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <NotebookText className="mr-1 h-4 w-4" />
+                        {t("research.common.addToKnowledgeBase")}
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          downloadFile(
+                            getSearchResultContent(item),
+                            `${item.query}.md`,
+                            "text/markdown;charset=utf-8"
+                          )
+                        }
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Download className="mr-1 h-4 w-4" />
+                        {t("research.common.export")}
+                      </Button>
+                    </div>
+
                     {item.images?.length > 0 ? (
                       <>
                         <hr className="my-6" />
