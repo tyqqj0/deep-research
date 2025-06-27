@@ -439,152 +439,308 @@ function useDeepResearch() {
   }
 
   async function runWiderResearch() {
-    const { reportPlan, tasks, suggestion } = useTaskStore.getState();
-    const { thinkingModel } = getModel();
-    setStatus(t("research.common.research"));
-    const learnings = tasks.map((item) => item.learning);
-    const thinkTagStreamProcessor = new ThinkTagStreamProcessor();
-    const result = streamText({
-      model: await createModelProvider(thinkingModel),
-      system: getSystemPrompt(),
-      prompt: [
-        reviewSerpQueriesPrompt(reportPlan, learnings, suggestion),
-        getResponseLanguagePrompt(),
-      ].join("\n\n"),
-      onError: handleError,
-    });
+    const {
+      reportPlan,
+      tasks,
+      suggestion,
+      researchStatus,
+      setResearchStatus,
+    } = useTaskStore.getState();
 
-    const querySchema = getSERPQuerySchema();
-    let content = "";
-    let reasoning = "";
-    let queries: SearchTask[] = [];
-    for await (const textPart of result.textStream) {
-      thinkTagStreamProcessor.processChunk(
-        textPart,
-        (text) => {
-          content += text;
-          const data: PartialJson = parsePartialJson(
-            removeJsonMarkdown(content)
-          );
-          if (
-            querySchema.safeParse(data.value) &&
-            data.state === "successful-parse"
-          ) {
-            if (data.value) {
-              queries = data.value.map(
-                (item: {
-                  query: string;
-                  title: string;
-                  researchGoal: string;
-                }) => {
-                  const researchGoal = item.researchGoal || "";
-                  // Priority 1: Use AI-generated title if available and not empty.
-                  // Priority 2: Extract the first sentence of researchGoal as the title.
-                  // Priority 3: Fallback to query if title is still empty.
-                  const title =
-                    item.title?.trim() ||
-                    researchGoal.split(/[.!?。！？]/)[0].trim() ||
-                    item.query;
-
-                  return {
-                    query: item.query,
-                    researchGoal: researchGoal,
-                    title: title,
-                    state: "unprocessed",
-                    learning: "",
-                    sources: [],
-                    images: [],
-                  };
-                }
-              );
-            }
-          }
-        },
-        (text) => {
-          reasoning += text;
-        }
-      );
+    // 添加状态检查
+    if (researchStatus === "deeper-research") {
+      toast.warning(t("research.common.deeperResearchInProgress"));
+      return;
     }
-    if (reasoning) console.log(reasoning);
-    if (queries.length > 0) {
-      const newTasks = queries.map(q => ({ ...q, id: nanoid() }))
-      taskStore.update([...tasks, ...newTasks]);
-      await runSearchTask(newTasks);
-    }
-  }
 
-  async function runDeeperResearch() {
-    const { tasks, maxDepth, addTasks } = useTaskStore.getState();
-    let currentDepth = tasks.length > 0 ? Math.max(...tasks.map((t) => t.depth)) : 0;
-    const { thinkingModel } = getModel();
+    setResearchStatus("wider-research");
 
-    while (currentDepth < maxDepth) {
-      setStatus(t("research.common.deeperResearch"));
-      const learningsAtCurrentDepth = tasks
-        .filter((t): t is SearchTask => t.type === "search" && t.depth === currentDepth)
-        .map((t) => t.learning);
-
+    try {
+      const { thinkingModel } = getModel();
+      setStatus(t("research.common.research"));
+      const learnings = tasks
+        .filter((item): item is SearchTask => item.type === "search")
+        .map((item) => item.learning);
+      const thinkTagStreamProcessor = new ThinkTagStreamProcessor();
       const result = streamText({
         model: await createModelProvider(thinkingModel),
         system: getSystemPrompt(),
         prompt: [
-          planNextDeepStepPrompt(learningsAtCurrentDepth),
+          reviewSerpQueriesPrompt(reportPlan, learnings, suggestion),
           getResponseLanguagePrompt(),
         ].join("\n\n"),
         onError: handleError,
       });
 
-      const deepStepSchema = getDeepStepSchema();
+      const querySchema = getSERPQuerySchema();
       let content = "";
-      let deepStepResult: {
-        reasoning: string;
-        queries: { query: string; title: string; researchGoal: string }[];
-      } | undefined;
-
+      let reasoning = "";
+      let queries: SearchTask[] = [];
       for await (const textPart of result.textStream) {
-        content += textPart;
-        const data: PartialJson = parsePartialJson(removeJsonMarkdown(content));
-        if (
-          deepStepSchema.safeParse(data.value) &&
-          (data.state === "repaired-parse" || data.state === "successful-parse")
-        ) {
-          deepStepResult = data.value;
-        }
+        thinkTagStreamProcessor.processChunk(
+          textPart,
+          (text) => {
+            content += text;
+            const data: PartialJson = parsePartialJson(
+              removeJsonMarkdown(content)
+            );
+            if (
+              querySchema.safeParse(data.value) &&
+              data.state === "successful-parse"
+            ) {
+              if (data.value) {
+                queries = data.value.map(
+                  (item: {
+                    query: string;
+                    title: string;
+                    researchGoal: string;
+                  }) => {
+                    const researchGoal = item.researchGoal || "";
+                    // Priority 1: Use AI-generated title if available and not empty.
+                    // Priority 2: Extract the first sentence of researchGoal as the title.
+                    // Priority 3: Fallback to query if title is still empty.
+                    const title =
+                      item.title?.trim() ||
+                      researchGoal.split(/[.!?。！？]/)[0].trim() ||
+                      item.query;
+
+                    return {
+                      type: "search" as const,
+                      query: item.query,
+                      researchGoal: researchGoal,
+                      title: title,
+                      state: "unprocessed",
+                      learning: "",
+                      sources: [],
+                      images: [],
+                    };
+                  }
+                );
+              }
+            }
+          },
+          (text) => {
+            reasoning += text;
+          }
+        );
       }
-
-      if (!deepStepResult) {
-        toast.error("AI failed to determine the next step for deeper research.");
-        break; // Exit loop if AI fails
+      if (reasoning) console.log(reasoning);
+      if (queries.length > 0) {
+        const newTasks = queries.map((q) => ({ ...q, id: nanoid() }));
+        taskStore.update([...tasks, ...newTasks]);
+        await runSearchTask(newTasks);
       }
+    } finally {
+      setResearchStatus("idle");
+    }
+  }
 
-      const thinkingTask: ThinkingTask = {
-        id: nanoid(),
-        type: 'thinking',
-        depth: currentDepth + 1,
-        title: `Decision process for Depth ${currentDepth + 1}`,
-        reasoning: deepStepResult.reasoning,
-      };
+  async function runDeeperResearch(taskId: string) {
+    console.log(`[DEBUG_CORE] runDeeperResearch called for taskId: ${taskId}`);
+    const {
+      researchStatus,
+      tasks,
+      addTasks,
+      updateTask,
+      setResearchStatus,
+      maxDepth,
+      setCurrentDepth,
+    } = useTaskStore.getState();
+    const { thinkingModel } = getModel();
 
-      const newSearchTasks: SearchTask[] = deepStepResult.queries.map(q => ({
-        ...q,
-        id: nanoid(),
-        type: 'search',
-        depth: currentDepth + 1,
-        state: 'unprocessed',
-        learning: '',
-        sources: [],
-        images: [],
-      }));
-
-      // Add the new tasks and run them
-      addTasks([thinkingTask, ...newSearchTasks]);
-      await runSearchTask(newSearchTasks);
-
-      // Move to the next depth level
-      currentDepth++;
+    // 如果研究正在进行，则直接退出
+    if (researchStatus === "deeper-research") {
+      console.log(
+        `[DEBUG_CORE] Aborting: researchStatus is already 'deeper-research'.`
+      );
+      return;
     }
 
-    setStatus(t("research.common.researchCompleted"));
+    const lastTask = tasks.find((t) => t.id === taskId) as SearchTask;
+    if (!lastTask) {
+      console.error(
+        `[DEBUG_CORE] Aborting: lastTask with id ${taskId} not found.`
+      );
+      return;
+    }
+    console.log(`[DEBUG_CORE] Found lastTask:`, lastTask);
+
+    // 步骤 2：设置状态
+    setResearchStatus("deeper-research");
+    console.log(`[DEBUG_CORE] researchStatus set to 'deeper-research'.`);
+
+    try {
+      let currentMaxDepth = lastTask.depth;
+      while (
+        currentMaxDepth < maxDepth &&
+        useTaskStore.getState().researchStatus === "deeper-research"
+      ) {
+        setStatus(t("research.common.deeperResearch"));
+        setCurrentDepth(currentMaxDepth);
+
+        // 步骤 5：检查是否已有 thinking task
+        const existingThinking = tasks.find(
+          (t) => t.type === "thinking" && t.depth === currentMaxDepth + 1
+        );
+
+        if (existingThinking) {
+          console.warn(
+            "Thinking task already exists for depth",
+            currentMaxDepth + 1
+          );
+          break;
+        }
+
+        // 步骤 6：获取当前层的学习内容
+        const learningsAtCurrentDepth = tasks
+          .filter(
+            (t): t is SearchTask =>
+              t.type === "search" &&
+              ((t as { depth?: number }).depth || 0) === currentMaxDepth &&
+              t.state === "completed"
+          )
+          .map((t) => t.learning);
+
+        console.log(
+          "【检查点 4】在当前深度寻找到的学习成果数量:",
+          learningsAtCurrentDepth.length
+        );
+        if (learningsAtCurrentDepth.length > 0) {
+          console.log("  - 找到的学习成果:", learningsAtCurrentDepth);
+        }
+
+        if (learningsAtCurrentDepth.length === 0) {
+          console.warn(
+            "【退出循环】在当前深度未找到任何已完成的学习成果。"
+          );
+          break; // Exit loop
+        }
+
+        // 步骤 7：调用 AI 生成下一步计划
+        console.log("【检查点 5】准备调用 AI 生成下一步计划...");
+        const result = streamText({
+          model: await createModelProvider(thinkingModel),
+          system: getSystemPrompt(),
+          prompt: [
+            planNextDeepStepPrompt(learningsAtCurrentDepth),
+            getResponseLanguagePrompt(),
+          ].join("\n\n"),
+          onError: handleError,
+        });
+
+        const deepStepSchema = getDeepStepSchema();
+        let content = "";
+        let deepStepResult:
+          | {
+            reasoning: string;
+            queries: { query: string; title: string; researchGoal: string }[];
+          }
+          | undefined;
+
+        for await (const textPart of result.textStream) {
+          content += textPart;
+          const data: PartialJson = parsePartialJson(removeJsonMarkdown(content));
+          if (
+            deepStepSchema.safeParse(data.value) &&
+            (data.state === "repaired-parse" ||
+              data.state === "successful-parse")
+          ) {
+            deepStepResult = data.value;
+          }
+        }
+
+        if (!deepStepResult) {
+          toast.error(t("research.error.aiFailedToGeneratePlan"));
+          break;
+        }
+
+        // 步骤 8：创建 thinking task
+        const thinkingTask: ThinkingTask = {
+          id: nanoid(),
+          type: "thinking",
+          depth: currentMaxDepth + 1,
+          title: t("research.thinking.depthTitle", {
+            depth: currentMaxDepth + 1,
+          }),
+          reasoning: deepStepResult.reasoning,
+        };
+
+        // 步骤 9：创建 search tasks
+        const newSearchTasks: SearchTask[] = deepStepResult.queries.map(
+          (q) => ({
+            ...q,
+            id: nanoid(),
+            type: "search" as const,
+            depth: currentMaxDepth + 1,
+            state: "unprocessed" as const,
+            learning: "",
+            sources: [],
+            images: [],
+          })
+        );
+
+        // 步骤 10：添加任务到 store
+        addTasks([thinkingTask, ...newSearchTasks]);
+
+        // 步骤 11：执行搜索任务
+        await runSearchTask(newSearchTasks);
+
+        // 步骤 12：等待当前层完成
+        await waitForDepthCompletion(currentMaxDepth + 1);
+
+        // 步骤 13：检查是否被中断
+        const { researchStatus: currentStatus } = useTaskStore.getState();
+        if (currentStatus === "stopping") {
+          break;
+        }
+
+        // 步骤 14：移动到下一层
+        currentMaxDepth++;
+      }
+      console.log("【检查点 6】'while' 循环已结束。");
+
+      setStatus(t("research.common.researchCompleted"));
+    } catch (error) {
+      console.error("Deep research error:", error);
+      handleError(error);
+    } finally {
+      // 步骤 15：重置状态
+      setResearchStatus("idle");
+    }
+  }
+
+  // 等待某一层完成的辅助函数
+  async function waitForDepthCompletion(depth: number): Promise<void> {
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        const { isDepthCompleted, researchStatus } = useTaskStore.getState();
+
+        if (researchStatus === "stopping" || isDepthCompleted(depth)) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 1000);
+    });
+  }
+
+  // 取消深度研究的函数
+  async function cancelDeeperResearch() {
+    const { setResearchStatus, tasks } = useTaskStore.getState();
+
+    setResearchStatus("stopping");
+
+    // 取消所有活动任务
+    const activeTasks = tasks.filter(
+      (t) =>
+        t.type === "search" &&
+        ["processing", "searching", "summarizing", "waiting"].includes(t.state as string)
+    );
+
+    for (const task of activeTasks) {
+      await cancelTask(task.id);
+    }
+
+    setResearchStatus("idle");
   }
 
   async function writeFinalReport() {
@@ -604,13 +760,23 @@ function useDeepResearch() {
     updateFinalReport("");
     setTitle("");
     setSources([]);
-    const learnings = tasks.map((item) => item.learning);
+    const learnings = tasks
+      .filter((item): item is SearchTask => item.type === "search")
+      .map((item) => item.learning);
     const sources: Source[] = unique(
-      flat(tasks.map((item) => item.sources || [])),
+      flat(
+        tasks
+          .filter((item): item is SearchTask => item.type === "search")
+          .map((item) => item.sources || [])
+      ),
       (item) => item.url
     );
     const images: ImageSource[] = unique(
-      flat(tasks.map((item) => item.images || [])),
+      flat(
+        tasks
+          .filter((item): item is SearchTask => item.type === "search")
+          .map((item) => item.images || [])
+      ),
       (item) => item.url
     );
     const enableCitationImage = images.length > 0 && citationImage === "enable";
@@ -678,9 +844,9 @@ function useDeepResearch() {
 
   async function cancelTask(taskId: string) {
     const { updateTask, tasks, removeTask } = useTaskStore.getState();
-    const task = tasks.find(t => t.id === taskId);
+    const task = tasks.find((t) => t.id === taskId);
 
-    if (task?.timerId) {
+    if (task && task.type === "search" && task.timerId) {
       clearTimeout(task.timerId);
     }
 
@@ -695,8 +861,8 @@ function useDeepResearch() {
 
   async function rerunTask(taskId: string) {
     const { tasks, updateTask } = useTaskStore.getState();
-    const task = tasks.find(t => t.id === taskId);
-    if (task) {
+    const task = tasks.find((t) => t.id === taskId);
+    if (task && task.type === "search") {
       // Manually cancel without deleting
       if (task.timerId) {
         clearTimeout(task.timerId);
@@ -723,7 +889,7 @@ function useDeepResearch() {
     }
 
     // Cancel any pending execution first
-    if (taskToRegenerate.timerId) {
+    if (taskToRegenerate.type === "search" && taskToRegenerate.timerId) {
       clearTimeout(taskToRegenerate.timerId);
     }
 
@@ -731,7 +897,10 @@ function useDeepResearch() {
     setStatus(t("research.common.thinking"));
 
     const otherTasksLearnings = tasks
-      .filter((t) => t.id !== taskId && t.state === "completed")
+      .filter(
+        (t): t is SearchTask =>
+          t.id !== taskId && t.type === "search" && t.state === "completed"
+      )
       .map((t) => `Topic: ${t.title}\n${t.learning}`)
       .join("\n\n---\n\n");
 
@@ -797,7 +966,7 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
         const updatedTask = useTaskStore
           .getState()
           .tasks.find((t) => t.id === taskId);
-        if (updatedTask) {
+        if (updatedTask && updatedTask.type === "search") {
           await runSearchTask([updatedTask]);
         }
       } else {
@@ -938,6 +1107,7 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
 
                       return {
                         id: nanoid(),
+                        type: "search" as const,
                         query: item.query,
                         researchGoal: researchGoal,
                         title: title,
@@ -979,6 +1149,7 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
     regenerateAndRerunTask,
     cancelTask,
     regenerateSummary,
+    cancelDeeperResearch,
   };
 }
 

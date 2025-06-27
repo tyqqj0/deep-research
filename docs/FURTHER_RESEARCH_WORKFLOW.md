@@ -18,7 +18,45 @@
 - ❌ 缺少层级完成判断机制
 - ❌ UI 组件混乱（`SearchResult.tsx` 过于复杂）
 
-## 2. 详细实施步骤
+## 2. 核心架构：扁平列表与虚拟层级
+
+在开始编码前，必须理解本方案的数据结构设计。
+
+**核心思想**：所有任务（思考与搜索）都存储于一个扁平数组 `tasks` 中。层级关系通过每个任务的 `depth` 属性来定义，而非通过嵌套对象。
+
+```mermaid
+graph TD
+    subgraph "Zustand Store: `tasks: ResearchItem[]` (一个扁平数组)"
+        direction LR
+        subgraph "Depth 0 (用户初始输入)"
+            ST0("<b>SearchTask</b><br/>id: 'task-abc'<br/>depth: 0<br/>query: '马斯克的星链计划'<br/>state: 'completed'<br/>learning: '星链是...'")
+        end
+
+        subgraph "Depth 1 (第一次纵向研究)"
+            TT1("<b>ThinkingTask</b><br/>id: 'think-def'<br/>depth: 1<br/>reasoning: '基于星链计划，我们应该研究其技术原理和商业模式...'")
+            ST1_A("<b>SearchTask</b><br/>id: 'task-ghi'<br/>depth: 1<br/>query: '星链卫星的技术规格'<br/>state: 'completed'<br/>learning: '...'")
+            ST1_B("<b>SearchTask</b><br/>id: 'task-jkl'<br/>depth: 1<br/>query: '星链的盈利模式分析'<br/>state: 'completed'<br/>learning: '...'")
+        end
+
+        subgraph "Depth 2 (第二次纵向研究)"
+            TT2("<b>ThinkingTask</b><br/>id: 'think-mno'<br/>depth: 2<br/>reasoning: '技术和商业模式已经清晰，下一步应关注其竞争和法规...'")
+        end
+    end
+
+    %% 逻辑关系
+    ST0 -- "学习内容(learning)被用于生成" --> TT1;
+    TT1 -- "生成一组" --> ST1_A;
+    TT1 -- "生成一组" --> ST1_B;
+    ST1_A & ST1_B -- "学习内容(learning)被用于生成" --> TT2;
+```
+
+- **ThinkingTask (思考任务)**: 代表AI的思考过程，它本身不执行搜索。
+- **SearchTask (搜索任务)**: 代表一个具体的搜索任务。
+- **关联逻辑**: `depth: N` 的思考和搜索任务，是由所有已完成的 `depth: N-1` 的搜索任务的学习成果生成的。
+
+这种"扁平化"设计能极大简化状态更新逻辑，避免深层嵌套带来的复杂性。
+
+## 3. 详细实施步骤
 
 ### 步骤 1：修改状态管理（`src/store/task.ts`）
 
@@ -36,6 +74,7 @@ export interface TaskStore {
   researchStatus: 'idle' | 'wider-research' | 'deeper-research' | 'stopping';
   currentDepth: number;
   isAutoMode: boolean;
+  removeTasksByDepth: (depth: number) => void;
 }
 ```
 
@@ -51,6 +90,7 @@ interface TaskFunction {
   setAutoMode: (auto: boolean) => void;
   getTasksByDepth: (depth: number) => ResearchItem[];
   isDepthCompleted: (depth: number) => boolean;
+  removeTasksByDepth: (depth: number) => void;
 }
 ```
 
@@ -64,6 +104,9 @@ const defaultValues: TaskStore = {
   researchStatus: 'idle',
   currentDepth: 0,
   isAutoMode: false,
+  removeTasksByDepth: (depth) => {
+    // Implementation of removeTasksByDepth
+  },
 };
 ```
 
@@ -90,6 +133,11 @@ isDepthCompleted: (depth) => {
     t.state === 'failed' || 
     t.state === 'cancelled'
   );
+},
+removeTasksByDepth: (depth) => {
+  set((state) => ({
+    tasks: state.tasks.filter((t) => t.depth !== depth),
+  }));
 },
 ```
 
@@ -394,11 +442,12 @@ const { tasks, suggestion, updateTask, removeTask, setSuggestion, researchStatus
 ```typescript
 return {
   // ... 现有导出
-  cancelDeeperResearch,  // 添加这一行
+  cancelDeeperResearch,
+  rerunDepth,
 };
 ```
 
-## 3. 测试要点
+## 4. 测试要点
 
 1. **并发控制测试**：
    - 快速连续点击"深度研究"按钮，应该只触发一次
@@ -412,7 +461,7 @@ return {
    - 在深度研究进行中点击"停止"按钮
    - 确认所有活动任务都被取消
 
-## 4. 常见问题与解决方案
+## 5. 常见问题与解决方案
 
 ### 问题 1：ThinkingTask 没有 state 属性
 **解决方案**：在 `src/types.d.ts` 中为 ThinkingTask 添加 state 属性（可选）
@@ -425,7 +474,9 @@ return {
     "common": {
       "researchInProgress": "研究正在进行中",
       "deeperResearchInProgress": "深度研究正在进行中，请稍候",
-      "stopResearch": "停止研究"
+      "stopResearch": "停止研究",
+      "confirmRemoveDepth": "确定要删除这一层级的所有任务吗？",
+      "confirmRerunDepth": "确定要重新生成这一层级吗？当前层级的所有任务将被删除。"
     },
     "status": {
       "deeperResearchInProgress": "深度研究进行中",
@@ -435,13 +486,14 @@ return {
       "depthTitle": "第 {{depth}} 层思考过程"
     },
     "error": {
-      "aiFailedToGeneratePlan": "AI 未能生成下一步计划"
+      "aiFailedToGeneratePlan": "AI 未能生成下一步计划",
+      "noLearningForRerun": "无法重新生成，因为找不到上一层的学习内容。"
     }
   }
 }
 ```
 
-## 5. 架构决策说明
+## 6. 架构决策说明
 
 ### 为什么选择这种设计？
 
@@ -464,7 +516,7 @@ return {
    - 任务去重
    - 优先级排序
 
-## 6. 实施检查清单
+## 7. 实施检查清单
 
 - [ ] 步骤 1：修改 `src/store/task.ts`
 - [ ] 步骤 2：修改 `src/hooks/useDeepResearch.ts` 中的 `runDeeperResearch`
@@ -476,3 +528,4 @@ return {
 ---
 
 > 💡 **提示**：请按照步骤顺序执行，每完成一个步骤后进行测试。如遇到问题，请参考"常见问题与解决方案"部分。
+ 

@@ -23,6 +23,7 @@ import {
   Save,
   BrainCircuit,
   FilePenLine,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/Internal/Button";
 import {
@@ -47,7 +48,19 @@ import useKnowledge from "@/hooks/useKnowledge";
 import { useTaskStore } from "@/store/task";
 import { useKnowledgeStore } from "@/store/knowledge";
 import { downloadFile } from "@/utils/file";
-import type { SearchTask, ThinkingTask, Knowledge, Source } from "@/types";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import type {
+  SearchTask,
+  ThinkingTask,
+  Knowledge,
+  Source,
+  ResearchItem,
+} from "@/types";
 
 const MagicDown = dynamic(() => import("@/components/MagicDown"));
 const MagicDownView = dynamic(() => import("@/components/MagicDown/View"));
@@ -84,26 +97,54 @@ function TaskState({ state }: { state: SearchTask["state"] }) {
   }
 }
 
-function ThinkingBlock({ item }: { item: ThinkingTask }) {
-  const { t } = useTranslation();
-  return (
-    <AccordionItem value={item.id} className="border-blue-500/50">
-      <AccordionTrigger>
-        <div className="flex items-center text-blue-500">
-          <BrainCircuit className="h-5 w-5" />
-          <span className="ml-1 font-semibold">{item.title}</span>
-        </div>
-      </AccordionTrigger>
-      <AccordionContent className="prose prose-slate dark:prose-invert max-w-full">
-        <MagicDownView>{item.reasoning}</MagicDownView>
-      </AccordionContent>
-    </AccordionItem>
+function getDeeperResearchDisabledReason(
+  t: (key: string) => string,
+  isThinking: boolean,
+  taskFinished: boolean,
+  researchStatus: string,
+  tasks: (SearchTask | ThinkingTask)[]
+): string {
+  console.log("[DEBUG_BUTTON] Checking disabled status with:", {
+    isThinking,
+    taskFinished,
+    researchStatus,
+  });
+
+  if (isThinking || researchStatus !== "idle") {
+    console.log(
+      `[DEBUG_BUTTON] Disabled because: isThinking=${isThinking} OR researchStatus='${researchStatus}' !== 'idle'`
+    );
+    return t("research.status.researchInProgress");
+  }
+  if (!taskFinished) {
+    console.log(`[DEBUG_BUTTON] Disabled because: taskFinished=${taskFinished}`);
+    return t("research.status.tasksRunning");
+  }
+  const hasCompletedTasks = tasks.some(
+    (t) => t.type === "search" && t.state === "completed"
   );
+  if (!hasCompletedTasks) {
+    console.log(
+      `[DEBUG_BUTTON] Disabled because: hasCompletedTasks=${hasCompletedTasks}`
+    );
+    return t("research.status.noCompletedTasks");
+  }
+  console.log("[DEBUG_BUTTON] No reason to disable. Button should be active.");
+  return "";
 }
 
 function SearchResult() {
   const { t } = useTranslation();
-  const taskStore = useTaskStore();
+  const {
+    tasks,
+    suggestion,
+    updateTask,
+    removeTask,
+    setSuggestion,
+    researchStatus,
+    currentDepth,
+  } = useTaskStore();
+
   const {
     status,
     runSearchTask,
@@ -113,6 +154,7 @@ function SearchResult() {
     rerunTask,
     cancelTask,
     regenerateSummary,
+    cancelDeeperResearch,
   } = useDeepResearch();
   const { generateId } = useKnowledge();
   const {
@@ -125,21 +167,29 @@ function SearchResult() {
   const [originalTasks, setOriginalTasks] = useState<Record<string, SearchTask>>({});
 
   const isThinkingDeeper = useMemo(() => {
-    return isThinking && !taskStore.tasks.some(t => t.type === 'thinking' && t.depth > 0);
-  }, [isThinking, taskStore.tasks]);
+    return isThinking && !tasks.some(t => t.type === 'thinking' && t.depth > 0);
+  }, [isThinking, tasks]);
   const unfinishedTasks = useMemo(() => {
-    return taskStore.tasks.filter(
+    return tasks.filter(
       (item): item is SearchTask => item.type === "search" && item.state !== "completed"
     );
-  }, [taskStore.tasks]);
+  }, [tasks]);
   const taskFinished = useMemo(() => {
-    return taskStore.tasks.length > 0 && unfinishedTasks.length === 0;
-  }, [taskStore.tasks, unfinishedTasks]);
+    return tasks.length > 0 && unfinishedTasks.length === 0;
+  }, [tasks, unfinishedTasks]);
+
+  const deeperResearchDisabledReason = getDeeperResearchDisabledReason(
+    t,
+    isThinking,
+    taskFinished,
+    researchStatus,
+    tasks
+  );
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      suggestion: taskStore.suggestion,
+      suggestion: suggestion,
     },
   });
 
@@ -177,7 +227,6 @@ function SearchResult() {
         await runSearchTask(unfinishedTasks);
       } else {
         if (values.suggestion) setSuggestion(values.suggestion);
-        console.log("Form submitted for continuing unfinished tasks or suggestion.");
       }
     } finally {
       setIsThinking(false);
@@ -200,16 +249,29 @@ function SearchResult() {
     }
   }
 
-  async function handleDeeperResearch() {
-    try {
-      accurateTimerStart();
-      setIsThinking(true);
-      await runDeeperResearch();
-    } finally {
-      setIsThinking(false);
-      accurateTimerStop();
+  const handleDeeperResearch = async (taskId: string) => {
+    console.log(`[DEBUG_UI] handleDeeperResearch called for taskId: ${taskId}`);
+    const task = tasks.find((t) => t.id === taskId) as SearchTask;
+    if (!task) {
+      console.error(`[DEBUG_UI] Task with id ${taskId} not found in tasks array!`);
+      return;
     }
-  }
+    const reason = getDeeperResearchDisabledReason(
+      t,
+      isThinking,
+      taskFinished,
+      researchStatus,
+      tasks
+    );
+    console.log(`[DEBUG_UI] Disabled reason for task ${taskId}:`, reason || "None");
+
+    if (reason) {
+      toast.warning(reason);
+    } else {
+      console.log(`[DEBUG_UI] Calling runDeeperResearch for task ${taskId}...`);
+      runDeeperResearch(task.id);
+    }
+  };
 
   async function startTaskNow(item: SearchTask) {
     const { updateTask } = useTaskStore.getState();
@@ -259,39 +321,55 @@ function SearchResult() {
   }
 
   useEffect(() => {
-    form.setValue("suggestion", taskStore.suggestion);
-  }, [taskStore.suggestion, form]);
+    form.setValue("suggestion", suggestion);
+  }, [suggestion, form]);
 
   return (
-    <section className="p-4 border rounded-md mt-4 print:hidden">
-      <h3 className="font-semibold text-lg border-b mb-2 leading-10">
-        {t("research.searchResult.title")}
-      </h3>
-      {taskStore.tasks.length === 0 ? (
-        <div>{t("research.searchResult.emptyTip")}</div>
-      ) : (
+    <div className="flex-1 overflow-auto p-4">
+      <div className="max-w-4xl mx-auto">
+        <h2 className="text-xl font-semibold mb-4">
+          {t("research.searchResult.title")}
+        </h2>
+
         <div>
           <Accordion className="mb-4" type="multiple">
-            {taskStore.tasks.map((item) => {
+            {tasks.map((item) => {
+              const isEditing = editingTaskId === item.id;
+
               if (item.type === "thinking") {
-                return <ThinkingBlock key={item.id} item={item} />;
+                return (
+                  <AccordionItem
+                    key={item.id}
+                    value={item.id}
+                    className="border-blue-500/50"
+                  >
+                    <AccordionTrigger>
+                      <div className="flex items-center space-x-2 text-blue-500">
+                        <Sparkles className="h-4 w-4 animate-pulse" />
+                        <span>{item.title}</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="p-4 bg-blue-500/5">
+                      <MagicDownView>{item.reasoning || ""}</MagicDownView>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
               }
 
-              const isEditing = editingTaskId === item.id;
               return (
                 <AccordionItem key={item.id} value={item.id}>
                   <AccordionTrigger>
                     <div className="flex items-center">
-                      <TaskState state={item.state} />
+                      <TaskState state={(item as SearchTask).state} />
                       <span className="ml-1">{item.title}</span>
                       {[
                         "searching",
                         "summarizing",
                         "waiting",
                         "processing",
-                      ].includes(item.state) && (
+                      ].includes((item as SearchTask).state) && (
                           <span className="ml-2 text-muted-foreground text-sm">
-                            ({t(`research.status.${item.state}`, '...')})
+                            ({t(`research.status.${(item as SearchTask).state}`, '...')})
                           </span>
                         )}
                     </div>
@@ -302,33 +380,51 @@ function SearchResult() {
                         <Input
                           value={item.title}
                           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                            taskStore.updateTask(item.id, { title: e.target.value })
+                            updateTask(item.id, { title: e.target.value })
                           }
                           className="text-lg font-semibold"
                         />
                         <Textarea
-                          value={item.researchGoal}
-                          readOnly
-                          className="bg-muted/50"
-                          rows={3}
+                          value={(item as SearchTask).researchGoal}
+                          onChange={(
+                            e: React.ChangeEvent<HTMLTextAreaElement>
+                          ) =>
+                            updateTask(item.id, {
+                              researchGoal: e.target.value,
+                            })
+                          }
+                          className="text-sm text-muted-foreground h-24"
+                          placeholder={t(
+                            "research.topic.researchGoalPlaceholder"
+                          )}
                         />
                       </div>
                     ) : (
                       <>
-                        <MagicDownView>
-                          {addQuoteBeforeAllLine(item.researchGoal)}
-                        </MagicDownView>
+                        {(() => {
+                          const goal = (item as SearchTask).researchGoal;
+                          return (
+                            <MagicDownView>
+                              {addQuoteBeforeAllLine(goal || "")}
+                            </MagicDownView>
+                          );
+                        })()}
                         <Separator className="mb-4" />
                       </>
                     )}
 
-                    <MagicDown
-                      value={item.learning}
-                      onChange={(value) =>
-                        taskStore.updateTask(item.id, { learning: value })
-                      }
-                      tools={<></>}
-                    />
+                    {(() => {
+                      const learning = (item as SearchTask).learning;
+                      return (
+                        <MagicDown
+                          value={learning || ""}
+                          onChange={(value) =>
+                            updateTask(item.id, { learning: value })
+                          }
+                          tools={<></>}
+                        />
+                      );
+                    })()}
                     <div className="flex items-center justify-end space-x-2 mt-4 pt-2 border-t">
                       {isEditing ? (
                         <Button
@@ -343,7 +439,7 @@ function SearchResult() {
                         <Button
                           onClick={() => {
                             setEditingTaskId(item.id);
-                            setOriginalTasks((prev) => ({ ...prev, [item.id]: item }));
+                            setOriginalTasks((prev) => ({ ...prev, [item.id]: item as SearchTask }));
                           }}
                           variant="outline"
                           size="sm"
@@ -353,9 +449,9 @@ function SearchResult() {
                         </Button>
                       )}
 
-                      {item.state === "waiting" && (
+                      {(item as SearchTask).state === "waiting" && (
                         <Button
-                          onClick={() => startTaskNow(item)}
+                          onClick={() => startTaskNow(item as SearchTask)}
                           variant="outline"
                           size="sm"
                         >
@@ -365,7 +461,7 @@ function SearchResult() {
                       )}
 
                       <Button
-                        onClick={() => handleRetry(item)}
+                        onClick={() => handleRetry(item as SearchTask)}
                         variant="outline"
                         size="sm"
                       >
@@ -377,9 +473,9 @@ function SearchResult() {
                         variant="outline"
                         size="sm"
                         disabled={
-                          item.state !== "completed" ||
-                          !item.sources ||
-                          item.sources.length === 0
+                          (item as SearchTask).state !== "completed" ||
+                          !(item as SearchTask).sources ||
+                          (item as SearchTask).sources!.length === 0
                         }
                       >
                         <FilePenLine className="mr-1 h-4 w-4" />
@@ -397,7 +493,7 @@ function SearchResult() {
                       <Separator orientation="vertical" className="h-6" />
 
                       <Button
-                        onClick={() => addToKnowledgeBase(item)}
+                        onClick={() => addToKnowledgeBase(item as SearchTask)}
                         variant="outline"
                         size="sm"
                       >
@@ -407,8 +503,8 @@ function SearchResult() {
                       <Button
                         onClick={() =>
                           downloadFile(
-                            getSearchResultContent(item),
-                            `${item.query}.md`,
+                            getSearchResultContent(item as SearchTask),
+                            `${(item as SearchTask).query}.md`,
                             "text/markdown;charset=utf-8"
                           )
                         }
@@ -420,27 +516,31 @@ function SearchResult() {
                       </Button>
                     </div>
 
-                    {item.images?.length > 0 ? (
+                    {(item as SearchTask).images?.length > 0 ? (
                       <>
                         <hr className="my-6" />
                         <h4>{t("research.searchResult.relatedImages")}</h4>
-                        <Lightbox data={item.images}></Lightbox>
+                        <Lightbox
+                          data={(item as SearchTask).images!}
+                        ></Lightbox>
                       </>
                     ) : null}
-                    {item.sources?.length > 0 ? (
+                    {(item as SearchTask).sources?.length > 0 ? (
                       <>
                         <hr className="my-6" />
                         <h4>{t("research.common.sources")}</h4>
                         <ol>
-                          {item.sources.map((source: Source, idx: number) => {
-                            return (
-                              <li className="ml-2" key={idx}>
-                                <a href={source.url} target="_blank">
-                                  {source.title || source.url}
-                                </a>
-                              </li>
-                            );
-                          })}
+                          {(item as SearchTask).sources!.map(
+                            (source: Source, idx: number) => {
+                              return (
+                                <li className="ml-2" key={idx}>
+                                  <a href={source.url} target="_blank">
+                                    {source.title || source.url}
+                                  </a>
+                                </li>
+                              );
+                            }
+                          )}
                         </ol>
                       </>
                     ) : null}
@@ -485,47 +585,41 @@ function SearchResult() {
                   className="w-full"
                   type="button"
                   variant="outline"
-                  disabled={isThinking || !taskFinished}
+                  disabled={isThinking || !taskFinished || researchStatus !== "idle"}
                   onClick={handleWiderResearch}
                 >
-                  {isThinking ? (
-                    <>
-                      <LoaderCircle className="animate-spin" />
-                      <span>{status}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Search className="mr-2 h-4 w-4" />
-                      {t("research.common.widerResearch")}
-                    </>
-                  )}
+                  <TrendingUp className="mr-2" />
+                  {t("research.common.widerResearch")}
                 </Button>
-                <Button
-                  className="w-full"
-                  type="button"
-                  variant="default"
-                  disabled={isThinking || !taskFinished}
-                  onClick={handleDeeperResearch}
-                >
-                  {isThinking ? (
-                    <>
-                      <LoaderCircle className="animate-spin" />
-                      <span>{status}</span>
-                      <small className="font-mono">{formattedTime}</small>
-                    </>
-                  ) : (
-                    <>
-                      <TrendingUp className="mr-2 h-4 w-4" />
-                      {t("research.common.deeperResearch")}
-                    </>
-                  )}
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="w-full">
+                        <Button
+                          className="w-full"
+                          type="button"
+                          variant="default"
+                          disabled={!!deeperResearchDisabledReason}
+                          onClick={() => handleDeeperResearch(tasks[0].id)}
+                        >
+                          <BrainCircuit className="mr-2" />
+                          {t("research.common.deeperResearch")}
+                        </Button>
+                      </div>
+                    </TooltipTrigger>
+                    {deeperResearchDisabledReason && (
+                      <TooltipContent>
+                        <p>{deeperResearchDisabledReason}</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </form>
           </Form>
         </div>
-      )}
-    </section>
+      </div>
+    </div>
   );
 }
 

@@ -2,6 +2,14 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { pick } from "radash";
 import { nanoid } from "nanoid";
+import type {
+  ResearchItem,
+  Resource,
+  SearchTask,
+  Source,
+  ImageSource,
+  ThinkingTask,
+} from "@/types";
 
 export interface TaskStore {
   id: string;
@@ -20,6 +28,8 @@ export interface TaskStore {
   images: ImageSource[];
   knowledgeGraph: string;
   maxDepth: number;
+  researchStatus: "idle" | "wider-research" | "deeper-research" | "stopping";
+  currentDepth: number;
 }
 
 interface TaskFunction {
@@ -44,6 +54,13 @@ interface TaskFunction {
   setFeedback: (feedback: string) => void;
   updateKnowledgeGraph: (knowledgeGraph: string) => void;
   setMaxDepth: (depth: number) => void;
+  setResearchStatus: (
+    status: "idle" | "wider-research" | "deeper-research" | "stopping"
+  ) => void;
+  setCurrentDepth: (depth: number) => void;
+  getTasksByDepth: (depth: number) => ResearchItem[];
+  isDepthCompleted: (depth: number) => boolean;
+  removeTasksByDepth: (depth: number) => void;
   clear: () => void;
   reset: () => void;
   backup: () => Omit<TaskStore, "thinkingProcess">;
@@ -67,6 +84,8 @@ const defaultValues: TaskStore = {
   images: [],
   knowledgeGraph: "",
   maxDepth: 3,
+  researchStatus: "idle",
+  currentDepth: 0,
 };
 
 export const useTaskStore = create(
@@ -88,7 +107,7 @@ export const useTaskStore = create(
             return { ...item, ...task };
           }
           return item;
-        });
+        }) as ResearchItem[];
         set(() => ({ tasks: [...newTasks] }));
       },
       removeTask: (id) => {
@@ -120,16 +139,68 @@ export const useTaskStore = create(
       setFeedback: (feedback) => set(() => ({ feedback })),
       updateKnowledgeGraph: (knowledgeGraph) => set(() => ({ knowledgeGraph })),
       setMaxDepth: (depth) => set(() => ({ maxDepth: depth })),
+      setResearchStatus: (status) => set(() => ({ researchStatus: status })),
+      setCurrentDepth: (depth) => set(() => ({ currentDepth: depth })),
+      getTasksByDepth: (depth) => {
+        const { tasks } = get();
+        return tasks.filter((t) => (t as any).depth === depth);
+      },
+      isDepthCompleted: (depth) => {
+        const { tasks } = get();
+        const tasksAtDepth = tasks.filter((t) => (t as any).depth === depth);
+        const searchTasks = tasksAtDepth.filter(
+          (t): t is SearchTask => t.type === "search"
+        );
+
+        if (searchTasks.length === 0) return false;
+
+        return searchTasks.every(
+          (t) =>
+            t.state === "completed" ||
+            t.state === "failed" ||
+            t.state === "cancelled"
+        );
+      },
+      removeTasksByDepth: (depth) => {
+        set((state) => {
+          const newTasks: ResearchItem[] = state.tasks.filter(
+            (t) => (t as any).depth !== depth
+          );
+          return { tasks: newTasks };
+        });
+      },
       clear: () => set(() => ({ tasks: [] })),
       reset: () => set(() => ({ ...defaultValues })),
       backup: () => {
-        const { thinkingProcess, ...rest } = get();
+        const { ...rest } = get();
         return {
           ...pick(rest, Object.keys(defaultValues) as (keyof TaskStore)[]),
         } as TaskStore;
       },
       restore: (taskStore) => set(() => ({ ...taskStore })),
     }),
-    { name: "research" }
+    {
+      name: "research",
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.error("Failed to rehydrate task store", error);
+        }
+        if (state) {
+          const migratedTasks = state.tasks.map((task: any) => {
+            // Check for old search tasks that are missing the `type` property
+            if (
+              task &&
+              typeof task === "object" &&
+              !task.type &&
+              task.query
+            ) {
+              return { ...task, type: "search" };
+            }
+            return task;
+          });
+          state.tasks = migratedTasks;
+        }
+      },
+    }
   )
 );

@@ -30,19 +30,31 @@
       "copy": "复制",
       "export": "导出",
       "delete": "删除",
-      "widerResearch": "扩展研究广度",
-      "deeperResearch": "深入研究",
+      "widerResearch": "横向研究",
+      "deeperResearch": "深度研究",
       "startNow": "立即开始",
-      "regenerateSummary": "重新摘要"
+      "regenerate": "重新生成",
+      "continue": "继续",
+      "finished": "已完成",
+      "researchInProgress": "研究正在进行中",
+      "deeperResearchInProgress": "深度研究正在进行中，请稍候",
+      "confirmRemoveDepth": "确定要删除这一层级的所有任务吗？",
+      "confirmRerunDepth": "确定要重新生成这一层级吗？当前层级的所有任务将被删除。"
     },
     "status": {
       "searching": "搜索中...",
       "summarizing": "摘要中...",
       "waiting": "等待中...",
-      "processing": "处理中..."
+      "processing": "处理中...",
+      "deeperResearchInProgress": "深度研究进行中",
+      "currentDepth": "当前深度：{{depth}}",
+      "researchInProgress": "研究正在进行中，请稍候...",
+      "tasksRunning": "请等待当前研究任务全部完成。",
+      "noCompletedTasks": "没有找到可用于深度研究的成功任务。"
     },
     "topic": {
-      "title": "1. 研究方向",
+      "title": "研究主题",
+      "requirement": "写作要求",
       "topicLabel": "1.1 研究主题",
       "topicPlaceholder": "任何您想了解的问题..."
     },
@@ -69,6 +81,13 @@
       "localResearchedInfor": "已研究 {{total}} 个本地资源",
       "writingRequirementLabel": "写作要求（可选）",
       "writingRequirementPlaceholder": "您可以提出任何与撰写报告相关的要求。"
+    },
+    "thinking": {
+      "depthTitle": "第 {{depth}} 层思考过程"
+    },
+    "error": {
+      "aiFailedToGeneratePlan": "AI 未能生成下一步计划",
+      "noLearningForRerun": "无法重新生成，因为找不到上一层的学习内容。"
     }
   },
   "history": {
