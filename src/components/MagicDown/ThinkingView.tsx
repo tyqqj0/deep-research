@@ -8,7 +8,7 @@ interface ThinkingViewProps {
 export function ThinkingView({ content }: ThinkingViewProps) {
   // 处理RESEARCH_TASKS标签的特殊渲染
   const processThinkingContent = (text: string) => {
-    const researchTasksRegex = /<RESEARCH_TASKS>(.*?)<\/RESEARCH_TASKS>/gs;
+    const researchTasksRegex = /<RESEARCH_TASKS>(.*?)<\/RESEARCH_TASKS>/;
     
     return text.replace(researchTasksRegex, (match, tasksContent) => {
       return `

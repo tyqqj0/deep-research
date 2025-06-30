@@ -324,10 +324,10 @@ function useDeepResearch() {
             } catch (err) {
               console.error(err);
               const errorMsg = `[${searchProvider}]: ${err instanceof Error ? err.message : "Search Failed"}`;
-              
+
               if (searchErrorHandling === "ignore") {
                 // 忽略错误：标记任务失败但显示查询信息，不停止其他任务
-                updateTask(item.id, { 
+                updateTask(item.id, {
                   state: "failed",
                   learning: `❌ **${t("research.status.searchFailed")}**\n\n**${t("research.common.query")}**: ${item.query}\n\n**${t("research.status.searchError")}**: ${errorMsg}\n\n*此任务因搜索错误被跳过，但其他任务将继续执行。*`
                 });
@@ -453,12 +453,12 @@ function useDeepResearch() {
           sources,
           images,
         });
-        
+
         // 任务完成后，检查是否应该自动启动下一层研究
         setTimeout(() => {
           checkAutoDeepResearch();
         }, 1000);
-        
+
         return content;
       } finally {
         // taskControllers.delete(item.id);
@@ -517,7 +517,7 @@ function useDeepResearch() {
               data.state === "successful-parse"
             ) {
               if (data.value) {
-                queries = data.value.map(
+                queries = (data.value as any).map(
                   (item: {
                     query: string;
                     title: string;
@@ -576,7 +576,7 @@ function useDeepResearch() {
       setCurrentDepth,
       setMaxDepth,
     } = useTaskStore.getState();
-    
+
     // 如果maxDepth被错误重置为0，恢复默认值
     const maxDepth = currentMaxDepth === 0 ? 3 : currentMaxDepth;
     if (currentMaxDepth === 0) {
@@ -614,7 +614,7 @@ function useDeepResearch() {
         researchStatus: useTaskStore.getState().researchStatus,
         shouldEnterLoop: currentMaxDepth < maxDepth && useTaskStore.getState().researchStatus === "deeper-research"
       });
-      
+
       while (
         currentMaxDepth < maxDepth &&
         useTaskStore.getState().researchStatus === "deeper-research"
@@ -634,21 +634,21 @@ function useDeepResearch() {
             "- Status:",
             existingThinking.state
           );
-          
+
           // 如果thinking task已完成，检查是否有对应的搜索任务
           if (existingThinking.state === "completed") {
             const correspondingSearchTasks = tasks.filter(
-              (t): t is SearchTask => 
-                t.type === "search" && 
+              (t): t is SearchTask =>
+                t.type === "search" &&
                 t.depth === currentMaxDepth + 1
             );
-            
+
             console.log(
               "【REUSE_THINKING】Found",
               correspondingSearchTasks.length,
               "search tasks for this depth"
             );
-            
+
             // 如果有搜索任务，跳过这一层，继续下一层
             if (correspondingSearchTasks.length > 0) {
               console.log("【REUSE_THINKING】Search tasks exist, moving to next depth");
@@ -685,16 +685,16 @@ function useDeepResearch() {
           lastTaskDepth: lastTask.depth,
           maxDepth,
           tasksCount: tasks.length,
-          searchTasksAtCurrentDepth: tasks.filter(t => 
+          searchTasksAtCurrentDepth: tasks.filter(t =>
             t.type === "search" && ((t as any).depth || 0) === currentMaxDepth
           ).length,
-          completedSearchTasksAtCurrentDepth: tasks.filter(t => 
-            t.type === "search" && 
-            ((t as any).depth || 0) === currentMaxDepth && 
+          completedSearchTasksAtCurrentDepth: tasks.filter(t =>
+            t.type === "search" &&
+            ((t as any).depth || 0) === currentMaxDepth &&
             (t as any).state === "completed"
           ).length
         });
-        
+
         if (learningsAtCurrentDepth.length > 0) {
           console.log("  - 找到的学习成果:", learningsAtCurrentDepth);
         }
@@ -720,7 +720,7 @@ function useDeepResearch() {
           reasoning: "",
           state: "processing",
         };
-        
+
         // 立即添加thinking task让用户看到
         addTasks([thinkingTask]);
 
@@ -729,7 +729,7 @@ function useDeepResearch() {
         // 8.1 第一阶段：反思评估（流式更新reflection）
         console.log("【检查点 6-1】开始第一阶段：反思评估...");
         const { question } = useTaskStore.getState(); // 获取原始研究主题
-        
+
         const reflectionResult = streamText({
           model: await createModelProvider(thinkingModel),
           system: getSystemPrompt(),
@@ -743,18 +743,18 @@ function useDeepResearch() {
         let reflectionContent = "";
         for await (const textPart of reflectionResult.textStream) {
           reflectionContent += textPart;
-          
+
           // 实时更新thinking task的reflection，保持思考状态
-          updateTask(thinkingTaskId, { 
+          updateTask(thinkingTaskId, {
             reflection: reflectionContent,
-            state: "processing" as const 
+            state: "processing" as const
           });
         }
 
         // 8.2 解析反思结果
         const reflectionResults = extractReflectionResults(reflectionContent);
-        updateTask(thinkingTaskId, { 
-          completionStatus: reflectionResults.completionStatus,
+        updateTask(thinkingTaskId, {
+          completionStatus: reflectionResults.completionStatus || undefined,
           researchGaps: reflectionResults.researchGaps
         });
 
@@ -762,9 +762,9 @@ function useDeepResearch() {
 
         // 如果研究已完成，则停止深度研究
         if (reflectionResults.completionStatus === 'RESEARCH_COMPLETE') {
-          updateTask(thinkingTaskId, { 
+          updateTask(thinkingTaskId, {
             reasoning: "🎯 " + t("research.thinking.researchComplete"),
-            state: "completed" 
+            state: "completed"
           });
           console.log("【研究完成】目标已达成，停止深度研究");
           break;
@@ -773,7 +773,7 @@ function useDeepResearch() {
         // 8.3 第二阶段：战略思考（流式更新strategicThinking）
         console.log("【检查点 6-2】开始第二阶段：战略思考...");
         const deepSearchMaxTasks = 3; // 默认生成3个任务，后续可在设置中配置
-        
+
         const strategicThinkingResult = streamText({
           model: await createModelProvider(thinkingModel),
           system: getSystemPrompt(),
@@ -787,25 +787,25 @@ function useDeepResearch() {
         let strategicThinkingContent = "";
         for await (const textPart of strategicThinkingResult.textStream) {
           strategicThinkingContent += textPart;
-          
+
           // 实时更新thinking task的strategicThinking
-          updateTask(thinkingTaskId, { 
+          updateTask(thinkingTaskId, {
             strategicThinking: strategicThinkingContent,
-            state: "processing" as const 
+            state: "processing" as const
           });
         }
 
         // 8.4 提取研究任务规划内容
         const researchTasksContent = extractResearchTasks(strategicThinkingContent);
         const strategicThinkingExtracted = extractStrategicThinking(strategicThinkingContent);
-        
+
         console.log("【检查点 6-3】提取到的研究任务规划:", researchTasksContent);
         console.log("【检查点 6-3】提取到的战略思考:", strategicThinkingExtracted);
 
         if (!researchTasksContent) {
-          updateTask(thinkingTaskId, { 
+          updateTask(thinkingTaskId, {
             reasoning: "❌ " + t("research.error.taskGenerationFailed"),
-            state: "completed" 
+            state: "completed"
           });
           toast.error(t("research.error.aiFailedToGeneratePlan"));
           break;
@@ -813,7 +813,7 @@ function useDeepResearch() {
 
         // 8.5 第三阶段：生成严格格式的任务
         console.log("【检查点 6-4】开始第三阶段：生成严格格式任务...");
-        updateTask(thinkingTaskId, { 
+        updateTask(thinkingTaskId, {
           reasoning: "🔄 " + t("research.thinking.generatingSearchTasks") + "...",
           state: "processing" as const
         });
@@ -831,43 +831,43 @@ function useDeepResearch() {
         let taskContent = "";
         let deepStepResult: { query: string; title: string; researchGoal: string }[] = [];
         let currentTaskCount = 0;
-        
+
         let generatedTasks: SearchTask[] = [];
-        
+
         for await (const textPart of taskGenerationResult.textStream) {
           taskContent += textPart;
-          
+
           // 尝试解析JSON任务列表，支持流式生成
           const cleanedContent = removeJsonMarkdown(taskContent);
           const data = parsePartialJson(cleanedContent);
           const taskSchema = getSERPQuerySchema();
           const parseResult = taskSchema.safeParse(data.value);
-          
+
           if (taskContent.length % 500 === 0 || data.state === "successful-parse") {
             console.log("【流式PARSE】当前内容长度:", taskContent.length);
             console.log("【流式PARSE】解析状态:", data.state);
             console.log("【流式PARSE】解析值类型:", typeof data.value, Array.isArray(data.value));
           }
-          
+
           // 使用类似deepResearch的流式更新策略
           if (parseResult.success && Array.isArray(data.value)) {
             if (data.state === "repaired-parse" || data.state === "successful-parse") {
               const newTasks = data.value as { query: string; title: string; researchGoal: string }[];
-              
+
               // 过滤并创建有效的搜索任务
-              const validTasks = newTasks.filter(task => 
+              const validTasks = newTasks.filter(task =>
                 task.query && task.title && task.researchGoal &&
                 task.query.length > 5 && task.researchGoal.length > 10
               );
-              
+
               if (validTasks.length > 0) {
                 // 转换为SearchTask格式
                 generatedTasks = validTasks.map((task) => {
                   const researchGoal = task.researchGoal || "";
-                  const title = task.title?.trim() || 
-                    researchGoal.split(/[.!?。！？]/)[0].trim() || 
+                  const title = task.title?.trim() ||
+                    researchGoal.split(/[.!?。！？]/)[0].trim() ||
                     task.query;
-                    
+
                   return {
                     id: nanoid(),
                     type: "search" as const,
@@ -881,22 +881,22 @@ function useDeepResearch() {
                     depth: currentMaxDepth + 1,
                   };
                 });
-                
+
                 // 获取当前所有任务，过滤掉当前深度的search任务，然后添加新生成的任务
                 const { tasks: currentTasks } = useTaskStore.getState();
-                const otherTasks = currentTasks.filter(t => 
+                const otherTasks = currentTasks.filter(t =>
                   !(t.type === "search" && (t as SearchTask).depth === currentMaxDepth + 1)
                 );
-                
+
                 // 更新任务列表（类似deepResearch的方式）
                 useTaskStore.getState().update([...otherTasks, ...generatedTasks]);
-                
+
                 console.log(`【流式更新任务】生成了 ${generatedTasks.length} 个任务`);
                 currentTaskCount = generatedTasks.length;
               }
             }
           }
-          
+
           // 实时更新thinking task状态
           let progressInfo = t("research.thinking.generatingTasks");
           if (currentTaskCount > 0) {
@@ -904,13 +904,13 @@ function useDeepResearch() {
           } else if (taskContent.length > 100) {
             progressInfo = t("research.thinking.generatingTasks") + ` (${taskContent.length} chars)`;
           }
-          
-          updateTask(thinkingTaskId, { 
+
+          updateTask(thinkingTaskId, {
             reasoning: strategicThinkingContent + "\n\n🔄 " + progressInfo + "...",
             state: "processing" as const
           });
         }
-        
+
         deepStepResult = generatedTasks.map(task => ({
           query: task.query,
           title: task.title,
@@ -921,21 +921,21 @@ function useDeepResearch() {
         if (deepStepResult.length === 0 && taskContent.trim()) {
           console.log("【最终兜底解析】流式解析未生成任务，尝试完整解析...");
           console.log("【最终兜底解析】任务内容长度:", taskContent.length);
-          
+
           const cleanedContent = removeJsonMarkdown(taskContent);
           const data = parsePartialJson(cleanedContent);
           const taskSchema = getSERPQuerySchema();
           const parseResult = taskSchema.safeParse(data.value);
-          
+
           if (parseResult.success && Array.isArray(data.value)) {
             const finalTasks = data.value as { query: string; title: string; researchGoal: string }[];
             console.log("【最终兜底解析】找到任务数量:", finalTasks.length);
-            
-            const validFinalTasks = finalTasks.filter(task => 
+
+            const validFinalTasks = finalTasks.filter(task =>
               task.query && task.title && task.researchGoal &&
               task.query.length > 5 && task.researchGoal.length > 10
             );
-            
+
             if (validFinalTasks.length > 0) {
               // 创建搜索任务
               const finalSearchTasks = validFinalTasks.map(task => ({
@@ -950,14 +950,14 @@ function useDeepResearch() {
                 images: [],
                 depth: currentMaxDepth + 1,
               }));
-              
+
               // 添加到任务列表
               const { tasks: currentTasks } = useTaskStore.getState();
-              const otherTasks = currentTasks.filter(t => 
+              const otherTasks = currentTasks.filter(t =>
                 !(t.type === "search" && (t as SearchTask).depth === currentMaxDepth + 1)
               );
               useTaskStore.getState().update([...otherTasks, ...finalSearchTasks]);
-              
+
               deepStepResult = validFinalTasks;
               console.log("【最终兜底解析】成功添加任务:", validFinalTasks.length);
             }
@@ -972,36 +972,36 @@ function useDeepResearch() {
             strategicThinkingContentLength: strategicThinkingContent.length,
             researchTasksContent: extractResearchTasks(strategicThinkingContent)
           });
-          
-          updateTask(thinkingTaskId, { 
-            reasoning: strategicThinkingContent + "\n\n❌ " + t("research.error.taskGenerationFailed") + 
-              "\n\n调试信息：\n- 任务内容长度: " + taskContent.length + 
+
+          updateTask(thinkingTaskId, {
+            reasoning: strategicThinkingContent + "\n\n❌ " + t("research.error.taskGenerationFailed") +
+              "\n\n调试信息：\n- 任务内容长度: " + taskContent.length +
               "\n- 规划内容长度: " + strategicThinkingContent.length +
               "\n- 提取的研究任务: " + (extractResearchTasks(strategicThinkingContent) || "未找到"),
-            state: "completed" 
+            state: "completed"
           });
           toast.error(t("research.error.aiFailedToGeneratePlan"));
           break;
         }
 
         // 步骤 9：标记thinking task完成（任务已经流式添加到store了）
-        const tasksListText = deepStepResult.map((task, idx) => 
+        const tasksListText = deepStepResult.map((task, idx) =>
           `${idx + 1}. **${task.title}**\n   - ${t("research.common.query")}: ${task.query}\n   - ${t("research.common.goal")}: ${task.researchGoal}`
         ).join("\n");
-        
+
         const finalReasoning = "✅ **" + t("research.thinking.generatedSearchTasks") + ":**\n" + tasksListText;
-          
-        updateTask(thinkingTaskId, { 
+
+        updateTask(thinkingTaskId, {
           reasoning: finalReasoning,
           strategicThinking: strategicThinkingExtracted, // 更新为提取的战略思考内容
-          state: "completed" 
+          state: "completed"
         });
 
         // 步骤 10：获取已添加的search tasks（已经通过流式更新添加到store了）
         const addedTasks = useTaskStore.getState().tasks.filter(
-          (t): t is SearchTask => 
-            t.type === "search" && 
-            t.depth === currentMaxDepth + 1 && 
+          (t): t is SearchTask =>
+            t.type === "search" &&
+            t.depth === currentMaxDepth + 1 &&
             t.state === "unprocessed"
         );
 
@@ -1053,12 +1053,12 @@ function useDeepResearch() {
   // 检查是否应该自动启动下一层研究
   async function checkAutoDeepResearch() {
     const { tasks, maxDepth, researchStatus } = useTaskStore.getState();
-    
+
     // 如果已经在研究中，则不触发
     if (researchStatus !== "idle") {
       return;
     }
-    
+
     // 按深度分组任务
     const tasksByDepth: { [depth: number]: (SearchTask | ThinkingTask)[] } = {};
     tasks.forEach(task => {
@@ -1068,39 +1068,39 @@ function useDeepResearch() {
       }
       tasksByDepth[depth].push(task);
     });
-    
+
     // 找到最大深度
     const currentMaxDepth = Math.max(...Object.keys(tasksByDepth).map(Number), 0);
-    
+
     // 检查是否达到最大深度限制
     if (currentMaxDepth >= maxDepth) {
       console.log("【自动深度研究】已达到最大深度限制:", currentMaxDepth, ">=", maxDepth);
       return;
     }
-    
+
     // 检查当前最大深度的搜索任务是否全部完成
     const currentDepthTasks = tasksByDepth[currentMaxDepth] || [];
     const searchTasks = currentDepthTasks.filter(t => t.type === "search") as SearchTask[];
-    
+
     if (searchTasks.length === 0) {
       console.log("【自动深度研究】当前深度没有搜索任务");
       return;
     }
-    
+
     const allCompleted = searchTasks.every(t => t.state === "completed");
     const hasLearning = searchTasks.some(t => t.learning && t.learning.trim().length > 50);
-    
+
     // 检查是否已有thinking task在当前深度+1
-    const nextDepthThinking = tasks.find(t => 
+    const nextDepthThinking = tasks.find(t =>
       t.type === "thinking" && (t as ThinkingTask).depth === currentMaxDepth + 1
     );
-    
+
     if (allCompleted && hasLearning && !nextDepthThinking) {
       console.log("【自动深度研究】触发条件满足，自动启动下一层研究");
       console.log(`  - 当前深度: ${currentMaxDepth}`);
       console.log(`  - 已完成搜索任务: ${searchTasks.length}`);
       console.log(`  - 有学习内容的任务: ${searchTasks.filter(t => t.learning && t.learning.trim().length > 50).length}`);
-      
+
       // 找到一个已完成的搜索任务作为触发点
       const completedTask = searchTasks.find(t => t.state === "completed");
       if (completedTask) {
@@ -1256,14 +1256,14 @@ function useDeepResearch() {
     updateTask(taskId, { state: "cancelled" });
     setTimeout(() => {
       removeTask(taskId);
-      
+
       // 检查是否还有活动任务，如果没有则重置研究状态
       const remainingTasks = useTaskStore.getState().tasks;
-      const hasActiveResearch = remainingTasks.some(t => 
+      const hasActiveResearch = remainingTasks.some(t =>
         (t.type === "thinking" && (t as any).state === "processing") ||
         (t.type === "search" && ["processing", "searching", "summarizing", "waiting"].includes((t as any).state))
       );
-      
+
       if (!hasActiveResearch) {
         setResearchStatus("idle");
       }
@@ -1361,7 +1361,7 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
           (data.state === "repaired-parse" ||
             data.state === "successful-parse")
         ) {
-          regeneratedData = data.value;
+          regeneratedData = data.value as { query: string; researchGoal: string };
         }
       }
 
@@ -1501,7 +1501,7 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
                 data.state === "successful-parse"
               ) {
                 if (data.value) {
-                  queries = data.value.map(
+                  queries = (data.value as { query: string; title: string; researchGoal: string }[]).map(
                     (item: {
                       query: string;
                       title: string;
