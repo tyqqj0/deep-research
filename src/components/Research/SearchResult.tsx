@@ -348,14 +348,17 @@ function SearchResult() {
       const taskDepth = (task as ThinkingTask).depth;
       const affectedTasks = tasks.filter(t => {
         if (t.type === "thinking") {
-          return (t as ThinkingTask).depth >= taskDepth;
+          return (t as ThinkingTask).depth >= taskDepth && t.id !== id;
         } else {
-          return (t as SearchTask).depth > taskDepth;
+          return (t as SearchTask).depth >= taskDepth;
         }
       });
       
+      console.log("【删除确认】thinking task深度:", taskDepth);
+      console.log("【删除确认】受影响的任务:", affectedTasks.map(t => ({ id: t.id, type: t.type, title: t.title, depth: t.type === "thinking" ? (t as ThinkingTask).depth : (t as SearchTask).depth })));
+      
       if (window.confirm(
-        `删除此思考节点会影响 ${affectedTasks.length} 个相关任务。\n\n确认删除吗？`
+        `删除此思考节点会影响 ${affectedTasks.length + 1} 个任务（包括本身）。\n\n确认删除吗？`
       )) {
         handleCascadeDelete(id, taskDepth);
       }
@@ -370,43 +373,41 @@ function SearchResult() {
     
     console.log("【级联删除】开始删除，起始深度:", fromDepth);
     
-    // 1. 首先停止正在进行的研究
+    // 1. 首先强制停止正在进行的研究
     if (researchStatus !== "idle") {
-      console.log("【级联删除】停止正在进行的研究");
+      console.log("【级联删除】强制停止正在进行的研究, 当前状态:", researchStatus);
       setResearchStatus("stopping");
-      // 给一点时间让正在进行的任务停止
-      setTimeout(() => {
-        setResearchStatus("idle");
-      }, 1000);
     }
     
     // 2. 找到要删除的所有任务
     const tasksToRemove = tasks.filter(t => {
       if (t.type === "thinking") {
-        return (t as ThinkingTask).depth >= fromDepth;
+        // 删除同深度及更深的thinking tasks（不包括当前要删除的task，会单独处理）
+        return (t as ThinkingTask).depth >= fromDepth && t.id !== thinkingTaskId;
       } else {
-        return (t as SearchTask).depth > fromDepth;
+        // 删除比thinking task深度更深的search tasks
+        return (t as SearchTask).depth >= fromDepth;
       }
     });
     
     console.log("【级联删除】要删除的任务数量:", tasksToRemove.length + 1);
     console.log("【级联删除】要删除的任务列表:", tasksToRemove.map(t => ({ id: t.id, type: t.type, title: t.title })));
     
-    // 3. 删除thinking task本身
+    // 3. 立即执行删除操作
+    console.log("【级联删除】开始删除thinking task:", thinkingTaskId);
     removeTask(thinkingTaskId);
     
     // 4. 删除相关的所有任务
     tasksToRemove.forEach(task => {
-      if (task.id !== thinkingTaskId) {
-        console.log("【级联删除】删除任务:", task.title);
-        removeTask(task.id);
-      }
+      console.log("【级联删除】删除任务:", { id: task.id, type: task.type, title: task.title });
+      removeTask(task.id);
     });
     
-    // 5. 重新计算状态
+    // 5. 强制设置为idle状态并重新计算
+    setResearchStatus("idle");
     setTimeout(() => {
       recalculateResearchState();
-    }, 100);
+    }, 50);
     
     toast.success(`${t("research.common.cascadeDelete")}: ${tasksToRemove.length + 1} ${t("research.common.tasks")}`);
   }
@@ -482,9 +483,16 @@ function SearchResult() {
     setCurrentDepth(currentDepth);
     // setMaxDepth(maxDepth); // 删除这行！不要重置系统的最大深度限制
     
+    const maxTaskDepth = remainingTasks.length > 0 ? Math.max(
+      ...remainingTasks.map(t => 
+        t.type === "thinking" ? (t as ThinkingTask).depth : (t as SearchTask).depth
+      ),
+      0
+    ) : 0;
+    
     console.log("[RECALCULATE_STATE] Updated state:", {
       remainingTasksCount: remainingTasks.length,
-      currentTaskMaxDepth,
+      maxTaskDepth,
       currentDepth,
       researchStatus: hasActiveResearch ? "deeper-research" : "idle",
       hasActiveResearch
