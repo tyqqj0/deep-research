@@ -15,6 +15,7 @@ import { outputGuidelinesPrompt } from "@/constants/prompts";
 import { isNetworkingModel } from "@/utils/model";
 import { ThinkTagStreamProcessor, removeJsonMarkdown } from "@/utils/text";
 import { pick, unique, flat, isFunction } from "radash";
+import type { Source, ImageSource, SearchTask } from "@/types";
 
 export interface DeepResearchOptions {
   AIProvider: {
@@ -363,6 +364,8 @@ class DeepResearch {
       this.onMessage("message", { type: "text", text: "\n</search-task>\n\n" });
 
       const task: SearchTask = {
+        id: `search-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        type: "search",
         query: item.query,
         title: (item as any).title,
         researchGoal: item.researchGoal,
@@ -370,6 +373,7 @@ class DeepResearch {
         learning: content,
         sources,
         images,
+        depth: 0,
       };
       results.push(task);
       this.onMessage("progress", {
