@@ -43,6 +43,10 @@ interface ThinkingTask {
   title: string;
   reasoning: string;
   state?: "processing" | "completed";
+  reflection?: string;
+  strategicThinking?: string;
+  completionStatus?: 'RESEARCH_COMPLETE' | 'RESEARCH_PARTIAL' | 'RESEARCH_INSUFFICIENT';
+  researchGaps?: string;
 }
 
 interface SearchTask {

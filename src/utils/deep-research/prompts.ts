@@ -136,10 +136,59 @@ export function reviewSerpQueriesPrompt(
     .replace("{outputSchema}", getSERPQueryOutputSchema());
 }
 
-// 第一阶段：深度学术研究规划思考
+// 第一阶段：反思当前研究成果
+export function reflectCurrentResearchPrompt(
+  originalTopic: string,
+  learning: string[],
+  currentDepth: number
+) {
+  const learnings = learning.map(
+    (detail) => `<learning>\n${detail}\n</learning>`
+  );
+  
+  const languagePrompt = getAutoLanguagePrompt(originalTopic);
+  
+  const reflectionPrompt = `You are an expert academic researcher conducting systematic research evaluation. Your task is to reflect on the current research progress and provide a structured assessment.
+
+## Research Context
+Original topic: **${originalTopic}**
+Current research depth: Level ${currentDepth}
+
+## Current Research Findings
+{learnings}
+
+## Reflection Task
+Provide a concise, structured reflection with exactly these two components:
+
+### 1. Research Completion Assessment
+<COMPLETION_STATUS>
+[Provide ONE of these structured markers:
+- RESEARCH_COMPLETE: The core research objectives have been substantially fulfilled
+- RESEARCH_PARTIAL: Significant progress made but key gaps remain  
+- RESEARCH_INSUFFICIENT: Major research areas still unexplored]
+</COMPLETION_STATUS>
+
+### 2. Gap Analysis (if not RESEARCH_COMPLETE)
+<RESEARCH_GAPS>
+[List 2-3 specific, actionable research gaps or deficiencies. Be precise and concrete:
+- What specific aspects need deeper investigation?
+- Which methodological approaches are missing?
+- What theoretical frameworks need exploration?
+Keep each point under 30 words.]
+</RESEARCH_GAPS>
+
+Keep your entire reflection under 200 words total. Be precise and actionable.
+
+Language: ${languagePrompt}`;
+
+  return reflectionPrompt.replace("{learnings}", learnings.join("\n"));
+}
+
+// 第二阶段：基于反思的深度思考规划
 export function planNextDeepStepPrompt(
   originalTopic: string,
   learning: string[],
+  reflectionContent: string,
   maxTasks: number = 3
 ) {
   const learnings = learning.map(
@@ -148,38 +197,35 @@ export function planNextDeepStepPrompt(
   
   const languagePrompt = getAutoLanguagePrompt(originalTopic);
   
-  const planningPrompt = `You are an expert academic researcher conducting deep scholarly research. Your focus is on finding and analyzing high-quality academic papers, research publications, and scholarly sources. Follow these steps to plan the next deeper level of investigation:
+  const planningPrompt = `You are an expert academic researcher planning the next research phase based on reflection results.
 
-## 1. Academic Topic Review
-Original research topic: **${originalTopic}**
-Research context: Academic/scholarly investigation focusing on peer-reviewed literature and scientific publications.
+## Research Context
+Original topic: **${originalTopic}**
+Previous findings: {learnings}
 
-## 2. Previous Academic Findings Review
-Below are the scholarly findings from the previous research step:
-{learnings}
+## Reflection Results
+${reflectionContent}
 
-## 3. Deep Academic Analysis & Thinking
-Based on the previous academic findings, conduct a thorough scholarly analysis:
-- What are the key theoretical insights and empirical patterns from the previous research?
-- What research gaps, methodological limitations, or contradictory findings exist in the current literature?
-- Which aspects require deeper investigation through more specialized academic sources?
-- What new research directions or theoretical frameworks could advance our understanding?
-- Are there specific authors, research groups, or institutions that are leading work in this area?
+## Strategic Planning Task
+Based on the reflection, provide a focused strategic plan in exactly these sections:
 
-## 4. Academic Research Task Planning
-Based on your analysis, plan no more than ${maxTasks} new academic research tasks focused on finding high-quality scholarly sources. For each task, describe:
-- The specific academic research focus/question
-- Target types of sources (journal papers, conference proceedings, research reports, etc.)
-- Key academic databases or publication venues to prioritize
-- Specific research methodologies or theoretical approaches to investigate
+### 1. Strategic Analysis (max 100 words)
+<STRATEGIC_THINKING>
+[Synthesize key insights from reflection and previous research. Focus on the most critical research directions that will address identified gaps. Be specific about theoretical frameworks, methodological approaches, or empirical patterns that need investigation.]
+</STRATEGIC_THINKING>
 
+### 2. Research Task Planning (max 150 words)
 <RESEARCH_TASKS>
-[Place your no more than ${maxTasks} academic research task plans here - focus on finding scholarly papers and academic publications. These should be conceptual descriptions targeting academic literature, not formal search queries yet]
+[Plan exactly ${maxTasks} specific academic research tasks that directly address the identified gaps. For each task (max 50 words each):
+- Specific research focus/question
+- Target academic sources (journals, conferences, databases)
+- Key methodological or theoretical approach
+Focus on high-impact scholarly sources and peer-reviewed literature.]
 </RESEARCH_TASKS>
 
-Important: ${languagePrompt}
+Keep your entire response under 300 words. Be strategic and actionable.
 
-Please provide your complete academic thinking process including all four steps above.`;
+Language: ${languagePrompt}`;
 
   return planningPrompt.replace("{learnings}", learnings.join("\n"));
 }
@@ -243,6 +289,50 @@ export function extractResearchTasks(planningContent: string): string {
   const extractedContent = planningContent.slice(startIndex + startTag.length, endIndex).trim();
   
   return extractedContent;
+}
+
+// 工具函数：提取反思评估结果
+export function extractReflectionResults(reflectionContent: string): {
+  completionStatus: 'RESEARCH_COMPLETE' | 'RESEARCH_PARTIAL' | 'RESEARCH_INSUFFICIENT' | null;
+  researchGaps: string;
+} {
+  const completionMatch = reflectionContent.match(/<COMPLETION_STATUS>(.*?)<\/COMPLETION_STATUS>/s);
+  const gapsMatch = reflectionContent.match(/<RESEARCH_GAPS>(.*?)<\/RESEARCH_GAPS>/s);
+  
+  let completionStatus: 'RESEARCH_COMPLETE' | 'RESEARCH_PARTIAL' | 'RESEARCH_INSUFFICIENT' | null = null;
+  
+  if (completionMatch) {
+    const statusText = completionMatch[1].trim();
+    if (statusText.includes('RESEARCH_COMPLETE')) {
+      completionStatus = 'RESEARCH_COMPLETE';
+    } else if (statusText.includes('RESEARCH_PARTIAL')) {
+      completionStatus = 'RESEARCH_PARTIAL';
+    } else if (statusText.includes('RESEARCH_INSUFFICIENT')) {
+      completionStatus = 'RESEARCH_INSUFFICIENT';
+    }
+  }
+  
+  const researchGaps = gapsMatch ? gapsMatch[1].trim() : '';
+  
+  return {
+    completionStatus,
+    researchGaps
+  };
+}
+
+// 工具函数：提取策略思考内容
+export function extractStrategicThinking(planningContent: string): string {
+  const startTag = "<STRATEGIC_THINKING>";
+  const endTag = "</STRATEGIC_THINKING>";
+  
+  const startIndex = planningContent.indexOf(startTag);
+  const endIndex = planningContent.indexOf(endTag);
+  
+  if (startIndex === -1 || endIndex === -1) {
+    return "";
+  }
+  
+  return planningContent.slice(startIndex + startTag.length, endIndex).trim();
 }
 
 export function writeFinalReportPrompt(

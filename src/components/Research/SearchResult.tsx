@@ -64,6 +64,7 @@ import { debugThinkingBlockState } from "@/utils/debug-thinking-block";
 const MagicDown = dynamic(() => import("@/components/MagicDown"));
 const MagicDownView = dynamic(() => import("@/components/MagicDown/View"));
 const ThinkingView = dynamic(() => import("@/components/MagicDown/ThinkingView"));
+const ThreePhaseThinkingView = dynamic(() => import("@/components/MagicDown/ThreePhaseThinkingView"));
 const Lightbox = dynamic(() => import("@/components/Internal/Lightbox"));
 const SearchControlSidebar = dynamic(() => import("./SearchControlSidebar"));
 const FloatingMenu = dynamic(() => import("@/components/Internal/FloatingMenu"));
@@ -539,7 +540,18 @@ function SearchResult() {
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 bg-blue-500/5">
-                      <ThinkingView content={item.reasoning || ""} />
+                      {/* 检查是否有反思内容，如果有则使用三阶段视图 */}
+                      {thinkingTask.reflection || thinkingTask.strategicThinking ? (
+                        <ThreePhaseThinkingView
+                          reflection={thinkingTask.reflection}
+                          strategicThinking={thinkingTask.strategicThinking}
+                          reasoning={thinkingTask.reasoning}
+                          completionStatus={thinkingTask.completionStatus}
+                          researchGaps={thinkingTask.researchGaps}
+                        />
+                      ) : (
+                        <ThinkingView content={item.reasoning || ""} />
+                      )}
                       <div className="flex items-center justify-end space-x-2 mt-4 pt-2 border-t">
                         <Button
                           onClick={() => handleCascadeDelete(item.id, (item as ThinkingTask).depth)}

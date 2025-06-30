@@ -95,7 +95,16 @@
       "generatedSearchTasks": "生成的搜索任务",
       "deepThinking": "深度思考中...",
       "thinking": "思考中...",
-      "completed": "已完成"
+      "completed": "已完成",
+      "reflection": "反思评估",
+      "strategicThinking": "深度思考",
+      "taskPlanning": "任务规划",
+      "reflectionInProgress": "正在反思当前研究成果...",
+      "strategicThinkingInProgress": "正在进行战略性思考...",
+      "taskPlanningInProgress": "正在规划具体研究任务...",
+      "researchComplete": "研究目标已达成",
+      "researchPartial": "研究部分完成",
+      "researchInsufficient": "研究尚不充分"
     },
     "error": {
       "aiFailedToGeneratePlan": "AI 未能生成下一步计划",
