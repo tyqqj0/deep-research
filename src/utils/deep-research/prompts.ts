@@ -150,15 +150,15 @@ export function planNextDeepStepPrompt(
   
   const planningPrompt = `You are an expert academic researcher conducting deep scholarly research. Your focus is on finding and analyzing high-quality academic papers, research publications, and scholarly sources. Follow these steps to plan the next deeper level of investigation:
 
-## 1. 回顾研究主题 (Academic Topic Review)
+## 1. Academic Topic Review
 Original research topic: **${originalTopic}**
 Research context: Academic/scholarly investigation focusing on peer-reviewed literature and scientific publications.
 
-## 2. 回顾已有研究成果 (Previous Academic Findings Review)
+## 2. Previous Academic Findings Review
 Below are the scholarly findings from the previous research step:
 {learnings}
 
-## 3. 深度学术分析思考 (Deep Academic Analysis & Thinking)
+## 3. Deep Academic Analysis & Thinking
 Based on the previous academic findings, conduct a thorough scholarly analysis:
 - What are the key theoretical insights and empirical patterns from the previous research?
 - What research gaps, methodological limitations, or contradictory findings exist in the current literature?
@@ -166,7 +166,7 @@ Based on the previous academic findings, conduct a thorough scholarly analysis:
 - What new research directions or theoretical frameworks could advance our understanding?
 - Are there specific authors, research groups, or institutions that are leading work in this area?
 
-## 4. 学术研究任务规划 (Academic Research Task Planning)
+## 4. Academic Research Task Planning
 Based on your analysis, plan no more than ${maxTasks} new academic research tasks focused on finding high-quality scholarly sources. For each task, describe:
 - The specific academic research focus/question
 - Target types of sources (journal papers, conference proceedings, research reports, etc.)

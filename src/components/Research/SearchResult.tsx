@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -67,6 +67,8 @@ const MagicDown = dynamic(() => import("@/components/MagicDown"));
 const MagicDownView = dynamic(() => import("@/components/MagicDown/View"));
 const ThinkingView = dynamic(() => import("@/components/MagicDown/ThinkingView"));
 const Lightbox = dynamic(() => import("@/components/Internal/Lightbox"));
+const SearchControlSidebar = dynamic(() => import("./SearchControlSidebar"));
+const FloatingMenu = dynamic(() => import("@/components/Internal/FloatingMenu"));
 
 const formSchema = z.object({
   suggestion: z.string().optional(),
@@ -167,6 +169,7 @@ function SearchResult() {
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [originalTasks, setOriginalTasks] = useState<Record<string, SearchTask>>({});
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const isThinkingDeeper = useMemo(() => {
     return researchStatus === "deeper-research";
@@ -335,7 +338,7 @@ function SearchResult() {
   }, [suggestion, form]);
 
   return (
-    <div className="p-4 border rounded-md mt-4 print:hidden">
+    <div className="relative p-4 border rounded-md mt-4 print:hidden" ref={containerRef}>
       <div className="p-4 rounded-md">
         <h2 className="font-semibold text-lg leading-10">
           {t("research.searchResult.title")}
@@ -642,6 +645,15 @@ function SearchResult() {
           </Form>
         </div>
       </div>
+      
+      {/* Search Control Sidebar */}
+      <FloatingMenu 
+        targetRef={containerRef}
+        fixedTopOffset={16}
+        fixedRightOffset={-70}
+      >
+        <SearchControlSidebar />
+      </FloatingMenu>
     </div>
   );
 }

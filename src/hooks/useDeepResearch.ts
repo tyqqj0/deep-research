@@ -193,6 +193,7 @@ function useDeepResearch() {
       references,
       enableTaskWaitingTime,
       taskWaitingTime,
+      searchExecutionMode,
     } = useSettingStore.getState();
     const { resources, updateTask } = useTaskStore.getState();
     const { networkingModel } = getModel();
@@ -263,13 +264,20 @@ function useDeepResearch() {
     await Promise.all(
       queries.map((item) => {
         plimit(async () => {
-          if (enableTaskWaitingTime) {
+          // Handle different search execution modes
+          if (searchExecutionMode === "manual") {
+            // Manual mode: just mark as unprocessed and wait for user action
+            updateTask(item.id, { state: "unprocessed" });
+            return;
+          } else if (searchExecutionMode === "delayed" && enableTaskWaitingTime) {
+            // Delayed mode: use waiting time
             updateTask(item.id, { state: "waiting" });
             const timerId = setTimeout(() => {
               startExecution(item);
             }, taskWaitingTime * 1000);
             updateTask(item.id, { timerId });
           } else {
+            // Immediate mode: start execution right away
             startExecution(item);
           }
         });

@@ -191,6 +191,9 @@ const formSchema = z.object({
       domains: domainLimitSchema,
     }),
   }),
+  enableTaskWaitingTime: z.boolean().optional(),
+  taskWaitingTime: z.number().optional(),
+  searchExecutionMode: z.enum(["immediate", "delayed", "manual"]).optional(),
 });
 
 function convertModelName(name: string) {
@@ -3185,6 +3188,47 @@ function Setting({ open, onClose }: SettingProps) {
                                       onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
                                     />
                                   </div>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                      <AccordionItem value="searchExecutionMode">
+                        <AccordionTrigger>{t("setting.searchExecutionMode", "搜索执行模式")}</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-4 rounded-md border p-4">
+                            <FormField
+                              control={form.control}
+                              name="searchExecutionMode"
+                              render={({ field }) => (
+                                <FormItem className="from-item">
+                                  <FormLabel className="from-label">
+                                    {t("setting.searchExecutionModeLabel", "搜索执行模式")}
+                                  </FormLabel>
+                                  <FormControl className="form-field">
+                                    <Select
+                                      value={field.value || "manual"}
+                                      onValueChange={(value: "immediate" | "delayed" | "manual") =>
+                                        field.onChange(value)
+                                      }
+                                    >
+                                      <SelectTrigger className="form-field">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="immediate">
+                                          {t("setting.searchExecutionModeImmediate", "立即执行")}
+                                        </SelectItem>
+                                        <SelectItem value="delayed">
+                                          {t("setting.searchExecutionModeDelayed", "延迟执行")}
+                                        </SelectItem>
+                                        <SelectItem value="manual">
+                                          {t("setting.searchExecutionModeManual", "手动执行")}
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </FormControl>
                                 </FormItem>
                               )}
                             />

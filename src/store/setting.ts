@@ -82,6 +82,7 @@ export interface SettingStore {
   };
   enableTaskWaitingTime: boolean;
   taskWaitingTime: number;
+  searchExecutionMode: "immediate" | "delayed" | "manual";
 }
 
 interface SettingFunction {
@@ -168,6 +169,7 @@ export const defaultValues: SettingStore = {
   },
   enableTaskWaitingTime: false,
   taskWaitingTime: 10,
+  searchExecutionMode: "manual",
 };
 
 export const useSettingStore = create(
