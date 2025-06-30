@@ -324,7 +324,8 @@ function useDeepResearch() {
             } catch (err) {
               console.error(err);
               const errorMsg = `[${searchProvider}]: ${err instanceof Error ? err.message : "Search Failed"}`;
-
+              
+              console.log("[搜索错误处理] 模式:", searchErrorHandling);
               if (searchErrorHandling === "ignore") {
                 // 忽略错误：标记任务失败但显示查询信息，不停止其他任务
                 updateTask(item.id, {
@@ -572,17 +573,12 @@ function useDeepResearch() {
       updateTask,
       removeTask,
       setResearchStatus,
-      maxDepth: currentMaxDepth,
       setCurrentDepth,
-      setMaxDepth,
     } = useTaskStore.getState();
 
-    // 如果maxDepth被错误重置为0，恢复默认值
-    const maxDepth = currentMaxDepth === 0 ? 3 : currentMaxDepth;
-    if (currentMaxDepth === 0) {
-      console.log(`[DEBUG_CORE] maxDepth was 0, resetting to default value 3`);
-      setMaxDepth(3);
-    }
+    // 获取设置中的最大深度
+    const { maxResearchDepth } = useSettingStore.getState();
+    const maxDepth = maxResearchDepth;
     const { thinkingModel } = getModel();
 
     // 如果研究正在进行，则直接退出
@@ -714,9 +710,7 @@ function useDeepResearch() {
           id: thinkingTaskId,
           type: "thinking",
           depth: currentMaxDepth + 1,
-          title: t("research.thinking.depthTitle", {
-            depth: currentMaxDepth + 1,
-          }),
+          title: `第 ${currentMaxDepth + 1} 层思考过程`,
           reasoning: "",
           state: "processing",
         };
@@ -772,7 +766,7 @@ function useDeepResearch() {
 
         // 8.3 第二阶段：战略思考（流式更新strategicThinking）
         console.log("【检查点 6-2】开始第二阶段：战略思考...");
-        const deepSearchMaxTasks = 3; // 默认生成3个任务，后续可在设置中配置
+        const { deepSearchMaxTasks } = useSettingStore.getState(); // 从设置中获取任务数量
 
         const strategicThinkingResult = streamText({
           model: await createModelProvider(thinkingModel),
@@ -1158,13 +1152,33 @@ function useDeepResearch() {
     updateFinalReport("");
     setTitle("");
     setSources([]);
-    const learnings = tasks
-      .filter((item): item is SearchTask => item.type === "search")
-      .map((item) => item.learning);
+    const completedSearchTasks = tasks
+      .filter((item): item is SearchTask => item.type === "search" && item.state === "completed");
+    
+    console.log("【最终报告】搜索任务统计:", {
+      totalTasks: tasks.length,
+      searchTasks: tasks.filter(t => t.type === "search").length,
+      completedSearchTasks: completedSearchTasks.length,
+      tasksByDepth: completedSearchTasks.reduce((acc, task) => {
+        const depth = task.depth || 0;
+        acc[depth] = (acc[depth] || 0) + 1;
+        return acc;
+      }, {} as Record<number, number>)
+    });
+    
+    const learnings = completedSearchTasks
+      .map((item) => item.learning)
+      .filter((learning) => learning && learning.trim().length > 0);
+    
+    console.log("【最终报告】学习内容统计:", {
+      learningsCount: learnings.length,
+      averageLearningLength: learnings.length > 0 ? Math.round(learnings.reduce((sum, l) => sum + l.length, 0) / learnings.length) : 0,
+      totalLearningChars: learnings.reduce((sum, l) => sum + l.length, 0)
+    });
     const sources: Source[] = unique(
       flat(
         tasks
-          .filter((item): item is SearchTask => item.type === "search")
+          .filter((item): item is SearchTask => item.type === "search" && item.state === "completed")
           .map((item) => item.sources || [])
       ),
       (item) => item.url
@@ -1172,7 +1186,7 @@ function useDeepResearch() {
     const images: ImageSource[] = unique(
       flat(
         tasks
-          .filter((item): item is SearchTask => item.type === "search")
+          .filter((item): item is SearchTask => item.type === "search" && item.state === "completed")
           .map((item) => item.images || [])
       ),
       (item) => item.url

@@ -195,6 +195,8 @@ const formSchema = z.object({
   taskWaitingTime: z.number().optional(),
   searchExecutionMode: z.enum(["immediate", "delayed", "manual"]).optional(),
   searchErrorHandling: z.enum(["ignore", "auto"]).optional(),
+  maxResearchDepth: z.number().min(1).max(10).optional(),
+  deepSearchMaxTasks: z.number().min(1).max(10).optional(),
 });
 
 function convertModelName(name: string) {
@@ -2843,8 +2845,10 @@ function Setting({ open, onClose }: SettingProps) {
                   />
                 </div>
               </TabsContent>
-              <TabsContent className="space-y-4  min-h-[250px]" value="search">
-                <FormField
+              <TabsContent className="space-y-6 min-h-[250px]" value="search">
+                {/* 基本搜索设置 */}
+                <div className="space-y-4">
+                  <FormField
                   control={form.control}
                   name="enableSearch"
                   render={({ field }) => (
@@ -3195,47 +3199,6 @@ function Setting({ open, onClose }: SettingProps) {
                           </div>
                         </AccordionContent>
                       </AccordionItem>
-                      <AccordionItem value="searchExecutionMode">
-                        <AccordionTrigger>{t("setting.searchExecutionMode", "搜索执行模式")}</AccordionTrigger>
-                        <AccordionContent>
-                          <div className="space-y-4 rounded-md border p-4">
-                            <FormField
-                              control={form.control}
-                              name="searchExecutionMode"
-                              render={({ field }) => (
-                                <FormItem className="from-item">
-                                  <FormLabel className="from-label">
-                                    {t("setting.searchExecutionModeLabel", "搜索执行模式")}
-                                  </FormLabel>
-                                  <FormControl className="form-field">
-                                    <Select
-                                      value={field.value || "manual"}
-                                      onValueChange={(value: "immediate" | "delayed" | "manual") =>
-                                        field.onChange(value)
-                                      }
-                                    >
-                                      <SelectTrigger className="form-field">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="immediate">
-                                          {t("setting.searchExecutionModeImmediate", "立即执行")}
-                                        </SelectItem>
-                                        <SelectItem value="delayed">
-                                          {t("setting.searchExecutionModeDelayed", "延迟执行")}
-                                        </SelectItem>
-                                        <SelectItem value="manual">
-                                          {t("setting.searchExecutionModeManual", "手动执行")}
-                                        </SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </FormControl>
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
                     </Accordion>
                   </div>
                   <div
@@ -3477,7 +3440,11 @@ function Setting({ open, onClose }: SettingProps) {
                     />
                   </div>
                 </div>
-                <FormField
+                </div>
+                
+                {/* 搜索参数设置 */}
+                <div className="space-y-4">
+                  <FormField
                   control={form.control}
                   name="parallelSearch"
                   render={({ field }) => (
@@ -3539,38 +3506,147 @@ function Setting({ open, onClose }: SettingProps) {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="searchErrorHandling"
-                  render={({ field }) => (
-                    <FormItem className="from-item">
-                      <FormLabel className="from-label">
-                        <HelpTip tip={t("setting.searchErrorHandlingTip")}>
-                          {t("setting.searchErrorHandling")}
-                        </HelpTip>
-                      </FormLabel>
-                      <FormControl className="form-field">
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                          disabled={form.getValues("enableSearch") === "0"}
-                        >
-                          <SelectTrigger className="form-field">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ignore">
-                              {t("setting.searchErrorIgnore")}
-                            </SelectItem>
-                            <SelectItem value="auto">
-                              {t("setting.searchErrorAuto")}
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                  
+                  {/* 高级搜索设置 - 使用Accordion风格 */}
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="advancedSearch">
+                      <AccordionTrigger>{t("setting.advancedSearch.title")}</AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-4 rounded-md border p-4">
+                          <FormField
+                            control={form.control}
+                            name="searchExecutionMode"
+                            render={({ field }) => (
+                              <FormItem className="from-item">
+                                <FormLabel className="from-label">
+                                  {t("setting.searchExecutionModeLabel", "搜索执行模式")}
+                                </FormLabel>
+                                <FormControl className="form-field">
+                                  <Select
+                                    value={field.value || "manual"}
+                                    onValueChange={(value: "immediate" | "delayed" | "manual") =>
+                                      field.onChange(value)
+                                    }
+                                    disabled={form.getValues("enableSearch") === "0"}
+                                  >
+                                    <SelectTrigger className="form-field">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="immediate">
+                                        {t("setting.searchExecutionModeImmediate", "立即执行")}
+                                      </SelectItem>
+                                      <SelectItem value="delayed">
+                                        {t("setting.searchExecutionModeDelayed", "延迟执行")}
+                                      </SelectItem>
+                                      <SelectItem value="manual">
+                                        {t("setting.searchExecutionModeManual", "手动执行")}
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="searchErrorHandling"
+                            render={({ field }) => (
+                              <FormItem className="from-item">
+                                <FormLabel className="from-label">
+                                  <HelpTip tip={t("setting.searchErrorHandlingTip")}>
+                                    {t("setting.searchErrorHandling")}
+                                  </HelpTip>
+                                </FormLabel>
+                                <FormControl className="form-field">
+                                  <Select
+                                    value={field.value}
+                                    onValueChange={field.onChange}
+                                    disabled={form.getValues("enableSearch") === "0"}
+                                  >
+                                    <SelectTrigger className="form-field">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="ignore">
+                                        {t("setting.searchErrorIgnore")}
+                                      </SelectItem>
+                                      <SelectItem value="auto">
+                                        {t("setting.searchErrorAuto")}
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="maxResearchDepth"
+                            render={({ field }) => (
+                              <FormItem className="from-item">
+                                <FormLabel className="from-label">
+                                  <HelpTip tip={t("setting.maxResearchDepthTip")}>
+                                    {t("setting.maxResearchDepth")}
+                                  </HelpTip>
+                                </FormLabel>
+                                <FormControl className="form-field">
+                                  <div className="flex h-9">
+                                    <Slider
+                                      className="flex-1"
+                                      value={[field.value || 3]}
+                                      max={10}
+                                      min={1}
+                                      step={1}
+                                      onValueChange={(values) =>
+                                        field.onChange(values[0])
+                                      }
+                                      disabled={form.getValues("enableSearch") === "0"}
+                                    />
+                                    <span className="w-[14%] text-center text-sm leading-10">
+                                      {field.value || 3}
+                                    </span>
+                                  </div>
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="deepSearchMaxTasks"
+                            render={({ field }) => (
+                              <FormItem className="from-item">
+                                <FormLabel className="from-label">
+                                  <HelpTip tip={t("setting.deepSearchMaxTasksTip")}>
+                                    {t("setting.deepSearchMaxTasks")}
+                                  </HelpTip>
+                                </FormLabel>
+                                <FormControl className="form-field">
+                                  <div className="flex h-9">
+                                    <Slider
+                                      className="flex-1"
+                                      value={[field.value || 3]}
+                                      max={10}
+                                      min={1}
+                                      step={1}
+                                      onValueChange={(values) =>
+                                        field.onChange(values[0])
+                                      }
+                                      disabled={form.getValues("enableSearch") === "0"}
+                                    />
+                                    <span className="w-[14%] text-center text-sm leading-10">
+                                      {field.value || 3}
+                                    </span>
+                                  </div>
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </div>
               </TabsContent>
               <TabsContent className="space-y-4 min-h-[250px]" value="general">
                 <FormField

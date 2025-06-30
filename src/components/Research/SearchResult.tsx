@@ -47,6 +47,7 @@ import useDeepResearch from "@/hooks/useDeepResearch";
 import useKnowledge from "@/hooks/useKnowledge";
 import { useTaskStore } from "@/store/task";
 import { useKnowledgeStore } from "@/store/knowledge";
+import { useSettingStore } from "@/store/setting";
 import { downloadFile } from "@/utils/file";
 import {
   Tooltip,
@@ -122,7 +123,8 @@ function getDeeperResearchDisabledReason(
   isThinking: boolean,
   taskFinished: boolean,
   researchStatus: string,
-  tasks: (SearchTask | ThinkingTask)[]
+  tasks: (SearchTask | ThinkingTask)[],
+  maxDepth: number
 ): string {
   console.log("[DEBUG_BUTTON] Checking disabled status with:", {
     isThinking,
@@ -130,7 +132,9 @@ function getDeeperResearchDisabledReason(
     researchStatus,
     tasksCount: tasks.length,
     searchTasks: tasks.filter(t => t.type === "search").length,
-    completedSearchTasks: tasks.filter(t => t.type === "search" && (t as SearchTask).state === "completed").length
+    completedSearchTasks: tasks.filter(t => t.type === "search" && (t as SearchTask).state === "completed").length,
+    maxDepth,
+    maxCurrentDepth: Math.max(...tasks.filter(t => t.type === "search").map(t => (t as SearchTask).depth || 0), 0)
   });
 
   if (isThinking || researchStatus !== "idle") {
@@ -159,6 +163,16 @@ function getDeeperResearchDisabledReason(
     );
     return t("research.status.noCompletedTasks");
   }
+  
+  // 检查是否已达到最大深度
+  const maxCurrentDepth = Math.max(...searchTasks.map(t => t.depth || 0), 0);
+  if (maxCurrentDepth >= maxDepth) {
+    console.log(
+      `[DEBUG_BUTTON] Disabled because: maxCurrentDepth=${maxCurrentDepth} >= maxDepth=${maxDepth}`
+    );
+    return `已达到最大研究深度 ${maxDepth} 层`;
+  }
+  
   console.log("[DEBUG_BUTTON] No reason to disable. Button should be active.");
   return "";
 }
@@ -171,6 +185,9 @@ function SearchResult() {
     updateTask,
     researchStatus,
   } = useTaskStore();
+  
+  const { maxResearchDepth, update } = useSettingStore();
+  const maxDepth = maxResearchDepth;
 
   const {
     runSearchTask,
@@ -206,8 +223,24 @@ function SearchResult() {
     isThinking,
     taskFinished,
     researchStatus,
-    tasks
+    tasks,
+    maxDepth
   );
+
+  // 检查是否达到最大深度
+  const searchTasks = tasks.filter(t => t.type === "search") as SearchTask[];
+  const maxCurrentDepth = searchTasks.length > 0 ? Math.max(...searchTasks.map(t => t.depth || 0)) : 0;
+  const isAtMaxDepth = maxCurrentDepth >= maxDepth && taskFinished && !isThinking && researchStatus === "idle";
+  
+  console.log("[DEPTH_DEBUG] 深度检查:", {
+    maxCurrentDepth,
+    maxDepth,
+    searchTasksCount: searchTasks.length,
+    isAtMaxDepth,
+    taskFinished,
+    isThinking,
+    researchStatus
+  });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -284,7 +317,8 @@ function SearchResult() {
       isThinking,
       taskFinished,
       researchStatus,
-      tasks
+      tasks,
+      maxDepth
     );
     console.log(`[DEBUG_UI] Disabled reason for task ${taskId}:`, reason || "None");
 
@@ -521,7 +555,7 @@ function SearchResult() {
                   <AccordionItem
                     key={item.id}
                     value={item.id}
-                    className="border border-blue-300/40 bg-blue-50/30 dark:bg-blue-950/20 rounded-lg mb-3 shadow-sm"
+                    className="bg-blue-50/20 dark:bg-blue-950/10 rounded-md mb-2 border-l-2 border-l-blue-400/60"
                   >
                     <AccordionTrigger>
                       <div className="flex items-center space-x-2 text-blue-500">
@@ -820,32 +854,53 @@ function SearchResult() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div className="w-full">
-                        <Button
-                          className="w-full"
-                          type="button"
-                          variant="default"
-                          disabled={!!deeperResearchDisabledReason}
-                          onClick={() => {
-                            // 找到第一个已完成的搜索任务
-                            const completedSearchTask = tasks.find(
-                              t => t.type === "search" && (t as SearchTask).state === "completed"
-                            );
-                            if (completedSearchTask) {
-                              handleDeeperResearch(completedSearchTask.id);
-                            } else {
-                              console.error("[DEBUG_UI] No completed search task found for deeper research");
-                              toast.error("没有找到已完成的搜索任务");
-                            }
-                          }}
-                        >
-                          <BrainCircuit className="mr-2" />
-                          {t("research.common.deeperResearch")}
-                        </Button>
+                        {isAtMaxDepth ? (
+                          <Button
+                            className="w-full"
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              const newDepth = maxDepth + 1;
+                              update({ maxResearchDepth: newDepth });
+                              toast.success(`最大研究深度已增加至 ${newDepth} 层`);
+                            }}
+                          >
+                            <TrendingUp className="mr-2" />
+                            增加研究深度 (当前: {maxDepth} → {maxDepth + 1})
+                          </Button>
+                        ) : (
+                          <Button
+                            className="w-full"
+                            type="button"
+                            variant="default"
+                            disabled={!!deeperResearchDisabledReason}
+                            onClick={() => {
+                              // 找到第一个已完成的搜索任务
+                              const completedSearchTask = tasks.find(
+                                t => t.type === "search" && (t as SearchTask).state === "completed"
+                              );
+                              if (completedSearchTask) {
+                                handleDeeperResearch(completedSearchTask.id);
+                              } else {
+                                console.error("[DEBUG_UI] No completed search task found for deeper research");
+                                toast.error("没有找到已完成的搜索任务");
+                              }
+                            }}
+                          >
+                            <BrainCircuit className="mr-2" />
+                            {t("research.common.deeperResearch")}
+                          </Button>
+                        )}
                       </div>
                     </TooltipTrigger>
-                    {deeperResearchDisabledReason && (
+                    {!isAtMaxDepth && deeperResearchDisabledReason && (
                       <TooltipContent>
                         <p>{deeperResearchDisabledReason}</p>
+                      </TooltipContent>
+                    )}
+                    {isAtMaxDepth && (
+                      <TooltipContent>
+                        <p>当前已达到最大研究深度 {maxDepth} 层，点击可增加深度限制</p>
                       </TooltipContent>
                     )}
                   </Tooltip>
