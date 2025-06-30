@@ -3130,7 +3130,7 @@ function Setting({ open, onClose }: SettingProps) {
                           </div>
                         </AccordionContent>
                       </AccordionItem>
-                      
+
                       {/* <AccordionItem value="academic-settings">
                         <AccordionTrigger>{t("setting.advancedSettings.title")}</AccordionTrigger>
                         <AccordionContent>
@@ -3139,7 +3139,7 @@ function Setting({ open, onClose }: SettingProps) {
                           </div>
                         </AccordionContent>
                       </AccordionItem> */}
-                      
+
                       <AccordionItem value="task-settings">
                         <AccordionTrigger>{t("setting.enableTaskWaitingTime")}</AccordionTrigger>
                         <AccordionContent>
@@ -3175,7 +3175,7 @@ function Setting({ open, onClose }: SettingProps) {
                                     <Slider
                                       className="w-10/12"
                                       disabled={!form.watch("enableTaskWaitingTime")}
-                                      value={[field.value]}
+                                      value={[field.value ?? 0]}
                                       onValueChange={(value) => field.onChange(value[0])}
                                       min={0}
                                       max={120}
@@ -3185,7 +3185,7 @@ function Setting({ open, onClose }: SettingProps) {
                                       className="ml-4 w-2/12"
                                       type="number"
                                       disabled={!form.watch("enableTaskWaitingTime")}
-                                      value={field.value}
+                                      value={field.value ?? 0}
                                       onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
                                     />
                                   </div>
