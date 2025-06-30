@@ -27,6 +27,9 @@ import {
   planNextDeepStepPrompt,
   generateTasksFromPlanPrompt,
   extractResearchTasks,
+  reflectCurrentResearchPrompt,
+  extractReflectionResults,
+  extractStrategicThinking,
 } from "@/utils/deep-research/prompts";
 import { isNetworkingModel } from "@/utils/model";
 import { ThinkTagStreamProcessor, removeJsonMarkdown } from "@/utils/text";
@@ -40,7 +43,6 @@ import type {
   Knowledge,
   Source,
   ImageSource,
-  PartialJson,
 } from "@/types";
 
 type ProviderOptions = Record<string, Record<string, JSONValue>>;
@@ -193,6 +195,7 @@ function useDeepResearch() {
       enableTaskWaitingTime,
       taskWaitingTime,
       searchExecutionMode,
+      searchErrorHandling,
     } = useSettingStore.getState();
     const { resources, updateTask } = useTaskStore.getState();
     const { networkingModel } = getModel();
@@ -320,11 +323,21 @@ function useDeepResearch() {
               }
             } catch (err) {
               console.error(err);
-              handleError(
-                `[${searchProvider}]: ${err instanceof Error ? err.message : "Search Failed"
-                }`
-              );
-              return plimit.clearQueue();
+              const errorMsg = `[${searchProvider}]: ${err instanceof Error ? err.message : "Search Failed"}`;
+              
+              if (searchErrorHandling === "ignore") {
+                // 忽略错误：标记任务失败但显示查询信息，不停止其他任务
+                updateTask(item.id, { 
+                  state: "failed",
+                  learning: `❌ **${t("research.status.searchFailed")}**\n\n**${t("research.common.query")}**: ${item.query}\n\n**${t("research.status.searchError")}**: ${errorMsg}\n\n*此任务因搜索错误被跳过，但其他任务将继续执行。*`
+                });
+                console.log(`[搜索错误处理] 忽略模式：任务 ${item.id} 搜索失败，已标记但继续执行其他任务`);
+                return; // 不阻止其他任务，只返回当前任务
+              } else {
+                // 自动处理：显示错误并停止队列（保持原有行为）
+                handleError(errorMsg);
+                return plimit.clearQueue();
+              }
             }
             const enableReferences =
               sources.length > 0 && references === "enable";
@@ -440,6 +453,12 @@ function useDeepResearch() {
           sources,
           images,
         });
+        
+        // 任务完成后，检查是否应该自动启动下一层研究
+        setTimeout(() => {
+          checkAutoDeepResearch();
+        }, 1000);
+        
         return content;
       } finally {
         // taskControllers.delete(item.id);
@@ -551,6 +570,7 @@ function useDeepResearch() {
       tasks,
       addTasks,
       updateTask,
+      removeTask,
       setResearchStatus,
       maxDepth: currentMaxDepth,
       setCurrentDepth,
@@ -608,11 +628,42 @@ function useDeepResearch() {
         );
 
         if (existingThinking) {
-          console.warn(
-            "Thinking task already exists for depth",
-            currentMaxDepth + 1
+          console.log(
+            "【REUSE_THINKING】Found existing thinking task for depth",
+            currentMaxDepth + 1,
+            "- Status:",
+            existingThinking.state
           );
-          break;
+          
+          // 如果thinking task已完成，检查是否有对应的搜索任务
+          if (existingThinking.state === "completed") {
+            const correspondingSearchTasks = tasks.filter(
+              (t): t is SearchTask => 
+                t.type === "search" && 
+                t.depth === currentMaxDepth + 1
+            );
+            
+            console.log(
+              "【REUSE_THINKING】Found",
+              correspondingSearchTasks.length,
+              "search tasks for this depth"
+            );
+            
+            // 如果有搜索任务，跳过这一层，继续下一层
+            if (correspondingSearchTasks.length > 0) {
+              console.log("【REUSE_THINKING】Search tasks exist, moving to next depth");
+              currentMaxDepth++;
+              continue;
+            } else {
+              // 如果没有搜索任务，说明thinking task可能是残留的，删除它重新开始
+              console.log("【REUSE_THINKING】No search tasks found, removing orphaned thinking task");
+              removeTask(existingThinking.id);
+            }
+          } else {
+            // 如果thinking task还在处理中，等待它完成或者删除重新开始
+            console.log("【REUSE_THINKING】Thinking task is still processing, skipping this iteration");
+            break;
+          }
         }
 
         // 步骤 6：获取当前层的学习内容
@@ -673,51 +724,97 @@ function useDeepResearch() {
         // 立即添加thinking task让用户看到
         addTasks([thinkingTask]);
 
-        // 步骤 8：两阶段AI生成过程
+        // 步骤 8：三阶段AI生成过程
 
-        // 8.1 第一阶段：规划思考（流式更新reasoning）
-        console.log("【检查点 6-1】开始第一阶段：规划思考...");
+        // 8.1 第一阶段：反思评估（流式更新reflection）
+        console.log("【检查点 6-1】开始第一阶段：反思评估...");
         const { question } = useTaskStore.getState(); // 获取原始研究主题
-        const deepSearchMaxTasks = 3; // 默认生成3个任务，后续可在设置中配置
         
-        const planningResult = streamText({
+        const reflectionResult = streamText({
           model: await createModelProvider(thinkingModel),
           system: getSystemPrompt(),
           prompt: [
-            planNextDeepStepPrompt(question, learningsAtCurrentDepth, deepSearchMaxTasks),
+            reflectCurrentResearchPrompt(question, learningsAtCurrentDepth, currentMaxDepth),
             getResponseLanguagePrompt(),
           ].join("\n\n"),
           onError: handleError,
         });
 
-        let planningContent = "";
-        for await (const textPart of planningResult.textStream) {
-          planningContent += textPart;
+        let reflectionContent = "";
+        for await (const textPart of reflectionResult.textStream) {
+          reflectionContent += textPart;
           
-          // 实时更新thinking task的reasoning，保持思考状态
+          // 实时更新thinking task的reflection，保持思考状态
           updateTask(thinkingTaskId, { 
-            reasoning: planningContent,
+            reflection: reflectionContent,
             state: "processing" as const 
           });
         }
 
-        // 8.2 提取研究任务规划内容
-        const researchTasksContent = extractResearchTasks(planningContent);
-        console.log("【检查点 6-2】提取到的研究任务规划:", researchTasksContent);
+        // 8.2 解析反思结果
+        const reflectionResults = extractReflectionResults(reflectionContent);
+        updateTask(thinkingTaskId, { 
+          completionStatus: reflectionResults.completionStatus,
+          researchGaps: reflectionResults.researchGaps
+        });
+
+        console.log("【反思结果】", reflectionResults);
+
+        // 如果研究已完成，则停止深度研究
+        if (reflectionResults.completionStatus === 'RESEARCH_COMPLETE') {
+          updateTask(thinkingTaskId, { 
+            reasoning: "🎯 " + t("research.thinking.researchComplete"),
+            state: "completed" 
+          });
+          console.log("【研究完成】目标已达成，停止深度研究");
+          break;
+        }
+
+        // 8.3 第二阶段：战略思考（流式更新strategicThinking）
+        console.log("【检查点 6-2】开始第二阶段：战略思考...");
+        const deepSearchMaxTasks = 3; // 默认生成3个任务，后续可在设置中配置
+        
+        const strategicThinkingResult = streamText({
+          model: await createModelProvider(thinkingModel),
+          system: getSystemPrompt(),
+          prompt: [
+            planNextDeepStepPrompt(question, learningsAtCurrentDepth, reflectionContent, deepSearchMaxTasks),
+            getResponseLanguagePrompt(),
+          ].join("\n\n"),
+          onError: handleError,
+        });
+
+        let strategicThinkingContent = "";
+        for await (const textPart of strategicThinkingResult.textStream) {
+          strategicThinkingContent += textPart;
+          
+          // 实时更新thinking task的strategicThinking
+          updateTask(thinkingTaskId, { 
+            strategicThinking: strategicThinkingContent,
+            state: "processing" as const 
+          });
+        }
+
+        // 8.4 提取研究任务规划内容
+        const researchTasksContent = extractResearchTasks(strategicThinkingContent);
+        const strategicThinkingExtracted = extractStrategicThinking(strategicThinkingContent);
+        
+        console.log("【检查点 6-3】提取到的研究任务规划:", researchTasksContent);
+        console.log("【检查点 6-3】提取到的战略思考:", strategicThinkingExtracted);
 
         if (!researchTasksContent) {
           updateTask(thinkingTaskId, { 
-            reasoning: planningContent + "\n\n❌ 未能找到<RESEARCH_TASKS>标签，任务生成失败",
+            reasoning: "❌ " + t("research.error.taskGenerationFailed"),
             state: "completed" 
           });
           toast.error(t("research.error.aiFailedToGeneratePlan"));
           break;
         }
 
-        // 8.3 第二阶段：生成严格格式的任务
-        console.log("【检查点 6-3】开始第二阶段：生成严格格式任务...");
+        // 8.5 第三阶段：生成严格格式的任务
+        console.log("【检查点 6-4】开始第三阶段：生成严格格式任务...");
         updateTask(thinkingTaskId, { 
-          reasoning: planningContent + "\n\n🔄 正在生成具体搜索任务...",
+          reasoning: "🔄 " + t("research.thinking.generatingSearchTasks") + "...",
           state: "processing" as const
         });
 
@@ -725,7 +822,7 @@ function useDeepResearch() {
           model: await createModelProvider(thinkingModel),
           system: getSystemPrompt(),
           prompt: [
-            generateTasksFromPlanPrompt(planningContent, question),
+            generateTasksFromPlanPrompt(strategicThinkingContent, question),
             getResponseLanguagePrompt(),
           ].join("\n\n"),
           onError: handleError,
@@ -765,7 +862,7 @@ function useDeepResearch() {
               
               if (validTasks.length > 0) {
                 // 转换为SearchTask格式
-                generatedTasks = validTasks.map((task, index) => {
+                generatedTasks = validTasks.map((task) => {
                   const researchGoal = task.researchGoal || "";
                   const title = task.title?.trim() || 
                     researchGoal.split(/[.!?。！？]/)[0].trim() || 
@@ -809,7 +906,7 @@ function useDeepResearch() {
           }
           
           updateTask(thinkingTaskId, { 
-            reasoning: planningContent + "\n\n🔄 " + progressInfo + "...",
+            reasoning: strategicThinkingContent + "\n\n🔄 " + progressInfo + "...",
             state: "processing" as const
           });
         }
@@ -872,15 +969,15 @@ function useDeepResearch() {
           console.error("【任务生成失败】详细信息:", {
             taskContentLength: taskContent.length,
             taskContentPreview: taskContent.substring(0, 500),
-            planningContentLength: planningContent.length,
-            researchTasksContent: extractResearchTasks(planningContent)
+            strategicThinkingContentLength: strategicThinkingContent.length,
+            researchTasksContent: extractResearchTasks(strategicThinkingContent)
           });
           
           updateTask(thinkingTaskId, { 
-            reasoning: planningContent + "\n\n❌ " + t("research.error.taskGenerationFailed") + 
+            reasoning: strategicThinkingContent + "\n\n❌ " + t("research.error.taskGenerationFailed") + 
               "\n\n调试信息：\n- 任务内容长度: " + taskContent.length + 
-              "\n- 规划内容长度: " + planningContent.length +
-              "\n- 提取的研究任务: " + (extractResearchTasks(planningContent) || "未找到"),
+              "\n- 规划内容长度: " + strategicThinkingContent.length +
+              "\n- 提取的研究任务: " + (extractResearchTasks(strategicThinkingContent) || "未找到"),
             state: "completed" 
           });
           toast.error(t("research.error.aiFailedToGeneratePlan"));
@@ -892,12 +989,11 @@ function useDeepResearch() {
           `${idx + 1}. **${task.title}**\n   - ${t("research.common.query")}: ${task.query}\n   - ${t("research.common.goal")}: ${task.researchGoal}`
         ).join("\n");
         
-        const finalReasoning = planningContent + 
-          "\n\n✅ **" + t("research.thinking.generatedSearchTasks") + ":**\n" +
-          tasksListText;
+        const finalReasoning = "✅ **" + t("research.thinking.generatedSearchTasks") + ":**\n" + tasksListText;
           
         updateTask(thinkingTaskId, { 
           reasoning: finalReasoning,
+          strategicThinking: strategicThinkingExtracted, // 更新为提取的战略思考内容
           state: "completed" 
         });
 
@@ -952,6 +1048,77 @@ function useDeepResearch() {
         }
       }, 1000);
     });
+  }
+
+  // 检查是否应该自动启动下一层研究
+  async function checkAutoDeepResearch() {
+    const { tasks, maxDepth, researchStatus } = useTaskStore.getState();
+    
+    // 如果已经在研究中，则不触发
+    if (researchStatus !== "idle") {
+      return;
+    }
+    
+    // 按深度分组任务
+    const tasksByDepth: { [depth: number]: (SearchTask | ThinkingTask)[] } = {};
+    tasks.forEach(task => {
+      const depth = task.type === "thinking" ? (task as ThinkingTask).depth : (task as SearchTask).depth;
+      if (!tasksByDepth[depth]) {
+        tasksByDepth[depth] = [];
+      }
+      tasksByDepth[depth].push(task);
+    });
+    
+    // 找到最大深度
+    const currentMaxDepth = Math.max(...Object.keys(tasksByDepth).map(Number), 0);
+    
+    // 检查是否达到最大深度限制
+    if (currentMaxDepth >= maxDepth) {
+      console.log("【自动深度研究】已达到最大深度限制:", currentMaxDepth, ">=", maxDepth);
+      return;
+    }
+    
+    // 检查当前最大深度的搜索任务是否全部完成
+    const currentDepthTasks = tasksByDepth[currentMaxDepth] || [];
+    const searchTasks = currentDepthTasks.filter(t => t.type === "search") as SearchTask[];
+    
+    if (searchTasks.length === 0) {
+      console.log("【自动深度研究】当前深度没有搜索任务");
+      return;
+    }
+    
+    const allCompleted = searchTasks.every(t => t.state === "completed");
+    const hasLearning = searchTasks.some(t => t.learning && t.learning.trim().length > 50);
+    
+    // 检查是否已有thinking task在当前深度+1
+    const nextDepthThinking = tasks.find(t => 
+      t.type === "thinking" && (t as ThinkingTask).depth === currentMaxDepth + 1
+    );
+    
+    if (allCompleted && hasLearning && !nextDepthThinking) {
+      console.log("【自动深度研究】触发条件满足，自动启动下一层研究");
+      console.log(`  - 当前深度: ${currentMaxDepth}`);
+      console.log(`  - 已完成搜索任务: ${searchTasks.length}`);
+      console.log(`  - 有学习内容的任务: ${searchTasks.filter(t => t.learning && t.learning.trim().length > 50).length}`);
+      
+      // 找到一个已完成的搜索任务作为触发点
+      const completedTask = searchTasks.find(t => t.state === "completed");
+      if (completedTask) {
+        // 延迟一点时间再触发，避免状态冲突
+        setTimeout(() => {
+          console.log("【自动深度研究】开始执行自动深度研究");
+          runDeeperResearch(completedTask.id);
+        }, 2000);
+      }
+    } else {
+      console.log("【自动深度研究】触发条件未满足:", {
+        allCompleted,
+        hasLearning,
+        searchTasksCount: searchTasks.length,
+        completedCount: searchTasks.filter(t => t.state === "completed").length,
+        hasNextDepthThinking: !!nextDepthThinking
+      });
+    }
   }
 
   // 取消深度研究的函数
@@ -1271,7 +1438,7 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
               content += data;
               updateTask(task.id, { learning: content });
             },
-            (data) => {
+            () => {
               reasoning += part.textDelta;
             }
           );
@@ -1394,6 +1561,7 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
     cancelTask,
     regenerateSummary,
     cancelDeeperResearch,
+    checkAutoDeepResearch,
   };
 }
 

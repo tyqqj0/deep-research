@@ -59,7 +59,7 @@ import type {
   ThinkingTask,
   Source,
 } from "@/types";
-import { debugThinkingBlockState } from "@/utils/debug-thinking-block";
+// import { debugThinkingBlockState } from "@/utils/debug-thinking-block";
 
 const MagicDown = dynamic(() => import("@/components/MagicDown"));
 const MagicDownView = dynamic(() => import("@/components/MagicDown/View"));
@@ -170,7 +170,6 @@ function SearchResult() {
     suggestion,
     updateTask,
     researchStatus,
-    currentDepth,
   } = useTaskStore();
 
   const {
@@ -522,7 +521,7 @@ function SearchResult() {
                   <AccordionItem
                     key={item.id}
                     value={item.id}
-                    className="border-blue-500/50"
+                    className="border border-blue-300/40 bg-blue-50/30 dark:bg-blue-950/20 rounded-lg mb-3 shadow-sm"
                   >
                     <AccordionTrigger>
                       <div className="flex items-center space-x-2 text-blue-500">

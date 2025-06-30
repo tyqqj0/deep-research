@@ -194,6 +194,7 @@ const formSchema = z.object({
   enableTaskWaitingTime: z.boolean().optional(),
   taskWaitingTime: z.number().optional(),
   searchExecutionMode: z.enum(["immediate", "delayed", "manual"]).optional(),
+  searchErrorHandling: z.enum(["ignore", "auto"]).optional(),
 });
 
 function convertModelName(name: string) {
@@ -3534,6 +3535,38 @@ function Setting({ open, onClose }: SettingProps) {
                             {field.value}
                           </span>
                         </div>
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="searchErrorHandling"
+                  render={({ field }) => (
+                    <FormItem className="from-item">
+                      <FormLabel className="from-label">
+                        <HelpTip tip={t("setting.searchErrorHandlingTip")}>
+                          {t("setting.searchErrorHandling")}
+                        </HelpTip>
+                      </FormLabel>
+                      <FormControl className="form-field">
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          disabled={form.getValues("enableSearch") === "0"}
+                        >
+                          <SelectTrigger className="form-field">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ignore">
+                              {t("setting.searchErrorIgnore")}
+                            </SelectItem>
+                            <SelectItem value="auto">
+                              {t("setting.searchErrorAuto")}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
                       </FormControl>
                     </FormItem>
                   )}

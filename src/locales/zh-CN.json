@@ -40,8 +40,8 @@
       "deeperResearchInProgress": "深度研究正在进行中，请稍候",
       "confirmRemoveDepth": "确定要删除这一层级的所有任务吗？",
       "confirmRerunDepth": "确定要重新生成这一层级吗？当前层级的所有任务将被删除。",
-      "compressToUpperLevel": "删除后续思考任务",
-      "cascadeDelete": "删除后续全部任务", 
+      "compressToUpperLevel": "删除当前节点及后续思考任务",
+      "cascadeDelete": "删除当前节点及后续全部任务", 
       "query": "查询",
       "goal": "目标",
       "tasks": "个任务"
@@ -55,7 +55,9 @@
       "currentDepth": "当前深度：{{depth}}",
       "researchInProgress": "研究正在进行中，请稍候...",
       "tasksRunning": "请等待当前研究任务全部完成。",
-      "noCompletedTasks": "没有找到可用于深度研究的成功任务。"
+      "noCompletedTasks": "没有找到可用于深度研究的成功任务。",
+      "searchFailed": "搜索失败",
+      "searchError": "搜索错误"
     },
     "topic": {
       "title": "研究主题",
@@ -342,6 +344,10 @@
     "searchResults": "搜索数量",
     "searchResultsTip": "最大搜索数量。部分搜索引擎并不支持此参数。",
     "searchApiKeyPlaceholder": "请输入您的 API 密钥",
+    "searchErrorHandling": "搜索错误处理",
+    "searchErrorHandlingTip": "当搜索引擎返回无效结果时的处理方式。忽略：将错误状态标记给用户，但继续执行。自动处理：尝试重试或使用其他搜索策略。",
+    "searchErrorIgnore": "忽略错误",
+    "searchErrorAuto": "自动处理",
     "searchScope": "搜索范围",
     "scopeValue": {
       "all": "全部",

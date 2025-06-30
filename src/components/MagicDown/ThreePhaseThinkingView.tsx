@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Search, Brain, ClipboardList, CheckCircle, AlertCircle, XCircle } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Brain, ClipboardList, CheckCircle, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import dynamic from "next/dynamic";
 
@@ -19,7 +19,7 @@ function getStatusIcon(status?: string) {
     case 'RESEARCH_COMPLETE':
       return <CheckCircle className="h-4 w-4 text-green-500" />;
     case 'RESEARCH_PARTIAL':
-      return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+      return <CheckCircle className="h-4 w-4 text-green-500" />;
     case 'RESEARCH_INSUFFICIENT':
       return <XCircle className="h-4 w-4 text-red-500" />;
     default:

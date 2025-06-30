@@ -207,6 +207,8 @@ Previous findings: {learnings}
 ${reflectionContent}
 
 ## Strategic Planning Task
+**IMPORTANT: You MUST use the exact XML tags below in your response. Do not deviate from this format.**
+
 Based on the reflection, provide a focused strategic plan in exactly these sections:
 
 ### 1. Strategic Analysis (max 100 words)
@@ -222,6 +224,8 @@ Based on the reflection, provide a focused strategic plan in exactly these secti
 - Key methodological or theoretical approach
 Focus on high-impact scholarly sources and peer-reviewed literature.]
 </RESEARCH_TASKS>
+
+**CRITICAL: Your response MUST include both <STRATEGIC_THINKING> and <RESEARCH_TASKS> XML tags exactly as shown above.**
 
 Keep your entire response under 300 words. Be strategic and actionable.
 
@@ -280,15 +284,67 @@ export function extractResearchTasks(planningContent: string): string {
   const startIndex = planningContent.indexOf(startTag);
   const endIndex = planningContent.indexOf(endTag);
   
-  if (startIndex === -1 || endIndex === -1) {
-    console.log("【DEBUG_EXTRACT】标签未找到，返回空字符串");
-    console.log("【DEBUG_EXTRACT】Planning内容预览:", planningContent.substring(0, 500));
-    return "";
+  if (startIndex !== -1 && endIndex !== -1) {
+    const extractedContent = planningContent.slice(startIndex + startTag.length, endIndex).trim();
+    return extractedContent;
   }
   
-  const extractedContent = planningContent.slice(startIndex + startTag.length, endIndex).trim();
+  // 如果没有找到XML标签，尝试提取任务相关内容
+  console.log("【DEBUG_EXTRACT】XML标签未找到，尝试提取任务相关内容");
   
-  return extractedContent;
+  // 寻找"任务"、"Task"、"研究任务"等关键词
+  const taskKeywords = [
+    "### 2. 研究任务规划",
+    "### 2. Research Task Planning", 
+    "**任务1",
+    "**任务2",
+    "**任务3",
+    "**Task 1",
+    "**Task 2", 
+    "**Task 3",
+    "研究任务规划",
+    "任务规划",
+    "Research Task"
+  ];
+  
+  // 找到任务规划部分
+  let taskStartIndex = -1;
+  let foundKeyword = "";
+  
+  for (const keyword of taskKeywords) {
+    const index = planningContent.indexOf(keyword);
+    if (index !== -1) {
+      taskStartIndex = index;
+      foundKeyword = keyword;
+      break;
+    }
+  }
+  
+  if (taskStartIndex !== -1) {
+    console.log(`【DEBUG_EXTRACT】找到关键词 "${foundKeyword}" 在位置:`, taskStartIndex);
+    
+    // 从关键词位置开始，提取到文末或下一个主要标题
+    const taskContent = planningContent.substring(taskStartIndex);
+    
+    // 寻找结束位置（下一个主要标题或文末）
+    const endMarkers = ["\n### 3.", "\n## ", "\nLanguage:", "\n---"];
+    let endIndex = taskContent.length;
+    
+    for (const marker of endMarkers) {
+      const markerIndex = taskContent.indexOf(marker, foundKeyword.length);
+      if (markerIndex !== -1 && markerIndex < endIndex) {
+        endIndex = markerIndex;
+      }
+    }
+    
+    const extractedContent = taskContent.substring(0, endIndex).trim();
+    console.log("【DEBUG_EXTRACT】成功提取任务内容，长度:", extractedContent.length);
+    return extractedContent;
+  }
+  
+  // 最后的备选方案：返回整个内容（因为可能整个内容都是任务描述）
+  console.log("【DEBUG_EXTRACT】未找到明确的任务标记，返回完整内容");
+  return planningContent.trim();
 }
 
 // 工具函数：提取反思评估结果
@@ -296,8 +352,8 @@ export function extractReflectionResults(reflectionContent: string): {
   completionStatus: 'RESEARCH_COMPLETE' | 'RESEARCH_PARTIAL' | 'RESEARCH_INSUFFICIENT' | null;
   researchGaps: string;
 } {
-  const completionMatch = reflectionContent.match(/<COMPLETION_STATUS>(.*?)<\/COMPLETION_STATUS>/s);
-  const gapsMatch = reflectionContent.match(/<RESEARCH_GAPS>(.*?)<\/RESEARCH_GAPS>/s);
+  const completionMatch = reflectionContent.match(/<COMPLETION_STATUS>(.*?)<\/COMPLETION_STATUS>/);
+  const gapsMatch = reflectionContent.match(/<RESEARCH_GAPS>(.*?)<\/RESEARCH_GAPS>/);
   
   let completionStatus: 'RESEARCH_COMPLETE' | 'RESEARCH_PARTIAL' | 'RESEARCH_INSUFFICIENT' | null = null;
   
