@@ -690,25 +690,51 @@ function useDeepResearch() {
         });
 
         let taskContent = "";
-        let deepStepResult:
-          | { query: string; title: string; researchGoal: string }[]
-          | undefined;
+        let deepStepResult: { query: string; title: string; researchGoal: string }[] = [];
+        let currentTaskCount = 0;
         
         for await (const textPart of taskGenerationResult.textStream) {
           taskContent += textPart;
           
-          // 尝试解析JSON任务列表
+          // 尝试解析JSON任务列表，支持流式生成
           const data: PartialJson = parsePartialJson(removeJsonMarkdown(taskContent));
           const taskSchema = getSERPQuerySchema();
           if (
             taskSchema.safeParse(data.value) &&
-            (data.state === "repaired-parse" || data.state === "successful-parse")
+            (data.state === "repaired-parse" || data.state === "successful-parse") &&
+            Array.isArray(data.value)
           ) {
-            deepStepResult = data.value;
+            const newTasks = data.value as { query: string; title: string; researchGoal: string }[];
+            
+            // 如果有新任务生成，流式添加到store
+            if (newTasks.length > currentTaskCount) {
+              const tasksToAdd = newTasks.slice(currentTaskCount);
+              
+              for (const task of tasksToAdd) {
+                const newSearchTask: SearchTask = {
+                  ...task,
+                  id: nanoid(),
+                  type: "search" as const,
+                  depth: currentMaxDepth + 1,
+                  state: "unprocessed" as const,
+                  learning: "",
+                  sources: [],
+                  images: [],
+                };
+                
+                // 流式添加单个任务
+                addTasks([newSearchTask]);
+                console.log(`【流式添加任务】${task.title}`);
+              }
+              
+              currentTaskCount = newTasks.length;
+            }
+            
+            deepStepResult = newTasks;
           }
         }
 
-        if (!deepStepResult) {
+        if (deepStepResult.length === 0) {
           // AI生成失败，标记thinking task为失败状态  
           updateTask(thinkingTaskId, { 
             reasoning: planningContent + "\n\n❌ 任务生成失败，请重试",
@@ -718,7 +744,7 @@ function useDeepResearch() {
           break;
         }
 
-        // 步骤 9：标记thinking task完成并创建 search tasks
+        // 步骤 9：标记thinking task完成（任务已经流式添加到store了）
         const finalReasoning = planningContent + 
           "\n\n✅ **生成的搜索任务:**\n" +
           deepStepResult.map((task, idx) => 
@@ -729,24 +755,17 @@ function useDeepResearch() {
           reasoning: finalReasoning,
           state: "completed" 
         });
-        const newSearchTasks: SearchTask[] = deepStepResult.map(
-          (q) => ({
-            ...q,
-            id: nanoid(),
-            type: "search" as const,
-            depth: currentMaxDepth + 1,
-            state: "unprocessed" as const,
-            learning: "",
-            sources: [],
-            images: [],
-          })
+
+        // 步骤 10：获取已添加的search tasks（不需要再添加，因为已经流式添加了）
+        const addedTasks = useTaskStore.getState().tasks.filter(
+          (t): t is SearchTask => 
+            t.type === "search" && 
+            t.depth === currentMaxDepth + 1 && 
+            t.state === "unprocessed"
         );
 
-        // 步骤 10：添加search tasks到 store（thinking task已经添加过了）
-        addTasks(newSearchTasks);
-
         // 步骤 11：执行搜索任务
-        await runSearchTask(newSearchTasks);
+        await runSearchTask(addedTasks);
 
         // 步骤 12：等待当前层完成
         await waitForDepthCompletion(currentMaxDepth + 1);

@@ -15,6 +15,7 @@ import {
   finalReportReferencesPrompt,
   finalReportPrompt,
 } from "@/constants/prompts";
+import { getAutoLanguagePrompt } from "@/utils/language-detector";
 
 export function getSERPQuerySchema() {
   return z
@@ -135,7 +136,7 @@ export function reviewSerpQueriesPrompt(
     .replace("{outputSchema}", getSERPQueryOutputSchema());
 }
 
-// 第一阶段：深度研究规划思考
+// 第一阶段：深度学术研究规划思考
 export function planNextDeepStepPrompt(
   originalTopic: string,
   learning: string[],
@@ -145,55 +146,79 @@ export function planNextDeepStepPrompt(
     (detail) => `<learning>\n${detail}\n</learning>`
   );
   
-  const planningPrompt = `You are an expert researcher conducting deep research. Your task is to plan the next deeper level of investigation following these steps:
+  const languagePrompt = getAutoLanguagePrompt(originalTopic);
+  
+  const planningPrompt = `You are an expert academic researcher conducting deep scholarly research. Your focus is on finding and analyzing high-quality academic papers, research publications, and scholarly sources. Follow these steps to plan the next deeper level of investigation:
 
-## 1. 回顾研究主题 (Topic Review)
+## 1. 回顾研究主题 (Academic Topic Review)
 Original research topic: **${originalTopic}**
+Research context: Academic/scholarly investigation focusing on peer-reviewed literature and scientific publications.
 
-## 2. 回顾已有研究成果 (Previous Findings Review)
-Below are the findings from the previous research step:
+## 2. 回顾已有研究成果 (Previous Academic Findings Review)
+Below are the scholarly findings from the previous research step:
 {learnings}
 
-## 3. 深度分析思考 (Deep Analysis & Thinking)
-Based on the previous findings, conduct a thorough analysis:
-- What are the key insights and patterns from the previous research?
-- What knowledge gaps, contradictions, or unanswered questions remain?
-- What aspects require deeper investigation to advance our understanding?
-- How can we build upon these findings to uncover more valuable insights?
+## 3. 深度学术分析思考 (Deep Academic Analysis & Thinking)
+Based on the previous academic findings, conduct a thorough scholarly analysis:
+- What are the key theoretical insights and empirical patterns from the previous research?
+- What research gaps, methodological limitations, or contradictory findings exist in the current literature?
+- Which aspects require deeper investigation through more specialized academic sources?
+- What new research directions or theoretical frameworks could advance our understanding?
+- Are there specific authors, research groups, or institutions that are leading work in this area?
 
-## 4. 研究任务规划 (Research Task Planning)
-Based on your analysis, plan ${maxTasks} new research tasks that will deepen our understanding. For each task, briefly describe:
-- The specific research focus/question
-- Why this direction is valuable for deeper understanding
-- What type of information we hope to discover
+## 4. 学术研究任务规划 (Academic Research Task Planning)
+Based on your analysis, plan no more than ${maxTasks} new academic research tasks focused on finding high-quality scholarly sources. For each task, describe:
+- The specific academic research focus/question
+- Target types of sources (journal papers, conference proceedings, research reports, etc.)
+- Key academic databases or publication venues to prioritize
+- Specific research methodologies or theoretical approaches to investigate
 
 <RESEARCH_TASKS>
-[Place your ${maxTasks} research task plans here - these should be conceptual descriptions, not formal search queries yet]
+[Place your no more than ${maxTasks} academic research task plans here - focus on finding scholarly papers and academic publications. These should be conceptual descriptions targeting academic literature, not formal search queries yet]
 </RESEARCH_TASKS>
 
-Please provide your complete thinking process including all four steps above.`;
+Important: ${languagePrompt}
+
+Please provide your complete academic thinking process including all four steps above.`;
 
   return planningPrompt.replace("{learnings}", learnings.join("\n"));
 }
 
-// 第二阶段：将规划转换为严格格式的任务
+// 第二阶段：将学术规划转换为论文搜索任务
 export function generateTasksFromPlanPrompt(
   planningContent: string,
   originalTopic: string
 ) {
-  const taskGenerationPrompt = `You are a research assistant. You have received a research planning document that contains research task plans within <RESEARCH_TASKS> tags.
+  const languagePrompt = getAutoLanguagePrompt(originalTopic);
+  
+  const taskGenerationPrompt = `You are an academic research assistant specializing in scholarly literature search. You have received an academic research planning document that contains research task plans within <RESEARCH_TASKS> tags.
 
-Original topic: **${originalTopic}**
+Original academic topic: **${originalTopic}**
 
-Planning content:
+Academic planning content:
 ${planningContent}
 
-Your task is to extract the research tasks from the <RESEARCH_TASKS> section and convert them into formal search queries with proper structure.
+Your task is to extract the academic research tasks from the <RESEARCH_TASKS> section and convert them into formal search queries optimized for finding scholarly papers and academic publications.
 
-For each research task mentioned in the <RESEARCH_TASKS> section, create:
-1. **query**: A specific, focused search query optimized for web search engines
-2. **title**: A concise, user-friendly title for this research task  
-3. **researchGoal**: A detailed description of what information this task aims to discover
+For each academic research task mentioned in the <RESEARCH_TASKS> section, create:
+
+1. **query**: A specific, academic search query optimized for finding scholarly papers. Use academic keywords, author names, institution names, and paper titles. Consider using search operators like:
+   - "author:surname" for specific researchers
+   - "filetype:pdf" for academic papers
+   - "site:arxiv.org" or "site:scholar.google.com" for academic databases
+   - Include terms like "paper", "journal", "research", "study", "analysis"
+
+2. **title**: A concise, academic title for this research task focusing on the scholarly aspect
+
+3. **researchGoal**: A detailed academic research objective describing what scholarly information, theories, methodologies, or empirical findings this task aims to discover from academic literature
+
+Important guidelines:
+- Prioritize peer-reviewed journals, conference papers, and academic publications
+- Focus on finding research papers rather than general web content
+- Include methodology-specific terms when relevant
+- Target specific academic communities or research areas
+
+Language instruction: ${languagePrompt}
 
 Respond in the JSON format described in the following schema:
 {outputSchema}`;
