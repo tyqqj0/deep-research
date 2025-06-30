@@ -65,6 +65,7 @@ import { debugThinkingBlockState } from "@/utils/debug-thinking-block";
 
 const MagicDown = dynamic(() => import("@/components/MagicDown"));
 const MagicDownView = dynamic(() => import("@/components/MagicDown/View"));
+const ThinkingView = dynamic(() => import("@/components/MagicDown/ThinkingView"));
 const Lightbox = dynamic(() => import("@/components/Internal/Lightbox"));
 
 const formSchema = z.object({
@@ -369,7 +370,7 @@ function SearchResult() {
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 bg-blue-500/5">
-                      <MagicDownView>{item.reasoning || ""}</MagicDownView>
+                      <ThinkingView content={item.reasoning || ""} />
                       <div className="flex items-center justify-end space-x-2 mt-4 pt-2 border-t">
                         <Button
                           onClick={() => handleRemove(item.id)}
@@ -578,14 +579,7 @@ function SearchResult() {
               );
             })}
           </Accordion>
-          {isThinkingDeeper && (
-            <div className="p-4 mt-4 mb-4 border-l-4 border-blue-500 bg-blue-50 dark:bg-gray-800 rounded-md">
-              <h4 className="font-semibold text-lg mb-2 flex items-center">
-                <LoaderCircle className="animate-spin mr-2" />
-                Deeper Research in Progress...
-              </h4>
-            </div>
-          )}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)}>
               <FormField

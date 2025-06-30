@@ -25,6 +25,8 @@ import {
   writeFinalReportPrompt,
   getSERPQuerySchema,
   planNextDeepStepPrompt,
+  generateTasksFromPlanPrompt,
+  extractResearchTasks,
   getDeepStepSchema,
 } from "@/utils/deep-research/prompts";
 import { isNetworkingModel } from "@/utils/model";
@@ -64,68 +66,39 @@ function useDeepResearch() {
   const [status, setStatus] = useState<string>("");
 
   async function askQuestions() {
-    console.log('[DEBUG_ASK_QUESTIONS] Starting askQuestions function');
     const { question } = useTaskStore.getState();
-    console.log('[DEBUG_ASK_QUESTIONS] Question:', question);
-    
     const { thinkingModel } = getModel();
-    console.log('[DEBUG_ASK_QUESTIONS] Thinking model:', thinkingModel);
-    
     setStatus(t("research.common.thinking"));
-    console.log('[DEBUG_ASK_QUESTIONS] Status set to thinking');
-    
-    try {
-      console.log('[DEBUG_ASK_QUESTIONS] Creating model provider...');
-      const modelProvider = await createModelProvider(thinkingModel);
-      console.log('[DEBUG_ASK_QUESTIONS] Model provider created successfully');
-      
-      const thinkTagStreamProcessor = new ThinkTagStreamProcessor();
-      console.log('[DEBUG_ASK_QUESTIONS] Starting streamText...');
-      
-      const result = streamText({
-        model: modelProvider,
-        system: getSystemPrompt(),
-        prompt: [
-          generateQuestionsPrompt(question),
-          getResponseLanguagePrompt(),
-        ].join("\n\n"),
-        onError: (error) => {
-          console.error('[DEBUG_ASK_QUESTIONS] Stream error:', error);
-          handleError(error);
-        },
-      });
-      
-      let content = "";
-      let reasoning = "";
-      taskStore.setQuestion(question);
-      
-      console.log('[DEBUG_ASK_QUESTIONS] Starting to process stream...');
-      for await (const part of result.fullStream) {
-        console.log('[DEBUG_ASK_QUESTIONS] Received part:', part.type);
-        if (part.type === "text-delta") {
-          thinkTagStreamProcessor.processChunk(
-            part.textDelta,
-            (data) => {
-              content += data;
-              taskStore.updateQuestions(content);
-            },
-            (data) => {
-              reasoning += data;
-            }
-          );
-        } else if (part.type === "reasoning") {
-          reasoning += part.textDelta;
-        }
+    const thinkTagStreamProcessor = new ThinkTagStreamProcessor();
+    const result = streamText({
+      model: await createModelProvider(thinkingModel),
+      system: getSystemPrompt(),
+      prompt: [
+        generateQuestionsPrompt(question),
+        getResponseLanguagePrompt(),
+      ].join("\n\n"),
+      onError: handleError,
+    });
+    let content = "";
+    let reasoning = "";
+    taskStore.setQuestion(question);
+    for await (const part of result.fullStream) {
+      if (part.type === "text-delta") {
+        thinkTagStreamProcessor.processChunk(
+          part.textDelta,
+          (data) => {
+            content += data;
+            taskStore.updateQuestions(content);
+          },
+          (data) => {
+            reasoning += data;
+          }
+        );
+      } else if (part.type === "reasoning") {
+        reasoning += part.textDelta;
       }
-      
-      console.log('[DEBUG_ASK_QUESTIONS] Stream processing completed');
-      if (reasoning) console.log('[DEBUG_ASK_QUESTIONS] Reasoning:', reasoning);
-      
-    } catch (error) {
-      console.error('[DEBUG_ASK_QUESTIONS] Function error:', error);
-      handleError(error);
-      throw error;
     }
+    if (reasoning) console.log(reasoning);
   }
 
   async function writeReportPlan() {
@@ -662,38 +635,74 @@ function useDeepResearch() {
         // 立即添加thinking task让用户看到
         addTasks([thinkingTask]);
 
-        // 步骤 8：调用 AI 生成下一步计划（流式更新reasoning）
-        console.log("【检查点 6】开始AI生成和实时更新...");
-        const result = streamText({
+        // 步骤 8：两阶段AI生成过程
+
+        // 8.1 第一阶段：规划思考（流式更新reasoning）
+        console.log("【检查点 6-1】开始第一阶段：规划思考...");
+        const { question } = useTaskStore.getState(); // 获取原始研究主题
+        const deepSearchMaxTasks = 3; // 默认生成3个任务，后续可在设置中配置
+        
+        const planningResult = streamText({
           model: await createModelProvider(thinkingModel),
           system: getSystemPrompt(),
           prompt: [
-            planNextDeepStepPrompt(learningsAtCurrentDepth),
+            planNextDeepStepPrompt(question, learningsAtCurrentDepth, deepSearchMaxTasks),
             getResponseLanguagePrompt(),
           ].join("\n\n"),
           onError: handleError,
         });
 
-        const deepStepSchema = getDeepStepSchema();
-        let content = "";
-        let deepStepResult:
-          | {
-            reasoning: string;
-            queries: { query: string; title: string; researchGoal: string }[];
-          }
-          | undefined;
-
-        for await (const textPart of result.textStream) {
-          content += textPart;
+        let planningContent = "";
+        for await (const textPart of planningResult.textStream) {
+          planningContent += textPart;
           
           // 实时更新thinking task的reasoning
-          updateTask(thinkingTaskId, { reasoning: content });
+          updateTask(thinkingTaskId, { reasoning: planningContent });
+        }
+
+        // 8.2 提取研究任务规划内容
+        const researchTasksContent = extractResearchTasks(planningContent);
+        console.log("【检查点 6-2】提取到的研究任务规划:", researchTasksContent);
+
+        if (!researchTasksContent) {
+          updateTask(thinkingTaskId, { 
+            reasoning: planningContent + "\n\n❌ 未能找到<RESEARCH_TASKS>标签，任务生成失败",
+            state: "completed" 
+          });
+          toast.error(t("research.error.aiFailedToGeneratePlan"));
+          break;
+        }
+
+        // 8.3 第二阶段：生成严格格式的任务
+        console.log("【检查点 6-3】开始第二阶段：生成严格格式任务...");
+        updateTask(thinkingTaskId, { 
+          reasoning: planningContent + "\n\n🔄 正在生成具体搜索任务..." 
+        });
+
+        const taskGenerationResult = streamText({
+          model: await createModelProvider(thinkingModel),
+          system: getSystemPrompt(),
+          prompt: [
+            generateTasksFromPlanPrompt(planningContent, question),
+            getResponseLanguagePrompt(),
+          ].join("\n\n"),
+          onError: handleError,
+        });
+
+        let taskContent = "";
+        let deepStepResult:
+          | { query: string; title: string; researchGoal: string }[]
+          | undefined;
+        
+        for await (const textPart of taskGenerationResult.textStream) {
+          taskContent += textPart;
           
-          const data: PartialJson = parsePartialJson(removeJsonMarkdown(content));
+          // 尝试解析JSON任务列表
+          const data: PartialJson = parsePartialJson(removeJsonMarkdown(taskContent));
+          const taskSchema = getSERPQuerySchema();
           if (
-            deepStepSchema.safeParse(data.value) &&
-            (data.state === "repaired-parse" ||
-              data.state === "successful-parse")
+            taskSchema.safeParse(data.value) &&
+            (data.state === "repaired-parse" || data.state === "successful-parse")
           ) {
             deepStepResult = data.value;
           }
@@ -702,7 +711,7 @@ function useDeepResearch() {
         if (!deepStepResult) {
           // AI生成失败，标记thinking task为失败状态  
           updateTask(thinkingTaskId, { 
-            reasoning: content || "AI failed to generate plan",
+            reasoning: planningContent + "\n\n❌ 任务生成失败，请重试",
             state: "completed" 
           });
           toast.error(t("research.error.aiFailedToGeneratePlan"));
@@ -710,11 +719,17 @@ function useDeepResearch() {
         }
 
         // 步骤 9：标记thinking task完成并创建 search tasks
+        const finalReasoning = planningContent + 
+          "\n\n✅ **生成的搜索任务:**\n" +
+          deepStepResult.map((task, idx) => 
+            `${idx + 1}. **${task.title}**\n   - 查询: ${task.query}\n   - 目标: ${task.researchGoal}`
+          ).join("\n");
+          
         updateTask(thinkingTaskId, { 
-          reasoning: deepStepResult.reasoning,
+          reasoning: finalReasoning,
           state: "completed" 
         });
-        const newSearchTasks: SearchTask[] = deepStepResult.queries.map(
+        const newSearchTasks: SearchTask[] = deepStepResult.map(
           (q) => ({
             ...q,
             id: nanoid(),

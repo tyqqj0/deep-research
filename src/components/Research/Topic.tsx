@@ -76,33 +76,21 @@ function Topic() {
   }
 
   async function handleSubmit(values: z.infer<typeof formSchema>) {
-    console.log('[DEBUG_TOPIC] handleSubmit called with:', values);
-    const checkResult = handleCheck();
-    console.log('[DEBUG_TOPIC] handleCheck result:', checkResult);
-    
-    if (checkResult) {
+    if (handleCheck()) {
       const { id, setQuestion } = useTaskStore.getState();
-      console.log('[DEBUG_TOPIC] Current task store id:', id);
       try {
         setIsThinking(true);
         accurateTimerStart();
         if (id !== "") {
-          console.log('[DEBUG_TOPIC] Creating new research...');
           createNewResearch();
           form.setValue("topic", values.topic);
         }
-        console.log('[DEBUG_TOPIC] Setting question and calling askQuestions...');
         setQuestion(values.topic);
         await askQuestions();
-        console.log('[DEBUG_TOPIC] askQuestions completed');
-      } catch (error) {
-        console.error('[DEBUG_TOPIC] Error in handleSubmit:', error);
       } finally {
         setIsThinking(false);
         accurateTimerStop();
       }
-    } else {
-      console.log('[DEBUG_TOPIC] handleCheck failed - probably opening settings');
     }
   }
 
