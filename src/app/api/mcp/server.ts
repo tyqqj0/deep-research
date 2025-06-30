@@ -69,7 +69,7 @@ export function initMcpServer() {
   const server = new McpServer(
     {
       name: "deep-research",
-      version: "0.1.0",
+      version: "0.2.3",
     },
     {
       capabilities: {
