@@ -168,8 +168,8 @@ function SearchResult() {
   const [originalTasks, setOriginalTasks] = useState<Record<string, SearchTask>>({});
 
   const isThinkingDeeper = useMemo(() => {
-    return isThinking && !tasks.some(t => t.type === 'thinking' && t.depth > 0);
-  }, [isThinking, tasks]);
+    return researchStatus === "deeper-research";
+  }, [researchStatus]);
 
   // 诊断工具：在开发时添加调试信息
   const debugInfo = useMemo(() => {
@@ -334,9 +334,9 @@ function SearchResult() {
   }, [suggestion, form]);
 
   return (
-    <div className="flex-1 overflow-auto p-4">
-      <div className="max-w-4xl mx-auto">
-        <h2 className="text-xl font-semibold mb-4">
+    <div className="p-4 border rounded-md mt-4 print:hidden">
+      <div className="p-4 rounded-md">
+        <h2 className="font-semibold text-lg leading-10">
           {t("research.searchResult.title")}
         </h2>
 
@@ -346,6 +346,7 @@ function SearchResult() {
               const isEditing = editingTaskId === item.id;
 
               if (item.type === "thinking") {
+                const thinkingTask = item as ThinkingTask;
                 return (
                   <AccordionItem
                     key={item.id}
@@ -354,12 +355,31 @@ function SearchResult() {
                   >
                     <AccordionTrigger>
                       <div className="flex items-center space-x-2 text-blue-500">
-                        <Sparkles className="h-4 w-4 animate-pulse" />
+                        {thinkingTask.state === "processing" ? (
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-4 w-4" />
+                        )}
                         <span>{item.title}</span>
+                        {thinkingTask.state === "processing" && (
+                          <span className="ml-2 text-muted-foreground text-sm">
+                            ({t("research.status.processing", "思考中...")})
+                          </span>
+                        )}
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 bg-blue-500/5">
                       <MagicDownView>{item.reasoning || ""}</MagicDownView>
+                      <div className="flex items-center justify-end space-x-2 mt-4 pt-2 border-t">
+                        <Button
+                          onClick={() => handleRemove(item.id)}
+                          variant="destructive"
+                          size="sm"
+                        >
+                          <Trash className="mr-1 h-4 w-4" />
+                          {t("research.common.delete")}
+                        </Button>
+                      </div>
                     </AccordionContent>
                   </AccordionItem>
                 );

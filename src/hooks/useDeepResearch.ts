@@ -645,8 +645,25 @@ function useDeepResearch() {
           break; // Exit loop
         }
 
-        // 步骤 7：调用 AI 生成下一步计划
-        console.log("【检查点 5】准备调用 AI 生成下一步计划...");
+        // 步骤 7：先创建 thinking task（processing状态）
+        console.log("【检查点 5】创建thinking task...");
+        const thinkingTaskId = nanoid();
+        const thinkingTask: ThinkingTask = {
+          id: thinkingTaskId,
+          type: "thinking",
+          depth: currentMaxDepth + 1,
+          title: t("research.thinking.depthTitle", {
+            depth: currentMaxDepth + 1,
+          }),
+          reasoning: "",
+          state: "processing",
+        };
+        
+        // 立即添加thinking task让用户看到
+        addTasks([thinkingTask]);
+
+        // 步骤 8：调用 AI 生成下一步计划（流式更新reasoning）
+        console.log("【检查点 6】开始AI生成和实时更新...");
         const result = streamText({
           model: await createModelProvider(thinkingModel),
           system: getSystemPrompt(),
@@ -668,6 +685,10 @@ function useDeepResearch() {
 
         for await (const textPart of result.textStream) {
           content += textPart;
+          
+          // 实时更新thinking task的reasoning
+          updateTask(thinkingTaskId, { reasoning: content });
+          
           const data: PartialJson = parsePartialJson(removeJsonMarkdown(content));
           if (
             deepStepSchema.safeParse(data.value) &&
@@ -679,22 +700,20 @@ function useDeepResearch() {
         }
 
         if (!deepStepResult) {
+          // AI生成失败，标记thinking task为失败状态  
+          updateTask(thinkingTaskId, { 
+            reasoning: content || "AI failed to generate plan",
+            state: "completed" 
+          });
           toast.error(t("research.error.aiFailedToGeneratePlan"));
           break;
         }
 
-        // 步骤 8：创建 thinking task
-        const thinkingTask: ThinkingTask = {
-          id: nanoid(),
-          type: "thinking",
-          depth: currentMaxDepth + 1,
-          title: t("research.thinking.depthTitle", {
-            depth: currentMaxDepth + 1,
-          }),
+        // 步骤 9：标记thinking task完成并创建 search tasks
+        updateTask(thinkingTaskId, { 
           reasoning: deepStepResult.reasoning,
-        };
-
-        // 步骤 9：创建 search tasks
+          state: "completed" 
+        });
         const newSearchTasks: SearchTask[] = deepStepResult.queries.map(
           (q) => ({
             ...q,
@@ -708,8 +727,8 @@ function useDeepResearch() {
           })
         );
 
-        // 步骤 10：添加任务到 store
-        addTasks([thinkingTask, ...newSearchTasks]);
+        // 步骤 10：添加search tasks到 store（thinking task已经添加过了）
+        addTasks(newSearchTasks);
 
         // 步骤 11：执行搜索任务
         await runSearchTask(newSearchTasks);

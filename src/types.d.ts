@@ -42,6 +42,7 @@ interface ThinkingTask {
   depth: number;
   title: string;
   reasoning: string;
+  state?: "processing" | "completed";
 }
 
 interface SearchTask {
