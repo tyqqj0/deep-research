@@ -61,6 +61,7 @@ import type {
   Source,
   ResearchItem,
 } from "@/types";
+import { debugThinkingBlockState } from "@/utils/debug-thinking-block";
 
 const MagicDown = dynamic(() => import("@/components/MagicDown"));
 const MagicDownView = dynamic(() => import("@/components/MagicDown/View"));
@@ -169,6 +170,14 @@ function SearchResult() {
   const isThinkingDeeper = useMemo(() => {
     return isThinking && !tasks.some(t => t.type === 'thinking' && t.depth > 0);
   }, [isThinking, tasks]);
+
+  // 诊断工具：在开发时添加调试信息
+  const debugInfo = useMemo(() => {
+    if (process.env.NODE_ENV === 'development') {
+      return debugThinkingBlockState(tasks, researchStatus, isThinking, currentDepth);
+    }
+    return null;
+  }, [tasks, researchStatus, isThinking, currentDepth]);
   const unfinishedTasks = useMemo(() => {
     return tasks.filter(
       (item): item is SearchTask => item.type === "search" && item.state !== "completed"
