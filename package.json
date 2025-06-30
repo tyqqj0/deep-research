@@ -1,7 +1,7 @@
 {
   "name": "deep-research",
   "description": "Use any LLMs (Large Language Models) for Deep Research. Support SSE API and MCP server.",
-  "version": "0.1.0",
+  "version": "0.2.3",
   "license": "MIT",
   "repository": {
     "url": "https://github.com/tyqqj0/deep-research.git"

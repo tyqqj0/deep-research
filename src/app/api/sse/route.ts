@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
         encoder.encode(
           `event: infor\ndata: ${JSON.stringify({
             name: "deep-research",
-            version: "0.1.0",
+            version: "0.2.3",
           })}\n\n`
         )
       );
