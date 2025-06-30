@@ -39,7 +39,12 @@
       "researchInProgress": "研究正在进行中",
       "deeperResearchInProgress": "深度研究正在进行中，请稍候",
       "confirmRemoveDepth": "确定要删除这一层级的所有任务吗？",
-      "confirmRerunDepth": "确定要重新生成这一层级吗？当前层级的所有任务将被删除。"
+      "confirmRerunDepth": "确定要重新生成这一层级吗？当前层级的所有任务将被删除。",
+      "compressToUpperLevel": "删除后续思考任务",
+      "cascadeDelete": "删除后续全部任务", 
+      "query": "查询",
+      "goal": "目标",
+      "tasks": "个任务"
     },
     "status": {
       "searching": "搜索中...",
@@ -83,11 +88,19 @@
       "writingRequirementPlaceholder": "您可以提出任何与撰写报告相关的要求。"
     },
     "thinking": {
-      "depthTitle": "第 {{depth}} 层思考过程"
+      "depthTitle": "第 {{depth}} 层思考过程",
+      "generatingSearchTasks": "生成搜索任务中...",
+      "generatingTasks": "生成任务中...",
+      "tasksGenerated": "已生成 {{count}} 个任务",
+      "generatedSearchTasks": "生成的搜索任务",
+      "deepThinking": "深度思考中...",
+      "thinking": "思考中...",
+      "completed": "已完成"
     },
     "error": {
       "aiFailedToGeneratePlan": "AI 未能生成下一步计划",
-      "noLearningForRerun": "无法重新生成，因为找不到上一层的学习内容。"
+      "noLearningForRerun": "无法重新生成，因为找不到上一层的学习内容。",
+      "taskGenerationFailed": "任务生成失败"
     }
   },
   "history": {

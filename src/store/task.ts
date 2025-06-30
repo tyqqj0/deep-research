@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { pick } from "radash";
-import { nanoid } from "nanoid";
 import type {
   ResearchItem,
   Resource,

@@ -57,9 +57,7 @@ import {
 import type {
   SearchTask,
   ThinkingTask,
-  Knowledge,
   Source,
-  ResearchItem,
 } from "@/types";
 import { debugThinkingBlockState } from "@/utils/debug-thinking-block";
 
@@ -101,6 +99,23 @@ function TaskState({ state }: { state: SearchTask["state"] }) {
   }
 }
 
+function getThinkingStateText(thinkingTask: ThinkingTask, t: (key: string) => string): string {
+  const reasoning = thinkingTask.reasoning || "";
+  
+  if (reasoning.includes("🔄")) {
+    if (reasoning.includes(t("research.thinking.tasksGenerated")) || reasoning.includes(t("research.thinking.generatingTasks"))) {
+      return t("research.thinking.generatingSearchTasks");
+    }
+    return t("research.thinking.generatingTasks");
+  } else if (reasoning.includes("🧠")) {
+    return t("research.thinking.deepThinking");
+  } else if (thinkingTask.state === "processing") {
+    return t("research.thinking.thinking");
+  } else {
+    return t("research.thinking.completed");
+  }
+}
+
 function getDeeperResearchDisabledReason(
   t: (key: string) => string,
   isThinking: boolean,
@@ -112,6 +127,9 @@ function getDeeperResearchDisabledReason(
     isThinking,
     taskFinished,
     researchStatus,
+    tasksCount: tasks.length,
+    searchTasks: tasks.filter(t => t.type === "search").length,
+    completedSearchTasks: tasks.filter(t => t.type === "search" && (t as SearchTask).state === "completed").length
   });
 
   if (isThinking || researchStatus !== "idle") {
@@ -120,13 +138,20 @@ function getDeeperResearchDisabledReason(
     );
     return t("research.status.researchInProgress");
   }
+  
+  // 检查是否有任何搜索任务
+  const searchTasks = tasks.filter(t => t.type === "search") as SearchTask[];
+  if (searchTasks.length === 0) {
+    console.log(`[DEBUG_BUTTON] Disabled because: no search tasks exist`);
+    return t("research.status.noTasks");
+  }
+  
   if (!taskFinished) {
     console.log(`[DEBUG_BUTTON] Disabled because: taskFinished=${taskFinished}`);
     return t("research.status.tasksRunning");
   }
-  const hasCompletedTasks = tasks.some(
-    (t) => t.type === "search" && t.state === "completed"
-  );
+  
+  const hasCompletedTasks = searchTasks.some(t => t.state === "completed");
   if (!hasCompletedTasks) {
     console.log(
       `[DEBUG_BUTTON] Disabled because: hasCompletedTasks=${hasCompletedTasks}`
@@ -143,14 +168,11 @@ function SearchResult() {
     tasks,
     suggestion,
     updateTask,
-    removeTask,
-    setSuggestion,
     researchStatus,
     currentDepth,
   } = useTaskStore();
 
   const {
-    status,
     runSearchTask,
     runWiderResearch,
     runDeeperResearch,
@@ -158,11 +180,9 @@ function SearchResult() {
     rerunTask,
     cancelTask,
     regenerateSummary,
-    cancelDeeperResearch,
   } = useDeepResearch();
   const { generateId } = useKnowledge();
   const {
-    formattedTime,
     start: accurateTimerStart,
     stop: accurateTimerStop,
   } = useAccurateTimer();
@@ -171,17 +191,7 @@ function SearchResult() {
   const [originalTasks, setOriginalTasks] = useState<Record<string, SearchTask>>({});
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const isThinkingDeeper = useMemo(() => {
-    return researchStatus === "deeper-research";
-  }, [researchStatus]);
 
-  // 诊断工具：在开发时添加调试信息
-  const debugInfo = useMemo(() => {
-    if (process.env.NODE_ENV === 'development') {
-      return debugThinkingBlockState(tasks, researchStatus, isThinking, currentDepth);
-    }
-    return null;
-  }, [tasks, researchStatus, isThinking, currentDepth]);
   const unfinishedTasks = useMemo(() => {
     return tasks.filter(
       (item): item is SearchTask => item.type === "search" && item.state !== "completed"
@@ -330,7 +340,155 @@ function SearchResult() {
   }
 
   function handleRemove(id: string) {
-    cancelTask(id);
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    
+    if (task.type === "thinking") {
+      // 对于thinking task，确认后级联删除
+      const taskDepth = (task as ThinkingTask).depth;
+      const affectedTasks = tasks.filter(t => {
+        if (t.type === "thinking") {
+          return (t as ThinkingTask).depth >= taskDepth;
+        } else {
+          return (t as SearchTask).depth > taskDepth;
+        }
+      });
+      
+      if (window.confirm(
+        `删除此思考节点会影响 ${affectedTasks.length} 个相关任务。\n\n确认删除吗？`
+      )) {
+        handleCascadeDelete(id, taskDepth);
+      }
+    } else {
+      // 对于search task，直接删除
+      cancelTask(id);
+    }
+  }
+  
+  function handleCascadeDelete(thinkingTaskId: string, fromDepth: number) {
+    const { removeTask, setResearchStatus } = useTaskStore.getState();
+    
+    console.log("【级联删除】开始删除，起始深度:", fromDepth);
+    
+    // 1. 首先停止正在进行的研究
+    if (researchStatus !== "idle") {
+      console.log("【级联删除】停止正在进行的研究");
+      setResearchStatus("stopping");
+      // 给一点时间让正在进行的任务停止
+      setTimeout(() => {
+        setResearchStatus("idle");
+      }, 1000);
+    }
+    
+    // 2. 找到要删除的所有任务
+    const tasksToRemove = tasks.filter(t => {
+      if (t.type === "thinking") {
+        return (t as ThinkingTask).depth >= fromDepth;
+      } else {
+        return (t as SearchTask).depth > fromDepth;
+      }
+    });
+    
+    console.log("【级联删除】要删除的任务数量:", tasksToRemove.length + 1);
+    console.log("【级联删除】要删除的任务列表:", tasksToRemove.map(t => ({ id: t.id, type: t.type, title: t.title })));
+    
+    // 3. 删除thinking task本身
+    removeTask(thinkingTaskId);
+    
+    // 4. 删除相关的所有任务
+    tasksToRemove.forEach(task => {
+      if (task.id !== thinkingTaskId) {
+        console.log("【级联删除】删除任务:", task.title);
+        removeTask(task.id);
+      }
+    });
+    
+    // 5. 重新计算状态
+    setTimeout(() => {
+      recalculateResearchState();
+    }, 100);
+    
+    toast.success(`${t("research.common.cascadeDelete")}: ${tasksToRemove.length + 1} ${t("research.common.tasks")}`);
+  }
+  
+  
+  function handleCompressToUpperLevel(thinkingTaskId: string, thinkingTask: ThinkingTask) {
+    const { removeTask, updateTask } = useTaskStore.getState();
+    const taskDepth = thinkingTask.depth;
+    const targetDepth = taskDepth - 1;
+    
+    if (targetDepth < 0) {
+      toast.error("无法压缩到更高层级");
+      return;
+    }
+    
+    // 找到需要压缩的任务
+    const tasksToCompress = tasks.filter(t => 
+      t.type === "search" && (t as SearchTask).depth > taskDepth
+    ) as SearchTask[];
+    
+    const thinkingTasksToRemove = tasks.filter(t =>
+      t.type === "thinking" && (t as ThinkingTask).depth >= taskDepth
+    ) as ThinkingTask[];
+    
+    if (window.confirm(
+      `将 ${tasksToCompress.length} 个搜索任务压缩到第 ${targetDepth} 层，` +
+      `并删除 ${thinkingTasksToRemove.length} 个思考节点。\n\n确认执行此操作吗？`
+    )) {
+      // 1. 删除所有thinking tasks（包括当前的）
+      thinkingTasksToRemove.forEach(task => removeTask(task.id));
+      
+      // 2. 将搜索任务的深度调整到目标深度
+      tasksToCompress.forEach(task => {
+        updateTask(task.id, { depth: targetDepth });
+      });
+      
+      // 3. 重新计算状态
+      recalculateResearchState();
+      
+      toast.success(`已压缩 ${tasksToCompress.length} 个任务到第 ${targetDepth} 层`);
+    }
+  }
+  
+  function recalculateResearchState() {
+    const { setResearchStatus, setCurrentDepth, tasks: currentTasks } = useTaskStore.getState();
+    
+    // 重新获取当前任务列表
+    const remainingTasks = currentTasks;
+    
+    if (remainingTasks.length === 0) {
+      setResearchStatus("idle");
+      setCurrentDepth(0);
+      // 不要重置maxDepth！保持系统允许的最大深度设置
+      return;
+    }
+    
+    
+    // 计算当前深度（最高已完成的深度）
+    const searchTasks = remainingTasks.filter(t => t.type === "search") as SearchTask[];
+    const completedDepths = searchTasks
+      .filter(t => t.state === "completed")
+      .map(t => t.depth);
+    const currentDepth = completedDepths.length > 0 ? Math.max(...completedDepths) : 0;
+    
+    // 检查是否有正在进行的任务
+    const hasActiveResearch = remainingTasks.some(t => 
+      (t.type === "thinking" && (t as ThinkingTask).state === "processing") ||
+      (t.type === "search" && ["processing", "searching", "summarizing", "waiting"].includes((t as SearchTask).state))
+    );
+    
+    // 更新状态 - 注意：不要重置maxDepth系统限制！
+    setResearchStatus(hasActiveResearch ? "deeper-research" : "idle");
+    setCurrentDepth(currentDepth);
+    // setMaxDepth(maxDepth); // 删除这行！不要重置系统的最大深度限制
+    
+    console.log("[RECALCULATE_STATE] Updated state:", {
+      remainingTasksCount: remainingTasks.length,
+      currentTaskMaxDepth,
+      currentDepth,
+      researchStatus: hasActiveResearch ? "deeper-research" : "idle",
+      hasActiveResearch
+    });
   }
 
   useEffect(() => {
@@ -367,7 +525,7 @@ function SearchResult() {
                         <span>{item.title}</span>
                         {thinkingTask.state === "processing" && (
                           <span className="ml-2 text-muted-foreground text-sm">
-                            ({t("research.status.processing", "思考中...")})
+                            ({getThinkingStateText(thinkingTask, t)})
                           </span>
                         )}
                       </div>
@@ -376,13 +534,35 @@ function SearchResult() {
                       <ThinkingView content={item.reasoning || ""} />
                       <div className="flex items-center justify-end space-x-2 mt-4 pt-2 border-t">
                         <Button
-                          onClick={() => handleRemove(item.id)}
+                          onClick={() => handleCascadeDelete(item.id, (item as ThinkingTask).depth)}
                           variant="destructive"
                           size="sm"
+                          title="删除此思考节点及其后续所有相关任务"
                         >
                           <Trash className="mr-1 h-4 w-4" />
-                          {t("research.common.delete")}
+                          {t("research.common.cascadeDelete")}
                         </Button>
+                        {(() => {
+                          const thinkingTask = item as ThinkingTask;
+                          const searchTasksToMerge = tasks.filter(t => 
+                            t.type === "search" && (t as SearchTask).depth > thinkingTask.depth
+                          );
+                          
+                          if (searchTasksToMerge.length > 0 && thinkingTask.depth > 0) {
+                            return (
+                              <Button
+                                onClick={() => handleCompressToUpperLevel(item.id, thinkingTask)}
+                                variant="outline"
+                                size="sm"
+                                title={`保留搜索结果，将 ${searchTasksToMerge.length} 个搜索任务压缩到上一层`}
+                              >
+                                <RotateCcw className="mr-1 h-4 w-4" />
+                                {t("research.common.compressToUpperLevel")}
+                              </Button>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     </AccordionContent>
                   </AccordionItem>
@@ -626,7 +806,18 @@ function SearchResult() {
                           type="button"
                           variant="default"
                           disabled={!!deeperResearchDisabledReason}
-                          onClick={() => handleDeeperResearch(tasks[0].id)}
+                          onClick={() => {
+                            // 找到第一个已完成的搜索任务
+                            const completedSearchTask = tasks.find(
+                              t => t.type === "search" && (t as SearchTask).state === "completed"
+                            );
+                            if (completedSearchTask) {
+                              handleDeeperResearch(completedSearchTask.id);
+                            } else {
+                              console.error("[DEBUG_UI] No completed search task found for deeper research");
+                              toast.error("没有找到已完成的搜索任务");
+                            }
+                          }}
                         >
                           <BrainCircuit className="mr-2" />
                           {t("research.common.deeperResearch")}
