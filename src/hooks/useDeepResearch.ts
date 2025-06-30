@@ -64,39 +64,68 @@ function useDeepResearch() {
   const [status, setStatus] = useState<string>("");
 
   async function askQuestions() {
+    console.log('[DEBUG_ASK_QUESTIONS] Starting askQuestions function');
     const { question } = useTaskStore.getState();
+    console.log('[DEBUG_ASK_QUESTIONS] Question:', question);
+    
     const { thinkingModel } = getModel();
+    console.log('[DEBUG_ASK_QUESTIONS] Thinking model:', thinkingModel);
+    
     setStatus(t("research.common.thinking"));
-    const thinkTagStreamProcessor = new ThinkTagStreamProcessor();
-    const result = streamText({
-      model: await createModelProvider(thinkingModel),
-      system: getSystemPrompt(),
-      prompt: [
-        generateQuestionsPrompt(question),
-        getResponseLanguagePrompt(),
-      ].join("\n\n"),
-      onError: handleError,
-    });
-    let content = "";
-    let reasoning = "";
-    taskStore.setQuestion(question);
-    for await (const part of result.fullStream) {
-      if (part.type === "text-delta") {
-        thinkTagStreamProcessor.processChunk(
-          part.textDelta,
-          (data) => {
-            content += data;
-            taskStore.updateQuestions(content);
-          },
-          (data) => {
-            reasoning += data;
-          }
-        );
-      } else if (part.type === "reasoning") {
-        reasoning += part.textDelta;
+    console.log('[DEBUG_ASK_QUESTIONS] Status set to thinking');
+    
+    try {
+      console.log('[DEBUG_ASK_QUESTIONS] Creating model provider...');
+      const modelProvider = await createModelProvider(thinkingModel);
+      console.log('[DEBUG_ASK_QUESTIONS] Model provider created successfully');
+      
+      const thinkTagStreamProcessor = new ThinkTagStreamProcessor();
+      console.log('[DEBUG_ASK_QUESTIONS] Starting streamText...');
+      
+      const result = streamText({
+        model: modelProvider,
+        system: getSystemPrompt(),
+        prompt: [
+          generateQuestionsPrompt(question),
+          getResponseLanguagePrompt(),
+        ].join("\n\n"),
+        onError: (error) => {
+          console.error('[DEBUG_ASK_QUESTIONS] Stream error:', error);
+          handleError(error);
+        },
+      });
+      
+      let content = "";
+      let reasoning = "";
+      taskStore.setQuestion(question);
+      
+      console.log('[DEBUG_ASK_QUESTIONS] Starting to process stream...');
+      for await (const part of result.fullStream) {
+        console.log('[DEBUG_ASK_QUESTIONS] Received part:', part.type);
+        if (part.type === "text-delta") {
+          thinkTagStreamProcessor.processChunk(
+            part.textDelta,
+            (data) => {
+              content += data;
+              taskStore.updateQuestions(content);
+            },
+            (data) => {
+              reasoning += data;
+            }
+          );
+        } else if (part.type === "reasoning") {
+          reasoning += part.textDelta;
+        }
       }
+      
+      console.log('[DEBUG_ASK_QUESTIONS] Stream processing completed');
+      if (reasoning) console.log('[DEBUG_ASK_QUESTIONS] Reasoning:', reasoning);
+      
+    } catch (error) {
+      console.error('[DEBUG_ASK_QUESTIONS] Function error:', error);
+      handleError(error);
+      throw error;
     }
-    if (reasoning) console.log(reasoning);
   }
 
   async function writeReportPlan() {
