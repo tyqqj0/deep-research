@@ -235,10 +235,14 @@ export function extractResearchTasks(planningContent: string): string {
   const endIndex = planningContent.indexOf(endTag);
   
   if (startIndex === -1 || endIndex === -1) {
+    console.log("【DEBUG_EXTRACT】标签未找到，返回空字符串");
+    console.log("【DEBUG_EXTRACT】Planning内容预览:", planningContent.substring(0, 500));
     return "";
   }
   
-  return planningContent.slice(startIndex + startTag.length, endIndex).trim();
+  const extractedContent = planningContent.slice(startIndex + startTag.length, endIndex).trim();
+  
+  return extractedContent;
 }
 
 export function writeFinalReportPrompt(
