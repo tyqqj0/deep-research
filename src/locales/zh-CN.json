@@ -44,7 +44,9 @@
       "cascadeDelete": "删除当前节点及后续全部任务", 
       "query": "查询",
       "goal": "目标",
-      "tasks": "个任务"
+      "tasks": "个任务",
+      "compressToUpperLevelTip": "保留搜索结果，将 { count } 个搜索任务压缩到上一层",
+      "compressToUpperLevelConfirm": "将 { count } 个搜索任务压缩到第 { depth } 层，并删除 { count } 个思考节点。\n\n确认执行此操作吗？"
     },
     "status": {
       "searching": "搜索中...",

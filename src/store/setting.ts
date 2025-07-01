@@ -173,7 +173,7 @@ export const defaultValues: SettingStore = {
   enableTaskWaitingTime: false,
   taskWaitingTime: 10,
   searchExecutionMode: "manual",
-  searchErrorHandling: "auto",
+  searchErrorHandling: "ignore",
   maxResearchDepth: 3,
   deepSearchMaxTasks: 3,
 };

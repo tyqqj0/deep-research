@@ -467,8 +467,7 @@ function SearchResult() {
     ) as ThinkingTask[];
     
     if (window.confirm(
-      `将 ${tasksToCompress.length} 个搜索任务压缩到第 ${targetDepth} 层，` +
-      `并删除 ${thinkingTasksToRemove.length} 个思考节点。\n\n确认执行此操作吗？`
+      t("research.common.compressToUpperLevelConfirm").replace("{ count }", tasksToCompress.length.toString()).replace("{ depth }", targetDepth.toString())
     )) {
       // 1. 删除所有thinking tasks（包括当前的）
       thinkingTasksToRemove.forEach(task => removeTask(task.id));
@@ -590,7 +589,7 @@ function SearchResult() {
                           onClick={() => handleCascadeDelete(item.id, (item as ThinkingTask).depth)}
                           variant="destructive"
                           size="sm"
-                          title="删除此思考节点及其后续所有相关任务"
+                          title={t("research.common.cascadeDeleteTip")}
                         >
                           <Trash className="mr-1 h-4 w-4" />
                           {t("research.common.cascadeDelete")}
@@ -607,7 +606,7 @@ function SearchResult() {
                                 onClick={() => handleCompressToUpperLevel(item.id, thinkingTask)}
                                 variant="outline"
                                 size="sm"
-                                title={`保留搜索结果，将 ${searchTasksToMerge.length} 个搜索任务压缩到上一层`}
+                                title={t("research.common.compressToUpperLevelTip").replace("{ count }", searchTasksToMerge.length.toString())}
                               >
                                 <RotateCcw className="mr-1 h-4 w-4" />
                                 {t("research.common.compressToUpperLevel")}

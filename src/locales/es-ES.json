@@ -31,7 +31,22 @@
       "export": "Exportar",
       "delete": "Eliminar",
       "widerResearch": "Investigación más Amplia",
-      "deeperResearch": "Investigación más Profunda"
+      "deeperResearch": "Investigación más Profunda",
+      "startNow": "Iniciar Ahora",
+      "regenerate": "Regenerar",
+      "continue": "Continuar",
+      "finished": "Finalizado",
+      "researchInProgress": "Investigación en Proceso",
+      "deeperResearchInProgress": "Investigación Profunda en Proceso",
+      "confirmRemoveDepth": "¿Estás seguro de querer eliminar todas las tareas de esta profundidad?",
+      "confirmRerunDepth": "¿Estás seguro de querer reanudar la investigación en esta profundidad? Todas las tareas de esta profundidad serán eliminadas.",
+      "compressToUpperLevel": "Comprimir a la Profundidad Superior",
+      "cascadeDelete": "Eliminar Todos",
+      "query": "Consulta",
+      "goal": "Objetivo",
+      "tasks": "tareas",
+      "compressToUpperLevelTip": "Mantener los resultados de la búsqueda, comprimir { count } tareas de búsqueda a la profundidad superior",
+      "compressToUpperLevelConfirm": "Comprimir { count } tareas de búsqueda a la profundidad { depth }, y eliminar { count } nodos de pensamiento.\n\n¿Estás seguro de querer ejecutar esta operación?"
     },
     "topic": {
       "title": "1. Definición de la investigación",

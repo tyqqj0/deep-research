@@ -33,7 +33,14 @@
       "widerResearch": "Wider Research",
       "deeperResearch": "Deeper Research",
       "startNow": "Start Now",
-      "regenerateSummary": "Re-summarize"
+      "regenerateSummary": "Re-summarize",
+      "compressToUpperLevel": "Compress to Upper Level",
+      "cascadeDelete": "Delete All",
+      "query": "Query",
+      "goal": "Goal",
+      "tasks": "tasks",
+      "compressToUpperLevelTip": "Keep search results, compress { count } search tasks to the upper level",
+      "compressToUpperLevelConfirm": "Compress { count } search tasks to depth { depth }, and delete { count } thinking nodes.\n\nAre you sure you want to execute this operation?"
     },
     "status": {
       "searching": "Searching...",

@@ -287,6 +287,17 @@ function useDeepResearch() {
     );
 
     async function startExecution(item: SearchTask) {
+      console.log("[搜索任务开始] 开始执行搜索任务:", {
+        taskId: item.id,
+        title: item.title,
+        query: item.query,
+        searchProvider,
+        searchErrorHandling,
+        enableSearch,
+        parallelSearch,
+        searchMaxResult
+      });
+      
       let content = "";
       let reasoning = "";
       let searchResult;
@@ -311,32 +322,87 @@ function useDeepResearch() {
           ].join("\n\n");
         }
         if (enableSearch) {
+          console.log("[搜索任务] 搜索功能已启用，开始搜索流程:", {
+            taskId: item.id,
+            searchProvider,
+            query: item.query
+          });
+          
           if (searchProvider !== "model") {
+            console.log("[搜索任务] 使用外部搜索提供商:", searchProvider);
             try {
+              console.log("[搜索任务] 更新任务状态为 'searching'");
               updateTask(item.id, { state: "searching" });
+              
+              console.log("[搜索任务] 调用搜索接口:", {
+                query: item.query,
+                searchProvider
+              });
               const results = await search(item.query);
+              console.log("[搜索任务] 搜索接口返回结果:", {
+                sourcesCount: results.sources.length,
+                imagesCount: results.images.length,
+                sources: results.sources.map(s => ({ title: s.title, url: s.url }))
+              });
+              
               sources = results.sources;
               images = results.images;
 
               if (sources.length === 0) {
+                console.log("[搜索任务] 搜索结果为空，将抛出错误");
                 throw new Error("Invalid Search Results");
               }
+              
+              console.log("[搜索任务] 搜索成功，获得", sources.length, "个结果");
             } catch (err) {
-              console.error(err);
+              console.error("[搜索错误] 捕获到错误:", err);
+              console.error("[搜索错误] 错误类型:", typeof err);
+              console.error("[搜索错误] 错误堆栈:", err instanceof Error ? err.stack : "无堆栈信息");
+              
               const errorMsg = `[${searchProvider}]: ${err instanceof Error ? err.message : "Search Failed"}`;
               
-              console.log("[搜索错误处理] 模式:", searchErrorHandling);
+              console.log("[搜索错误处理] 当前配置:", {
+                searchErrorHandling,
+                taskId: item.id,
+                taskTitle: item.title,
+                query: item.query,
+                searchProvider,
+                errorMsg
+              });
+              
               if (searchErrorHandling === "ignore") {
                 // 忽略错误：标记任务失败但显示查询信息，不停止其他任务
+                const failedContent = `❌ **${t("research.status.searchFailed")}**\n\n**${t("research.common.query")}**: ${item.query}\n\n**${t("research.status.searchError")}**: ${errorMsg}\n\n*此任务因搜索错误被跳过，但其他任务将继续执行。*`;
+                
+                console.log("[搜索错误处理] 忽略模式 - 更新任务状态为failed:", {
+                  taskId: item.id,
+                  failedContent
+                });
+                
                 updateTask(item.id, {
                   state: "failed",
-                  learning: `❌ **${t("research.status.searchFailed")}**\n\n**${t("research.common.query")}**: ${item.query}\n\n**${t("research.status.searchError")}**: ${errorMsg}\n\n*此任务因搜索错误被跳过，但其他任务将继续执行。*`
+                  learning: failedContent
                 });
-                console.log(`[搜索错误处理] 忽略模式：任务 ${item.id} 搜索失败，已标记但继续执行其他任务`);
+                
+                console.log(`[搜索错误处理] ✅ 忽略模式完成：任务 ${item.id} 已标记为失败，继续执行其他任务`);
                 return; // 不阻止其他任务，只返回当前任务
               } else {
-                // 自动处理：显示错误并停止队列（保持原有行为）
+                // 自动处理：显示错误信息在任务中，同时显示toast并停止队列
+                const failedContent = `❌ **${t("research.status.searchFailed")}**\n\n**${t("research.common.query")}**: ${item.query}\n\n**${t("research.status.searchError")}**: ${errorMsg}\n\n*搜索失败，已停止后续任务执行。*`;
+                
+                console.log("[搜索错误处理] 自动处理模式 - 更新任务状态并显示错误:", {
+                  taskId: item.id,
+                  failedContent
+                });
+                
+                updateTask(item.id, {
+                  state: "failed", 
+                  learning: failedContent
+                });
+                
+                console.log("[搜索错误处理] 自动处理模式 - 显示错误toast并停止队列:", errorMsg);
                 handleError(errorMsg);
+                console.log("[搜索错误处理] ✅ 自动处理模式完成：已更新任务状态、显示toast并清空队列");
                 return plimit.clearQueue();
               }
             }
