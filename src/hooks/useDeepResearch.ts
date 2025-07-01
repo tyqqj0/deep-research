@@ -316,11 +316,14 @@ function useDeepResearch() {
         skipAutoRetry,
         existingRetryState: getRetryState(item.id)
       });
-
-      // 如果不是重试调用，清理旧的重试状态以防止状态残留
+      
+      // 如果不是重试调用，清理可能残留的重试状态
       if (!skipAutoRetry) {
-        console.log(`[搜索任务开始] 清理任务 ${item.id} 的旧重试状态`);
-        clearRetryState(item.id);
+        const retryState = getRetryState(item.id);
+        if (retryState.retryCount > 0 || retryState.isAutoRetrying) {
+          console.log("[搜索任务开始] 清理残留的重试状态:", retryState);
+          clearRetryState(item.id);
+        }
       }
 
       let content = "";

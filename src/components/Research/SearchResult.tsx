@@ -126,16 +126,16 @@ function getDeeperResearchDisabledReason(
   tasks: (SearchTask | ThinkingTask)[],
   maxDepth: number
 ): string {
-  console.log("[DEBUG_BUTTON] Checking disabled status with:", {
-    isThinking,
-    taskFinished,
-    researchStatus,
-    tasksCount: tasks.length,
-    searchTasks: tasks.filter(t => t.type === "search").length,
-    completedSearchTasks: tasks.filter(t => t.type === "search" && (t as SearchTask).state === "completed").length,
-    maxDepth,
-    maxCurrentDepth: Math.max(...tasks.filter(t => t.type === "search").map(t => (t as SearchTask).depth || 0), 0)
-  });
+  // console.log("[DEBUG_BUTTON] Checking disabled status with:", {
+  //   isThinking,
+  //   taskFinished,
+  //   researchStatus,
+  //   tasksCount: tasks.length,
+  //   searchTasks: tasks.filter(t => t.type === "search").length,
+  //   completedSearchTasks: tasks.filter(t => t.type === "search" && (t as SearchTask).state === "completed").length,
+  //   maxDepth,
+  //   maxCurrentDepth: Math.max(...tasks.filter(t => t.type === "search").map(t => (t as SearchTask).depth || 0), 0)
+  // });
 
   if (isThinking || researchStatus !== "idle") {
     console.log(
@@ -232,15 +232,15 @@ function SearchResult() {
   const maxCurrentDepth = searchTasks.length > 0 ? Math.max(...searchTasks.map(t => t.depth || 0)) : 0;
   const isAtMaxDepth = maxCurrentDepth >= maxDepth && taskFinished && !isThinking && researchStatus === "idle";
   
-  console.log("[DEPTH_DEBUG] 深度检查:", {
-    maxCurrentDepth,
-    maxDepth,
-    searchTasksCount: searchTasks.length,
-    isAtMaxDepth,
-    taskFinished,
-    isThinking,
-    researchStatus
-  });
+  // console.log("[DEPTH_DEBUG] 深度检查:", {
+  //   maxCurrentDepth,
+  //   maxDepth,
+  //   searchTasksCount: searchTasks.length,
+  //   isAtMaxDepth,
+  //   taskFinished,
+  //   isThinking,
+  //   researchStatus
+  // });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),

@@ -194,7 +194,7 @@ const formSchema = z.object({
   enableTaskWaitingTime: z.boolean().optional(),
   taskWaitingTime: z.number().optional(),
   searchExecutionMode: z.enum(["immediate", "delayed", "manual"]).optional(),
-  searchErrorHandling: z.enum(["ignore", "auto"]).optional(),
+  searchErrorHandling: z.enum(["manual", "auto", "ignore"]).optional(),
   maxResearchDepth: z.number().min(1).max(10).optional(),
   deepSearchMaxTasks: z.number().min(1).max(10).optional(),
 });
@@ -3568,11 +3568,14 @@ function Setting({ open, onClose }: SettingProps) {
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="ignore">
-                                        {t("setting.searchErrorIgnore")}
+                                      <SelectItem value="manual">
+                                        {t("setting.searchErrorManual")}
                                       </SelectItem>
                                       <SelectItem value="auto">
                                         {t("setting.searchErrorAuto")}
+                                      </SelectItem>
+                                      <SelectItem value="ignore">
+                                        {t("setting.searchErrorIgnore")}
                                       </SelectItem>
                                     </SelectContent>
                                   </Select>
