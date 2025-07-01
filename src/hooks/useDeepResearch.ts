@@ -48,6 +48,16 @@ import type {
 type ProviderOptions = Record<string, Record<string, JSONValue>>;
 type Tools = Record<string, Tool>;
 
+// 重试状态管理
+interface TaskRetryState {
+  taskId: string;
+  retryCount: number;
+  lastRetryType: 'simple' | 'regenerate';
+  isAutoRetrying: boolean;
+}
+
+const taskRetryStates = new Map<string, TaskRetryState>();
+
 // const taskControllers = new Map<string, AbortController>();
 
 function getResponseLanguagePrompt() {
@@ -184,7 +194,14 @@ function useDeepResearch() {
     return content;
   }
 
-  async function runSearchTask(queries: SearchTask[]) {
+  async function runSearchTask(queries: SearchTask[], skipAutoRetry: boolean = false) {
+    console.log("[runSearchTask] 函数调用参数:", {
+      queriesCount: queries.length,
+      skipAutoRetry,
+      firstTaskId: queries[0]?.id,
+      firstTaskTitle: queries[0]?.title,
+      stackTrace: new Error().stack?.split('\n').slice(1, 4).join('\n') // 添加调用栈信息用于调试
+    });
     const {
       provider,
       enableSearch,
@@ -295,9 +312,17 @@ function useDeepResearch() {
         searchErrorHandling,
         enableSearch,
         parallelSearch,
-        searchMaxResult
+        searchMaxResult,
+        skipAutoRetry,
+        existingRetryState: getRetryState(item.id)
       });
-      
+
+      // 如果不是重试调用，清理旧的重试状态以防止状态残留
+      if (!skipAutoRetry) {
+        console.log(`[搜索任务开始] 清理任务 ${item.id} 的旧重试状态`);
+        clearRetryState(item.id);
+      }
+
       let content = "";
       let reasoning = "";
       let searchResult;
@@ -327,13 +352,13 @@ function useDeepResearch() {
             searchProvider,
             query: item.query
           });
-          
+
           if (searchProvider !== "model") {
             console.log("[搜索任务] 使用外部搜索提供商:", searchProvider);
             try {
               console.log("[搜索任务] 更新任务状态为 'searching'");
               updateTask(item.id, { state: "searching" });
-              
+
               console.log("[搜索任务] 调用搜索接口:", {
                 query: item.query,
                 searchProvider
@@ -344,7 +369,7 @@ function useDeepResearch() {
                 imagesCount: results.images.length,
                 sources: results.sources.map(s => ({ title: s.title, url: s.url }))
               });
-              
+
               sources = results.sources;
               images = results.images;
 
@@ -352,57 +377,95 @@ function useDeepResearch() {
                 console.log("[搜索任务] 搜索结果为空，将抛出错误");
                 throw new Error("Invalid Search Results");
               }
-              
+
               console.log("[搜索任务] 搜索成功，获得", sources.length, "个结果");
             } catch (err) {
               console.error("[搜索错误] 捕获到错误:", err);
               console.error("[搜索错误] 错误类型:", typeof err);
               console.error("[搜索错误] 错误堆栈:", err instanceof Error ? err.stack : "无堆栈信息");
-              
+
               const errorMsg = `[${searchProvider}]: ${err instanceof Error ? err.message : "Search Failed"}`;
-              
+
               console.log("[搜索错误处理] 当前配置:", {
                 searchErrorHandling,
                 taskId: item.id,
                 taskTitle: item.title,
                 query: item.query,
                 searchProvider,
-                errorMsg
+                errorMsg,
+                skipAutoRetry,  // 添加这个调试信息
+                retryState: getRetryState(item.id), // 添加重试状态信息
+                isAutoRetrying: getRetryState(item.id).isAutoRetrying // 添加是否正在重试的状态
               });
-              
+
               if (searchErrorHandling === "ignore") {
                 // 忽略错误：标记任务失败但显示查询信息，不停止其他任务
                 const failedContent = `❌ **${t("research.status.searchFailed")}**\n\n**${t("research.common.query")}**: ${item.query}\n\n**${t("research.status.searchError")}**: ${errorMsg}\n\n*此任务因搜索错误被跳过，但其他任务将继续执行。*`;
-                
+
                 console.log("[搜索错误处理] 忽略模式 - 更新任务状态为failed:", {
                   taskId: item.id,
                   failedContent
                 });
-                
+
                 updateTask(item.id, {
                   state: "failed",
                   learning: failedContent
                 });
-                
+
                 console.log(`[搜索错误处理] ✅ 忽略模式完成：任务 ${item.id} 已标记为失败，继续执行其他任务`);
                 return; // 不阻止其他任务，只返回当前任务
+              } else if (searchErrorHandling === "auto" && !skipAutoRetry && !getRetryState(item.id).isAutoRetrying) {
+                // 自动重试模式：启动自动重试流程（只有在非重试调用且未在重试中时才启动）
+                console.log("[搜索错误处理] 自动重试模式 - 启动自动重试流程:", {
+                  taskId: item.id,
+                  errorMsg,
+                  skipAutoRetry,
+                  isAutoRetrying: getRetryState(item.id).isAutoRetrying
+                });
+
+                // 异步启动自动重试，不阻塞当前执行
+                autoRetryTask(item.id, err instanceof Error ? err : new Error(errorMsg))
+                  .catch(retryError => {
+                    console.error("[搜索错误处理] 自动重试流程出错:", retryError);
+                  });
+
+                console.log("[搜索错误处理] ✅ 自动重试模式：已启动自动重试流程");
+                return; // 不阻止其他任务，让自动重试异步处理
+              } else if (searchErrorHandling === "auto" && (skipAutoRetry || getRetryState(item.id).isAutoRetrying)) {
+                // 重试调用时或已在重试中，跳过自动重试，直接标记失败
+                const failedContent = `❌ **${t("research.status.searchFailed")}**\n\n**${t("research.common.query")}**: ${item.query}\n\n**${t("research.status.searchError")}**: ${errorMsg}\n\n*重试时搜索失败或已在重试中。*`;
+
+                console.log("[搜索错误处理] 自动重试模式（跳过重试） - 标记任务失败:", {
+                  taskId: item.id,
+                  failedContent,
+                  skipAutoRetry,
+                  isAutoRetrying: getRetryState(item.id).isAutoRetrying
+                });
+
+                updateTask(item.id, {
+                  state: "failed",
+                  learning: failedContent
+                });
+
+                console.log(`[搜索错误处理] ✅ 重试失败：任务 ${item.id} 已标记为失败`);
+                return; // 不阻止其他任务
               } else {
-                // 自动处理：显示错误信息在任务中，同时显示toast并停止队列
-                const failedContent = `❌ **${t("research.status.searchFailed")}**\n\n**${t("research.common.query")}**: ${item.query}\n\n**${t("research.status.searchError")}**: ${errorMsg}\n\n*搜索失败，已停止后续任务执行。*`;
-                
-                console.log("[搜索错误处理] 自动处理模式 - 更新任务状态并显示错误:", {
+                // 手动模式（原auto模式）：显示错误信息在任务中，同时显示toast并停止队列
+                const failedContent = `❌ **${t("research.status.searchFailed")}**\n\n**${t("research.common.query")}**: ${item.query}\n\n**${t("research.status.searchError")}**: ${errorMsg}\n\n*搜索失败，已停止后续任务执行。需要手动处理。*`;
+
+                console.log("[搜索错误处理] 手动模式 - 更新任务状态并显示错误:", {
                   taskId: item.id,
                   failedContent
                 });
-                
+
                 updateTask(item.id, {
-                  state: "failed", 
+                  state: "failed",
                   learning: failedContent
                 });
-                
-                console.log("[搜索错误处理] 自动处理模式 - 显示错误toast并停止队列:", errorMsg);
+
+                console.log("[搜索错误处理] 手动模式 - 显示错误toast并停止队列:", errorMsg);
                 handleError(errorMsg);
-                console.log("[搜索错误处理] ✅ 自动处理模式完成：已更新任务状态、显示toast并清空队列");
+                console.log("[搜索错误处理] ✅ 手动模式完成：已更新任务状态、显示toast并清空队列");
                 return plimit.clearQueue();
               }
             }
@@ -632,6 +695,10 @@ function useDeepResearch() {
 
   async function runDeeperResearch(taskId: string) {
     console.log(`[DEBUG_CORE] runDeeperResearch called for taskId: ${taskId}`);
+    
+    // 清理所有旧的重试状态，防止状态残留影响新的深度研究
+    clearAllRetryStates();
+    
     const {
       researchStatus,
       tasks,
@@ -1220,7 +1287,7 @@ function useDeepResearch() {
     setSources([]);
     const completedSearchTasks = tasks
       .filter((item): item is SearchTask => item.type === "search" && item.state === "completed");
-    
+
     console.log("【最终报告】搜索任务统计:", {
       totalTasks: tasks.length,
       searchTasks: tasks.filter(t => t.type === "search").length,
@@ -1231,11 +1298,11 @@ function useDeepResearch() {
         return acc;
       }, {} as Record<number, number>)
     });
-    
+
     const learnings = completedSearchTasks
       .map((item) => item.learning)
       .filter((learning) => learning && learning.trim().length > 0);
-    
+
     console.log("【最终报告】学习内容统计:", {
       learningsCount: learnings.length,
       averageLearningLength: learnings.length > 0 ? Math.round(learnings.reduce((sum, l) => sum + l.length, 0) / learnings.length) : 0,
@@ -1365,7 +1432,7 @@ function useDeepResearch() {
       // }
       const updatedTask = { ...task, state: 'unprocessed' as const, learning: '', sources: [], images: [] };
       updateTask(taskId, { state: 'unprocessed', learning: '', timerId: undefined, sources: [], images: [] });
-      await runSearchTask([updatedTask]);
+      await runSearchTask([updatedTask], true);
     }
   }
 
@@ -1458,7 +1525,7 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
           .getState()
           .tasks.find((t) => t.id === taskId);
         if (updatedTask && updatedTask.type === "search") {
-          await runSearchTask([updatedTask]);
+          await runSearchTask([updatedTask], true);
         }
       } else {
         throw new Error("Failed to regenerate task details from AI.");
@@ -1466,6 +1533,213 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
     } catch (error) {
       handleError(error);
       updateTask(taskId, { state: "failed" });
+    }
+  }
+
+  // 自动重试相关函数
+  function getRetryState(taskId: string): TaskRetryState {
+    return taskRetryStates.get(taskId) || {
+      taskId,
+      retryCount: 0,
+      lastRetryType: 'simple',
+      isAutoRetrying: false
+    };
+  }
+
+  function updateRetryState(taskId: string, updates: Partial<TaskRetryState>): void {
+    const current = getRetryState(taskId);
+    taskRetryStates.set(taskId, { ...current, ...updates });
+  }
+
+  function clearRetryState(taskId: string): void {
+    taskRetryStates.delete(taskId);
+  }
+
+  // 清理所有重试状态（在深度研究开始时调用）
+  function clearAllRetryStates(): void {
+    console.log(`[重试状态清理] 清理所有重试状态，当前状态数量: ${taskRetryStates.size}`);
+    taskRetryStates.clear();
+  }
+
+  // 检查用户是否介入
+  function isUserIntervened(): boolean {
+    const { researchStatus } = useTaskStore.getState();
+    return researchStatus === "stopping";
+  }
+
+  // 简单重试（复用 rerunTask 的核心逻辑）
+  async function retryTaskQuery(taskId: string, silent: boolean = true): Promise<boolean> {
+    console.log(`[自动重试] 开始简单重试，任务ID: ${taskId}, 静默模式: ${silent}`);
+
+    if (isUserIntervened()) {
+      console.log("[自动重试] 检测到用户介入，停止重试");
+      return false;
+    }
+
+    const { tasks, updateTask } = useTaskStore.getState();
+    const task = tasks.find((t) => t.id === taskId);
+
+    if (!task || task.type !== "search") {
+      console.log("[自动重试] 任务不存在或类型错误");
+      return false;
+    }
+
+    try {
+      // 取消定时器
+      if (task.timerId) {
+        clearTimeout(task.timerId);
+      }
+
+      // 重置任务状态（保持静默）
+      const updatedTask = {
+        ...task,
+        state: 'unprocessed' as const,
+        learning: '',
+        sources: [],
+        images: []
+      };
+
+      updateTask(taskId, {
+        state: 'unprocessed',
+        learning: '',
+        timerId: undefined,
+        sources: [],
+        images: []
+      });
+
+      // 重新执行搜索任务（跳过自动重试以防止无限循环）
+      await runSearchTask([updatedTask], true);
+      
+      // 检查任务最终状态来判断是否真正成功
+      const { tasks } = useTaskStore.getState();
+      const finalTask = tasks.find((t) => t.id === taskId);
+      const isSuccess = finalTask && finalTask.type === "search" && finalTask.state === "completed";
+      
+      console.log(`[自动重试] 简单重试完成，任务ID: ${taskId}, 成功: ${isSuccess}`);
+      return isSuccess;
+    } catch (error) {
+      console.error(`[自动重试] 简单重试失败，任务ID: ${taskId}`, error);
+      if (!silent) {
+        handleError(error);
+      }
+      return false;
+    }
+  }
+
+  // 智能重试（复用 regenerateAndRerunTask 的核心逻辑）
+  async function regenerateTaskQuery(taskId: string, silent: boolean = true): Promise<boolean> {
+    console.log(`[自动重试] 开始智能重试，任务ID: ${taskId}, 静默模式: ${silent}`);
+
+    if (isUserIntervened()) {
+      console.log("[自动重试] 检测到用户介入，停止重试");
+      return false;
+    }
+
+    try {
+      // 调用原有的重新生成逻辑，但不显示 toast
+      const originalHandleError = handleError;
+      if (silent) {
+        // 临时替换错误处理函数以实现静默模式
+        handleError = (error: unknown) => {
+          console.error("[自动重试] 智能重试出错（静默）:", error);
+        };
+      }
+
+      await regenerateAndRerunTask(taskId);
+
+      // 恢复原来的错误处理函数
+      if (silent) {
+        handleError = originalHandleError;
+      }
+
+      // 检查任务最终状态来判断是否真正成功
+      const { tasks } = useTaskStore.getState();
+      const finalTask = tasks.find((t) => t.id === taskId);
+      const isSuccess = finalTask && finalTask.type === "search" && finalTask.state === "completed";
+
+      console.log(`[自动重试] 智能重试完成，任务ID: ${taskId}, 成功: ${isSuccess}`);
+      return isSuccess;
+    } catch (error) {
+      console.error(`[自动重试] 智能重试失败，任务ID: ${taskId}`, error);
+      if (!silent) {
+        handleError(error);
+      }
+      return false;
+    }
+  }
+
+  // 自动重试控制器
+  async function autoRetryTask(taskId: string, originalError: Error): Promise<void> {
+    console.log(`[自动重试] 开始自动重试流程，任务ID: ${taskId}`);
+
+    const retryState = getRetryState(taskId);
+
+    // 防止重复重试
+    if (retryState.isAutoRetrying) {
+      console.log(`[自动重试] 任务 ${taskId} 已在重试中，跳过`);
+      return;
+    }
+
+    updateRetryState(taskId, { isAutoRetrying: true });
+
+    try {
+      // 第1-2次：简单重试
+      for (let i = 1; i <= 2; i++) {
+        if (isUserIntervened()) {
+          console.log("[自动重试] 用户介入，停止自动重试");
+          return;
+        }
+
+        console.log(`[自动重试] 第${i}次简单重试，任务ID: ${taskId}`);
+        updateRetryState(taskId, { retryCount: i, lastRetryType: 'simple' });
+
+        const success = await retryTaskQuery(taskId, true);
+        if (success) {
+          console.log(`[自动重试] 第${i}次简单重试成功，任务ID: ${taskId}`);
+          clearRetryState(taskId);
+          return;
+        }
+
+        console.log(`[自动重试] 第${i}次简单重试失败，任务ID: ${taskId}`);
+
+        // 等待一秒再继续
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // 第3次：智能重试
+      if (isUserIntervened()) {
+        console.log("[自动重试] 用户介入，停止自动重试");
+        return;
+      }
+
+      console.log(`[自动重试] 第3次智能重试，任务ID: ${taskId}`);
+      updateRetryState(taskId, { retryCount: 3, lastRetryType: 'regenerate' });
+
+      const success = await regenerateTaskQuery(taskId, true);
+      if (success) {
+        console.log(`[自动重试] 第3次智能重试成功，任务ID: ${taskId}`);
+        clearRetryState(taskId);
+        return;
+      }
+
+      console.log(`[自动重试] 所有重试均失败，任务ID: ${taskId}`);
+
+      // 所有重试都失败，标记为最终失败
+      const { updateTask } = useTaskStore.getState();
+      const { t } = useTranslation();
+
+      const finalFailedContent = `❌ **${t("research.status.searchFailed")}**\n\n**${t("research.common.query")}**: ${taskId}\n\n**${t("research.status.searchError")}**: ${originalError.message}\n\n*已尝试3次自动重试（2次简单重试 + 1次智能重试）均失败。*\n\n*预留位置：未来可在此处自动切换搜索引擎。*`;
+
+      updateTask(taskId, {
+        state: "failed",
+        learning: finalFailedContent
+      });
+
+      // 显示最终失败的 toast
+      handleError(`[最终失败] ${originalError.message} - 已尝试3次自动重试`);
+
+    } finally {
+      clearRetryState(taskId);
     }
   }
 
@@ -1550,6 +1824,10 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
   async function deepResearch() {
     const { reportPlan } = useTaskStore.getState();
     const { thinkingModel } = getModel();
+    
+    // 清理所有旧的重试状态，开始新的研究
+    clearAllRetryStates();
+    
     setStatus(t("research.common.thinking"));
     try {
       const thinkTagStreamProcessor = new ThinkTagStreamProcessor();
@@ -1642,6 +1920,8 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
     regenerateSummary,
     cancelDeeperResearch,
     checkAutoDeepResearch,
+    autoRetryTask,
+    clearAllRetryStates,
   };
 }
 
