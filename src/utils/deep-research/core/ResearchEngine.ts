@@ -7,31 +7,39 @@ import { useTaskStore } from "@/store/task";
 import { useHistoryStore } from "@/store/history";
 import { useSettingStore } from "@/store/setting";
 import { streamText } from "ai";
-import { createModelProvider } from "@/utils/deep-research/provider";
-import { getModel } from "@/utils/model";
-import { handleError } from "@/utils/error";
+import useModelProvider from "@/hooks/useAiProvider";
+import { parseError } from "@/utils/error";
 import { nanoid } from "nanoid";
 import { toast } from "sonner";
 import {
   getSystemPrompt,
-  getResponseLanguagePrompt,
   generateQuestionsPrompt,
-  writePlanPrompt,
   writeFinalReportPrompt,
-  generateWiderResearchPrompt,
-  regenerateTaskPrompt,
-  regenerateSummaryPrompt,
 } from "@/utils/deep-research/prompts";
-import { removeJsonMarkdown } from "@/utils/markdown";
-import { parsePartialJson } from "@/utils/parser";
+import { removeJsonMarkdown } from "@/utils/text";
+import { parsePartialJson } from "@ai-sdk/ui-utils";
 import { t } from "i18next";
+
+function getResponseLanguagePrompt() {
+  return `\n\n**Respond in the same language as the user's language**`;
+}
+
+function handleError(error: unknown) {
+  const errorMessage = parseError(error);
+  toast.error(errorMessage);
+}
 
 export class ResearchEngine {
   private searchStrategy: SearchStrategy;
   private deeperStrategy: DeeperStrategy;
   private retryManager: RetryManager;
+  private createModelProvider: any;
+  private getModel: any;
 
   constructor() {
+    const modelProvider = useModelProvider();
+    this.createModelProvider = modelProvider.createModelProvider;
+    this.getModel = modelProvider.getModel;
     // 先创建基础策略实例
     this.searchStrategy = new SearchStrategy();
     
@@ -73,7 +81,7 @@ export class ResearchEngine {
   // 生成研究问题
   async askQuestions(): Promise<void> {
     const { question, updateQuestions, setQuestion } = useTaskStore.getState();
-    const { thinkingModel } = getModel();
+    const { thinkingModel } = this.getModel();
 
     if (!question || !question.trim()) {
       throw new Error("No research question provided");
@@ -81,7 +89,7 @@ export class ResearchEngine {
 
     try {
       const questionResult = streamText({
-        model: await createModelProvider(thinkingModel),
+        model: await this.createModelProvider(thinkingModel),
         system: getSystemPrompt(),
         prompt: [
           generateQuestionsPrompt(question),
@@ -106,7 +114,7 @@ export class ResearchEngine {
   // 生成报告计划
   async writeReportPlan(): Promise<string> {
     const { question, tasks, updateReportPlan } = useTaskStore.getState();
-    const { thinkingModel } = getModel();
+    const { thinkingModel } = this.getModel();
 
     const completedTasks = tasks.filter(
       (t): t is SearchTask => t.type === "search" && t.state === "completed"
@@ -120,7 +128,7 @@ export class ResearchEngine {
 
     try {
       const planResult = streamText({
-        model: await createModelProvider(thinkingModel),
+        model: await this.createModelProvider(thinkingModel),
         system: getSystemPrompt(),
         prompt: [
           writePlanPrompt(question, learnings),
@@ -150,7 +158,7 @@ export class ResearchEngine {
       reportPlan, 
       updateFinalReport 
     } = useTaskStore.getState();
-    const { thinkingModel } = getModel();
+    const { thinkingModel } = this.getModel();
     const { save } = useHistoryStore.getState();
 
     const completedTasks = tasks.filter(
@@ -167,7 +175,7 @@ export class ResearchEngine {
 
     try {
       const reportResult = streamText({
-        model: await createModelProvider(thinkingModel),
+        model: await this.createModelProvider(thinkingModel),
         system: getSystemPrompt(),
         prompt: [
           writeFinalReportPrompt(question, reportPlan, learnings, sources),
@@ -210,7 +218,7 @@ export class ResearchEngine {
       updateSuggestion,
       setResearchStatus,
     } = useTaskStore.getState();
-    const { thinkingModel } = getModel();
+    const { thinkingModel } = this.getModel();
     const { widerSearchMaxTasks } = useSettingStore.getState();
 
     if (researchStatus !== "idle") {
@@ -231,7 +239,7 @@ export class ResearchEngine {
 
     try {
       const widerResult = streamText({
-        model: await createModelProvider(thinkingModel),
+        model: await this.createModelProvider(thinkingModel),
         system: getSystemPrompt(),
         prompt: [
           generateWiderResearchPrompt(
@@ -319,7 +327,7 @@ export class ResearchEngine {
   // 重新生成并重新运行任务
   async regenerateAndRerunTask(taskId: string): Promise<void> {
     const { tasks, reportPlan, updateTask } = useTaskStore.getState();
-    const { thinkingModel } = getModel();
+    const { thinkingModel } = this.getModel();
     const task = tasks.find((t) => t.id === taskId);
 
     if (!task || task.type !== "search") {
@@ -331,7 +339,7 @@ export class ResearchEngine {
 
       // 使用AI重新生成查询和目标
       const regenerateResult = streamText({
-        model: await createModelProvider(thinkingModel),
+        model: await this.createModelProvider(thinkingModel),
         system: getSystemPrompt(),
         prompt: [
           regenerateTaskPrompt(

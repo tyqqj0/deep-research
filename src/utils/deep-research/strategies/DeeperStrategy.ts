@@ -1,15 +1,12 @@
 import { nanoid } from "nanoid";
 import { streamText } from "ai";
 import { toast } from "sonner";
-import { i18n } from "@/utils/i18n";
 import { useTaskStore } from "@/store/task";
 import { useSettingStore } from "@/store/setting";
-import { createModelProvider } from "@/utils/deep-research/provider";
-import { getModel } from "@/utils/model";
+import useModelProvider from "@/hooks/useAiProvider";
 import {
   getSystemPrompt,
   reflectCurrentResearchPrompt,
-  getResponseLanguagePrompt,
   planNextDeepStepPrompt,
   generateTasksFromPlanPrompt,
   extractReflectionResults,
@@ -17,17 +14,27 @@ import {
   extractStrategicThinking,
   getSERPQuerySchema,
 } from "@/utils/deep-research/prompts";
-import { removeJsonMarkdown } from "@/utils/markdown";
-import { parsePartialJson } from "@/utils/parser";
-import { handleError } from "@/utils/error";
+import { removeJsonMarkdown } from "@/utils/text";
+import { parsePartialJson } from "@ai-sdk/ui-utils";
 import { SearchTask, ThinkingTask } from "@/types";
+
+function getResponseLanguagePrompt() {
+  return `\n\n**Respond in the same language as the user's language**`;
+}
 
 export interface DeeperStrategyDependencies {
   runSearchTask: (tasks: SearchTask[]) => Promise<void>;
 }
 
 export class DeeperStrategy {
-  constructor(private dependencies: DeeperStrategyDependencies) {}
+  private createModelProvider: any;
+  private getModel: any;
+
+  constructor(private dependencies: DeeperStrategyDependencies) {
+    const modelProvider = useModelProvider();
+    this.createModelProvider = modelProvider.createModelProvider;
+    this.getModel = modelProvider.getModel;
+  }
 
   async execute(taskId: string): Promise<void> {
     console.log(`[DeeperStrategy] execute called for taskId: ${taskId}`);
@@ -48,7 +55,7 @@ export class DeeperStrategy {
 
     const { maxResearchDepth } = useSettingStore.getState();
     const maxDepth = maxResearchDepth;
-    const { thinkingModel } = getModel();
+    const { thinkingModel } = this.getModel();
 
     if (researchStatus === "deeper-research") {
       console.log(
@@ -74,7 +81,7 @@ export class DeeperStrategy {
         currentMaxDepth < maxDepth &&
         useTaskStore.getState().researchStatus === "deeper-research"
       ) {
-        setStatus(i18n.t("research.common.deeperResearch"));
+        setStatus("Deeper Research");
         setCurrentDepth(currentMaxDepth);
 
         const existingThinking = tasks.find(
@@ -117,7 +124,7 @@ export class DeeperStrategy {
           id: thinkingTaskId,
           type: "thinking",
           depth: currentMaxDepth + 1,
-          title: `${i18n.t("research.thinking.title")} ${currentMaxDepth + 1}`,
+          title: `Thinking ${currentMaxDepth + 1}`,
           reasoning: "",
           state: "processing",
         };
@@ -138,7 +145,7 @@ export class DeeperStrategy {
 
         if (reflectionResults.completionStatus === "RESEARCH_COMPLETE") {
           updateTask(thinkingTaskId, {
-            reasoning: "🎯 " + i18n.t("research.thinking.researchComplete"),
+            reasoning: "🎯 Research Complete",
             state: "completed",
           });
           break;
@@ -159,10 +166,10 @@ export class DeeperStrategy {
 
         if (!researchTasksContent) {
           updateTask(thinkingTaskId, {
-            reasoning: "❌ " + i18n.t("research.error.taskGenerationFailed"),
+            reasoning: "❌ Task Generation Failed",
             state: "completed",
           });
-          toast.error(i18n.t("research.error.aiFailedToGeneratePlan"));
+          toast.error("AI failed to generate plan");
           break;
         }
 
@@ -178,27 +185,23 @@ export class DeeperStrategy {
             reasoning:
               strategicThinkingContent +
               "\n\n❌ " +
-              i18n.t("research.error.taskGenerationFailed"),
+              "Task Generation Failed",
             state: "completed",
           });
-          toast.error(i18n.t("research.error.aiFailedToGeneratePlan"));
+          toast.error("AI failed to generate plan");
           break;
         }
 
         const tasksListText = generatedTasks
           .map(
             (task, idx) =>
-              `${idx + 1}. **${task.title}**\n   - ${i18n.t(
-                "research.common.query"
-              )}: ${task.query}\n   - ${i18n.t("research.common.goal")}: ${
-                task.researchGoal
-              }`
+              `${idx + 1}. **${task.title}**\n   - Query: ${task.query}\n   - Goal: ${task.researchGoal}`
           )
           .join("\n");
 
         const finalReasoning =
           "✅ **" +
-          i18n.t("research.thinking.generatedSearchTasks") +
+          "Generated Search Tasks" +
           ":**\n" +
           tasksListText;
 
@@ -231,10 +234,10 @@ export class DeeperStrategy {
         currentMaxDepth++;
       }
 
-      setStatus(i18n.t("research.common.researchCompleted"));
+      setStatus("Research Completed");
     } catch (error) {
       console.error("Deep research error:", error);
-      handleError(error);
+      console.error("Deep research error:", error);
     } finally {
       setResearchStatus("idle");
     }
@@ -246,16 +249,16 @@ export class DeeperStrategy {
     currentMaxDepth: number
   ): Promise<string> {
     const { updateTask, question } = useTaskStore.getState();
-    const { thinkingModel } = getModel();
+    const { thinkingModel } = this.getModel();
 
     const reflectionResult = streamText({
-      model: await createModelProvider(thinkingModel),
+      model: await this.createModelProvider(thinkingModel),
       system: getSystemPrompt(),
       prompt: [
         reflectCurrentResearchPrompt(question, learnings, currentMaxDepth),
         getResponseLanguagePrompt(),
       ].join("\n\n"),
-      onError: handleError,
+      onError: (error: Error) => console.error("Stream error:", error),
     });
 
     let reflectionContent = "";
@@ -275,11 +278,11 @@ export class DeeperStrategy {
     reflectionContent: string
   ): Promise<string> {
     const { updateTask, question } = useTaskStore.getState();
-    const { thinkingModel } = getModel();
+    const { thinkingModel } = this.getModel();
     const { deepSearchMaxTasks } = useSettingStore.getState();
 
     const strategicThinkingResult = streamText({
-      model: await createModelProvider(thinkingModel),
+      model: await this.createModelProvider(thinkingModel),
       system: getSystemPrompt(),
       prompt: [
         planNextDeepStepPrompt(
@@ -290,7 +293,7 @@ export class DeeperStrategy {
         ),
         getResponseLanguagePrompt(),
       ].join("\n\n"),
-      onError: handleError,
+      onError: (error: Error) => console.error("Stream error:", error),
     });
 
     let strategicThinkingContent = "";
@@ -310,21 +313,21 @@ export class DeeperStrategy {
     depth: number
   ): Promise<SearchTask[]> {
     const { updateTask, question, tasks } = useTaskStore.getState();
-    const { thinkingModel } = getModel();
+    const { thinkingModel } = this.getModel();
 
     updateTask(thinkingTaskId, {
-      reasoning: "🔄 " + i18n.t("research.thinking.generatingSearchTasks") + "...",
+      reasoning: "🔄 Generating Search Tasks...",
       state: "processing" as const,
     });
 
     const taskGenerationResult = streamText({
-      model: await createModelProvider(thinkingModel),
+      model: await this.createModelProvider(thinkingModel),
       system: getSystemPrompt(),
       prompt: [
         generateTasksFromPlanPrompt(strategicThinkingContent, question),
         getResponseLanguagePrompt(),
       ].join("\n\n"),
-      onError: handleError,
+      onError: (error: Error) => console.error("Stream error:", error),
     });
 
     let taskContent = "";
@@ -391,15 +394,11 @@ export class DeeperStrategy {
         }
       }
 
-      let progressInfo = i18n.t("research.thinking.generatingTasks");
+      let progressInfo = "Generating Tasks";
       if (currentTaskCount > 0) {
-        progressInfo = i18n.t("research.thinking.tasksGenerated", {
-          count: currentTaskCount,
-        });
+        progressInfo = `Tasks Generated: ${currentTaskCount}`;
       } else if (taskContent.length > 100) {
-        progressInfo =
-          i18n.t("research.thinking.generatingTasks") +
-          ` (${taskContent.length} chars)`;
+        progressInfo = `Generating Tasks (${taskContent.length} chars)`;
       }
 
       updateTask(thinkingTaskId, {

@@ -1,34 +1,79 @@
+import { isNetworkingModel } from "@/utils/model";
 import {
-  ImageSource,
-  ProviderOptions,
-  Source,
-  Tools,
-  createModelProvider,
-  isNetworkingModel,
-} from "@/app/api/utils";
-import {
-  getResponseLanguagePrompt,
   getSystemPrompt,
   processResultPrompt,
   processSearchResultPrompt,
 } from "@/utils/deep-research/prompts";
-import { search } from "@/utils/deep-research/search";
-import { getModel } from "@/utils/model";
-import { ThinkTagStreamProcessor } from "@/utils/parser";
-import { Plimit } from "@/utils/request";
-import { searchLocalKnowledges } from "@/utils/server/knowledge";
+import { createSearchProvider } from "@/utils/deep-research/search";
+import useModelProvider from "@/hooks/useAiProvider";
+import { ThinkTagStreamProcessor } from "@/utils/text";
+import Plimit from "p-limit";
 import { useSettingStore } from "@/store/setting";
 import { useTaskStore } from "@/store/task";
-import { SearchTask } from "@/types";
+import { useKnowledgeStore } from "@/store/knowledge";
+import { SearchTask, Knowledge, Source, ImageSource } from "@/types";
 import { t } from "i18next";
-import { getRetryState, clearRetryState } from "@/store/utils";
-import { handleError } from "@/utils/error";
-import * as openai from "@ai-sdk/openai";
-import { streamText } from "ai";
+import { processSearchKnowledgeResultPrompt } from "@/utils/deep-research/prompts";
+import { openai } from "@ai-sdk/openai";
+import { streamText, type JSONValue, type Tool } from "ai";
 import { RetryManager } from "../services/RetryManager";
+
+type ProviderOptions = Record<string, Record<string, JSONValue>>;
+type Tools = Record<string, Tool>;
+
+function getResponseLanguagePrompt() {
+  return `\n\n**Respond in the same language as the user's language**`;
+}
+
+function handleError(error: Error) {
+  console.error("Stream error:", error);
+}
+
+// Local knowledge search function
+async function searchLocalKnowledges(task: SearchTask, createModelProvider: any, getModel: any) {
+  const { resources } = useTaskStore.getState();
+  const knowledgeStore = useKnowledgeStore.getState();
+  const knowledges: Knowledge[] = [];
+
+  for (const item of resources) {
+    if (item.status === "completed") {
+      const resource = knowledgeStore.get(item.id);
+      if (resource) {
+        knowledges.push(resource);
+      }
+    }
+  }
+
+  const { networkingModel } = getModel();
+  const thinkTagStreamProcessor = new ThinkTagStreamProcessor();
+  const searchResult = streamText({
+    model: await createModelProvider(networkingModel),
+    system: getSystemPrompt(),
+    prompt: processSearchKnowledgeResultPrompt(task.query, task.researchGoal, knowledges),
+    maxTokens: 4096,
+    onFinish: async ({ text }) => {
+      return text;
+    },
+  });
+
+  let content = "";
+  for await (const chunk of searchResult.textStream) {
+    content += chunk;
+  }
+
+  return thinkTagStreamProcessor.extractContent(content);
+}
 
 export class SearchStrategy {
   private retryManager?: RetryManager;
+  private createModelProvider: any;
+  private getModel: any;
+
+  constructor() {
+    const modelProvider = useModelProvider();
+    this.createModelProvider = modelProvider.createModelProvider;
+    this.getModel = modelProvider.getModel;
+  }
 
   public setRetryManager(retryManager: RetryManager) {
     this.retryManager = retryManager;
@@ -105,7 +150,7 @@ export class SearchStrategy {
     try {
       if (resources.length > 0) {
         updateTask(item.id, { state: "processing" });
-        const knowledges = await searchLocalKnowledges(item);
+        const knowledges = await searchLocalKnowledges(item, this.createModelProvider, this.getModel);
         content += [
           knowledges,
           `### ${t("research.searchResult.references")}`,
@@ -118,15 +163,15 @@ export class SearchStrategy {
         await this.executeWithProvider(item, sources, images, plimit, skipAutoRetry);
       } else {
         updateTask(item.id, { state: "summarizing" });
-        const { networkingModel } = getModel();
+        const { networkingModel } = this.getModel();
         searchResult = streamText({
-          model: await createModelProvider(networkingModel),
+          model: await this.createModelProvider(networkingModel),
           system: getSystemPrompt(),
           prompt: [
             processResultPrompt(item.query, item.researchGoal),
             getResponseLanguagePrompt(),
           ].join("\n\n"),
-          onError: handleError,
+          onError: (error: Error) => console.error("Search error:", error),
         });
         await this.processStream(item.id, searchResult);
       }
@@ -143,14 +188,14 @@ export class SearchStrategy {
       references,
     } = useSettingStore.getState();
     const { updateTask } = useTaskStore.getState();
-    const { networkingModel } = getModel();
+    const { networkingModel } = this.getModel();
     const thinkTagStreamProcessor = new ThinkTagStreamProcessor();
 
     const createModel = (model: string) => {
       if (searchProvider === "model" && provider === "google" && isNetworkingModel(model)) {
-        return createModelProvider(model, { useSearchGrounding: true });
+        return this.createModelProvider(model, { useSearchGrounding: true });
       } else {
-        return createModelProvider(model);
+        return this.createModelProvider(model);
       }
     };
 
@@ -179,7 +224,10 @@ export class SearchStrategy {
     if (searchProvider !== "model") {
       updateTask(task.id, { state: "searching" });
       try {
-        const results = await search(task.query);
+        const searchProviderInstance = await createSearchProvider({
+          provider: searchProvider,
+        });
+        const results = await searchProviderInstance(task.query);
         sources = results.sources;
         images = results.images;
 
@@ -293,7 +341,7 @@ export class SearchStrategy {
 
 *搜索失败，已停止后续任务执行。需要手动处理。*`;
       updateTask(task.id, { state: "failed", learning: failedContent });
-      handleError(errorMsg);
+      console.error(errorMsg);
       return plimit.clearQueue();
     }
   }

@@ -12,7 +12,14 @@
       "Bash(sed:*)",
       "Bash(pnpm run:*)",
       "Bash(pnpm install:*)",
-      "Bash(node -c:*)"
+      "Bash(node -c:*)",
+      "Bash(mkdir:*)",
+      "Bash(git add:*)",
+      "Bash(git config:*)",
+      "Bash(npm run build:*)",
+      "Bash(ls:*)",
+      "Bash(ls:*)",
+      "Bash(timeout 120 pnpm build 2 >& 1)"
     ],
     "deny": []
   }

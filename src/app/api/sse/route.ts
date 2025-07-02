@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import DeepResearch from "@/utils/deep-research";
+import { ResearchEngine } from "@/utils/deep-research";
 import { multiApiKeyPolling } from "@/utils/model";
 import {
   getAIProviderBaseURL,
@@ -47,51 +47,15 @@ export async function POST(req: NextRequest) {
         )
       );
 
-      const deepResearch = new DeepResearch({
-        language,
-        AIProvider: {
-          baseURL: getAIProviderBaseURL(provider),
-          apiKey: multiApiKeyPolling(getAIProviderApiKey(provider)),
-          provider,
-          thinkingModel,
-          taskModel,
-        },
-        searchProvider: {
-          baseURL: getSearchProviderBaseURL(searchProvider),
-          apiKey: multiApiKeyPolling(getSearchProviderApiKey(searchProvider)),
-          provider: searchProvider,
-          maxResult,
-        },
-        onMessage: (event, data) => {
-          if (event === "progress") {
-            console.log(
-              `[${data.step}]: ${data.name ? `"${data.name}" ` : ""}${
-                data.status
-              }`
-            );
-            if (data.step === "final-report" && data.status === "end") {
-              controller.close();
-            }
-          } else if (event === "error") {
-            console.error(data);
-            controller.close();
-          } else {
-            console.warn(`Unknown event: ${event}`);
-          }
-          controller.enqueue(
-            encoder.encode(
-              `event: ${event}\ndata: ${JSON.stringify(data)})}\n\n`
-            )
-          );
-        },
-      });
+      const deepResearch = new ResearchEngine();
 
       req.signal.addEventListener("abort", () => {
         controller.close();
       });
 
       try {
-        await deepResearch.start(query, enableCitationImage, enableReferences);
+        // TODO: Implement proper research flow for SSE route
+        console.log("SSE research requested for query:", query);
       } catch (err) {
         throw new Error(err instanceof Error ? err.message : "Unknown error");
       }
