@@ -2,7 +2,7 @@
 import { ResearchEngine } from "../core/ResearchEngine";
 import { SearchTask } from "@/types";
 import { useTaskStore } from "@/store/task";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 
 /**
  * 创建与原始 useDeepResearch hook 完全兼容的适配器
@@ -10,26 +10,13 @@ import { useEffect, useState } from "react";
  */
 export function createDeepResearchAdapter() {
   const engine = new ResearchEngine();
-  
-  // 使用 React hooks 来管理状态同步
-  const [status, setStatus] = useState<string>("idle");
-  
-  // 订阅任务存储状态更新
-  useEffect(() => {
-    const unsubscribe = useTaskStore.subscribe(
-      (state) => state.status,
-      (currentStatus) => {
-        setStatus(currentStatus);
-      }
-    );
-    
-    return unsubscribe;
-  }, []);
 
   // 返回与原始 useDeepResearch 完全相同的接口
   return {
-    // 状态管理 - 与任务存储同步
-    status,
+    // 状态管理 - 直接从store获取状态
+    get status() {
+      return useTaskStore.getState().status;
+    },
 
     // 核心研究方法
     deepResearch: async () => {
@@ -198,10 +185,175 @@ export function createDeepResearchAdapter() {
 
 /**
  * 为了兼容性，也提供 hook 风格的使用方式
- * 这个函数可以直接替换原始的 useDeepResearch hook
+ * 这个函数可以直接替换原始的 useDeepResearch hook  
+ * 这是一个真正的 React Hook
  */
 export function useDeepResearchAdapter() {
-  return createDeepResearchAdapter();
+  // 使用 useMemo 确保engine实例的稳定性
+  const engine = useMemo(() => new ResearchEngine(), []);
+  
+  // 直接使用 useTaskStore hook 获取状态
+  const status = useTaskStore((state) => state.status);
+  
+  // 返回与原始 useDeepResearch 相同的 API
+  return useMemo(() => ({
+    status,
+    
+    // 所有方法都使用同一个 engine 实例
+    deepResearch: async () => {
+      try {
+        await engine.askQuestions();
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] deepResearch error:", error);
+        throw error;
+      }
+    },
+
+    askQuestions: async () => {
+      try {
+        await engine.askQuestions();
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] askQuestions error:", error);
+        throw error;
+      }
+    },
+
+    writeReportPlan: async () => {
+      try {
+        return await engine.writeReportPlan();
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] writeReportPlan error:", error);
+        throw error;
+      }
+    },
+
+    writeFinalReport: async () => {
+      try {
+        return await engine.writeFinalReport();
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] writeFinalReport error:", error);
+        throw error;
+      }
+    },
+
+    runSearchTask: async (queries: SearchTask[], skipAutoRetry?: boolean) => {
+      try {
+        await engine.runSearchTask(queries, skipAutoRetry);
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] runSearchTask error:", error);
+        throw error;
+      }
+    },
+
+    runWiderResearch: async () => {
+      try {
+        await engine.runWiderResearch();
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] runWiderResearch error:", error);
+        throw error;
+      }
+    },
+
+    runDeeperResearch: async (taskId: string) => {
+      try {
+        await engine.runDeeperResearch(taskId);
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] runDeeperResearch error:", error);
+        throw error;
+      }
+    },
+
+    rerunTask: async (taskId: string) => {
+      try {
+        await engine.rerunTask(taskId);
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] rerunTask error:", error);
+        throw error;
+      }
+    },
+
+    regenerateAndRerunTask: async (taskId: string) => {
+      try {
+        await engine.regenerateAndRerunTask(taskId);
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] regenerateAndRerunTask error:", error);
+        throw error;
+      }
+    },
+
+    cancelTask: async (taskId: string) => {
+      try {
+        await engine.cancelTask(taskId);
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] cancelTask error:", error);
+        throw error;
+      }
+    },
+
+    regenerateSummary: async (taskId: string) => {
+      try {
+        await engine.regenerateSummary(taskId);
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] regenerateSummary error:", error);
+        throw error;
+      }
+    },
+
+    cancelDeeperResearch: async () => {
+      try {
+        await engine.cancelDeeperResearch();
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] cancelDeeperResearch error:", error);
+        throw error;
+      }
+    },
+
+    checkAutoDeepResearch: async () => {
+      try {
+        await engine.checkAutoDeepResearch();
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] checkAutoDeepResearch error:", error);
+        throw error;
+      }
+    },
+
+    autoRetryTask: async (taskId: string, originalError: Error) => {
+      try {
+        const retryManager = (engine as any).retryManager;
+        if (retryManager && retryManager.scheduleRetry) {
+          await retryManager.scheduleRetry(taskId, originalError);
+        } else {
+          console.warn("[useDeepResearchAdapter] RetryManager not available");
+        }
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] autoRetryTask error:", error);
+        throw error;
+      }
+    },
+
+    clearAllRetryStates: () => {
+      try {
+        engine.clearAllRetryStates();
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] clearAllRetryStates error:", error);
+        throw error;
+      }
+    },
+
+    getRetryStats: () => {
+      try {
+        return engine.getRetryStats();
+      } catch (error) {
+        console.error("[useDeepResearchAdapter] getRetryStats error:", error);
+        return {
+          totalRetryingTasks: 0,
+          retryStatesByTaskId: {}
+        };
+      }
+    },
+
+    getEngine: () => engine,
+  }), [engine, status]);
 }
 
 /**

@@ -40,9 +40,7 @@ export class SearchStrategy {
       skipAutoRetry,
       firstTaskId: queries[0]?.id,
       firstTaskTitle: queries[0]?.title,
-      stackTrace: new Error().stack?.split("
-").slice(1, 4).join("
-"),
+      stackTrace: new Error().stack?.split("\n").slice(1, 4).join("\n"),
     });
     const {
       parallelSearch,
@@ -111,13 +109,10 @@ export class SearchStrategy {
         content += [
           knowledges,
           `### ${t("research.searchResult.references")}`,
-          resources.map((item) => `- ${item.name}`).join("
-"),
+          resources.map((item) => `- ${item.name}`).join("\n"),
           "---",
           "",
-        ].join("
-
-");
+        ].join("\n\n");
       }
       if (enableSearch) {
         await this.executeWithProvider(item, sources, images, plimit, skipAutoRetry);
@@ -130,9 +125,7 @@ export class SearchStrategy {
           prompt: [
             processResultPrompt(item.query, item.researchGoal),
             getResponseLanguagePrompt(),
-          ].join("
-
-"),
+          ].join("\n\n"),
           onError: handleError,
         });
         await this.processStream(item.id, searchResult);
@@ -211,9 +204,7 @@ export class SearchStrategy {
             enableReferences
           ),
           getResponseLanguagePrompt(),
-        ].join("
-
-"),
+        ].join("\n\n"),
         onError: handleError,
       });
     } else {
@@ -224,9 +215,7 @@ export class SearchStrategy {
         prompt: [
           processResultPrompt(task.query, task.researchGoal),
           getResponseLanguagePrompt(),
-        ].join("
-
-"),
+        ].join("\n\n"),
         tools: getTools(networkingModel),
         providerOptions: getProviderOptions(networkingModel),
         onError: handleError,

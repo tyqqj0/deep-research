@@ -1,6 +1,6 @@
 
 import { SearchStrategy } from "../strategies/SearchStrategy";
-import { DeeperStrategy } from "../strategies/DeeperStrategy";
+import { DeeperStrategy, DeeperStrategyDependencies } from "../strategies/DeeperStrategy";
 import { RetryManager, RetryManagerDependencies } from "../services/RetryManager";
 import { SearchTask } from "@/types";
 import { useTaskStore } from "@/store/task";
@@ -32,18 +32,27 @@ export class ResearchEngine {
   private retryManager: RetryManager;
 
   constructor() {
-    // 创建RetryManager所需的依赖
+    // 先创建基础策略实例
+    this.searchStrategy = new SearchStrategy();
+    
+    // 为DeeperStrategy提供依赖注入
+    const deeperDependencies: DeeperStrategyDependencies = {
+      runSearchTask: (tasks: SearchTask[]) => this.runSearchTask(tasks)
+    };
+    this.deeperStrategy = new DeeperStrategy(deeperDependencies);
+    
+    // 最后创建RetryManager，避免循环依赖
     const retryDependencies: RetryManagerDependencies = {
       handleError: handleError,
-      runSearchTask: this.runSearchTask.bind(this),
-      regenerateAndRerunTask: this.regenerateAndRerunTask.bind(this),
-      isUserIntervened: this.isUserIntervened.bind(this)
+      runSearchTask: (tasks: SearchTask[], skipAutoRetry?: boolean) => 
+        this.runSearchTask(tasks, skipAutoRetry),
+      regenerateAndRerunTask: (taskId: string) => 
+        this.regenerateAndRerunTask(taskId),
+      isUserIntervened: () => this.isUserIntervened()
     };
-
+    
     this.retryManager = new RetryManager(retryDependencies);
-    this.searchStrategy = new SearchStrategy();
-    this.deeperStrategy = new DeeperStrategy();
-
+    
     // 注入RetryManager到SearchStrategy
     this.searchStrategy.setRetryManager(this.retryManager);
   }

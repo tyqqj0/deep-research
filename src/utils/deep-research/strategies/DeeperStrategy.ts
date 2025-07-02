@@ -22,11 +22,13 @@ import { parsePartialJson } from "@/utils/parser";
 import { handleError } from "@/utils/error";
 import { SearchTask, ThinkingTask } from "@/types";
 
-// This is a placeholder for the real implementation that should be available
-// in the context where this strategy is used.
-declare function runSearchTask(tasks: SearchTask[]): Promise<void>;
+export interface DeeperStrategyDependencies {
+  runSearchTask: (tasks: SearchTask[]) => Promise<void>;
+}
 
 export class DeeperStrategy {
+  constructor(private dependencies: DeeperStrategyDependencies) {}
+
   async execute(taskId: string): Promise<void> {
     console.log(`[DeeperStrategy] execute called for taskId: ${taskId}`);
 
@@ -216,7 +218,7 @@ export class DeeperStrategy {
           );
 
         if (addedTasks.length > 0) {
-          await runSearchTask(addedTasks);
+          await this.dependencies.runSearchTask(addedTasks);
         }
 
         await this.waitForDepthCompletion(currentMaxDepth + 1);
