@@ -82,6 +82,10 @@ export interface SettingStore {
   };
   enableTaskWaitingTime: boolean;
   taskWaitingTime: number;
+  searchExecutionMode: "immediate" | "delayed" | "manual";
+  searchErrorHandling: "ignore" | "auto";
+  maxResearchDepth: number;
+  deepSearchMaxTasks: number;
 }
 
 interface SettingFunction {
@@ -168,6 +172,10 @@ export const defaultValues: SettingStore = {
   },
   enableTaskWaitingTime: false,
   taskWaitingTime: 10,
+  searchExecutionMode: "manual",
+  searchErrorHandling: "auto",
+  maxResearchDepth: 3,
+  deepSearchMaxTasks: 3,
 };
 
 export const useSettingStore = create(

@@ -30,12 +30,38 @@
       "copy": "复制",
       "export": "导出",
       "delete": "删除",
-      "widerResearch": "扩展研究广度",
-      "deeperResearch": "深入研究",
-      "startNow": "立即开始"
+      "widerResearch": "横向研究",
+      "deeperResearch": "深度研究",
+      "startNow": "立即开始",
+      "regenerate": "重新生成",
+      "continue": "继续",
+      "finished": "已完成",
+      "researchInProgress": "研究正在进行中",
+      "deeperResearchInProgress": "深度研究正在进行中，请稍候",
+      "confirmRemoveDepth": "确定要删除这一层级的所有任务吗？",
+      "confirmRerunDepth": "确定要重新生成这一层级吗？当前层级的所有任务将被删除。",
+      "compressToUpperLevel": "删除当前节点及后续思考任务",
+      "cascadeDelete": "删除当前节点及后续全部任务", 
+      "query": "查询",
+      "goal": "目标",
+      "tasks": "个任务"
+    },
+    "status": {
+      "searching": "搜索中...",
+      "summarizing": "摘要中...",
+      "waiting": "等待中...",
+      "processing": "处理中...",
+      "deeperResearchInProgress": "深度研究进行中",
+      "currentDepth": "当前深度：{{depth}}",
+      "researchInProgress": "研究正在进行中，请稍候...",
+      "tasksRunning": "请等待当前研究任务全部完成。",
+      "noCompletedTasks": "没有找到可用于深度研究的成功任务。",
+      "searchFailed": "搜索失败",
+      "searchError": "搜索错误"
     },
     "topic": {
-      "title": "1. 研究方向",
+      "title": "研究主题",
+      "requirement": "写作要求",
       "topicLabel": "1.1 研究主题",
       "topicPlaceholder": "任何您想了解的问题..."
     },
@@ -62,6 +88,30 @@
       "localResearchedInfor": "已研究 {{total}} 个本地资源",
       "writingRequirementLabel": "写作要求（可选）",
       "writingRequirementPlaceholder": "您可以提出任何与撰写报告相关的要求。"
+    },
+    "thinking": {
+      "depthTitle": "第 {{depth}} 层思考过程",
+      "generatingSearchTasks": "生成搜索任务中...",
+      "generatingTasks": "生成任务中...",
+      "tasksGenerated": "已生成 {{count}} 个任务",
+      "generatedSearchTasks": "生成的搜索任务",
+      "deepThinking": "深度思考中...",
+      "thinking": "思考中...",
+      "completed": "已完成",
+      "reflection": "反思评估",
+      "strategicThinking": "深度思考",
+      "taskPlanning": "任务规划",
+      "reflectionInProgress": "正在反思当前研究成果...",
+      "strategicThinkingInProgress": "正在进行战略性思考...",
+      "taskPlanningInProgress": "正在规划具体研究任务...",
+      "researchComplete": "研究目标已达成",
+      "researchPartial": "研究部分完成",
+      "researchInsufficient": "研究尚不充分"
+    },
+    "error": {
+      "aiFailedToGeneratePlan": "AI 未能生成下一步计划",
+      "noLearningForRerun": "无法重新生成，因为找不到上一层的学习内容。",
+      "taskGenerationFailed": "任务生成失败"
     }
   },
   "history": {
@@ -294,6 +344,14 @@
     "searchResults": "搜索数量",
     "searchResultsTip": "最大搜索数量。部分搜索引擎并不支持此参数。",
     "searchApiKeyPlaceholder": "请输入您的 API 密钥",
+    "searchErrorHandling": "搜索错误处理",
+    "searchErrorHandlingTip": "当搜索引擎返回无效结果时的处理方式。忽略：将错误状态标记给用户，但继续执行。自动处理：尝试重试或使用其他搜索策略。",
+    "searchErrorIgnore": "忽略错误",
+    "searchErrorAuto": "自动处理",
+    "maxResearchDepth": "最大研究深度",
+    "maxResearchDepthTip": "设置深度研究的最大层数。较高的深度可以获得更详细的研究结果，但会消耗更多时间和资源。",
+    "deepSearchMaxTasks": "深度搜索任务数",
+    "deepSearchMaxTasksTip": "每次深度研究时生成的搜索任务数量。更多任务可以获得更全面的信息，但会增加执行时间。",
     "searchScope": "搜索范围",
     "scopeValue": {
       "all": "全部",
@@ -331,8 +389,8 @@
     "save": "保存",
     "confirm": "确认",
     "cancel": "取消",
-    "advancedSettings": {
-      "title": "高级设置"
+    "advancedSearch": {
+      "title": "搜索参数与执行设置"
     },
     "enableTaskWaitingTime": "启用任务等待",
     "taskWaitingTime": "任务等待时间 (秒)",

@@ -1,4 +1,5 @@
 "use client";
+import type { ImageSource } from "@/types";
 
 type Props = {
   data: ImageSource[];

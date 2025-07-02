@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -21,6 +21,9 @@ import {
   Play,
   Pencil,
   Save,
+  BrainCircuit,
+  FilePenLine,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/Internal/Button";
 import {
@@ -44,11 +47,28 @@ import useDeepResearch from "@/hooks/useDeepResearch";
 import useKnowledge from "@/hooks/useKnowledge";
 import { useTaskStore } from "@/store/task";
 import { useKnowledgeStore } from "@/store/knowledge";
+import { useSettingStore } from "@/store/setting";
 import { downloadFile } from "@/utils/file";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import type {
+  SearchTask,
+  ThinkingTask,
+  Source,
+} from "@/types";
+// import { debugThinkingBlockState } from "@/utils/debug-thinking-block";
 
 const MagicDown = dynamic(() => import("@/components/MagicDown"));
 const MagicDownView = dynamic(() => import("@/components/MagicDown/View"));
+const ThinkingView = dynamic(() => import("@/components/MagicDown/ThinkingView"));
+const ThreePhaseThinkingView = dynamic(() => import("@/components/MagicDown/ThreePhaseThinkingView"));
 const Lightbox = dynamic(() => import("@/components/Internal/Lightbox"));
+const SearchControlSidebar = dynamic(() => import("./SearchControlSidebar"));
+const FloatingMenu = dynamic(() => import("@/components/Internal/FloatingMenu"));
 
 const formSchema = z.object({
   suggestion: z.string().optional(),
@@ -63,54 +83,169 @@ function addQuoteBeforeAllLine(text: string = "") {
 
 function TaskState({ state }: { state: SearchTask["state"] }) {
   if (state === "completed") {
-    return <CircleCheck className="h-5 w-5" />;
+    return <CircleCheck className="h-5 w-5 text-green-500" />;
   } else if (state === "processing") {
     return <LoaderCircle className="animate-spin h-5 w-5" />;
+  } else if (state === "searching") {
+    return <Search className="animate-pulse h-5 w-5 text-blue-500" />;
+  } else if (state === "summarizing") {
+    return <NotebookText className="animate-pulse h-5 w-5 text-blue-500" />;
   } else if (state === "waiting") {
-    return <Hourglass className="h-5 w-5" />;
+    return <Hourglass className="h-5 w-5 text-yellow-500" />;
   } else if (state === "cancelled") {
-    return <XCircle className="h-5 w-5" />;
+    return <XCircle className="h-5 w-5 text-gray-500" />;
+  } else if (state === "failed") {
+    return <XCircle className="h-5 w-5 text-red-500" />;
   } else {
     return <TextSearch className="h-5 w-5" />;
   }
 }
 
+function getThinkingStateText(thinkingTask: ThinkingTask, t: (key: string) => string): string {
+  const reasoning = thinkingTask.reasoning || "";
+  
+  if (reasoning.includes("🔄")) {
+    if (reasoning.includes(t("research.thinking.tasksGenerated")) || reasoning.includes(t("research.thinking.generatingTasks"))) {
+      return t("research.thinking.generatingSearchTasks");
+    }
+    return t("research.thinking.generatingTasks");
+  } else if (reasoning.includes("🧠")) {
+    return t("research.thinking.deepThinking");
+  } else if (thinkingTask.state === "processing") {
+    return t("research.thinking.thinking");
+  } else {
+    return t("research.thinking.completed");
+  }
+}
+
+function getDeeperResearchDisabledReason(
+  t: (key: string) => string,
+  isThinking: boolean,
+  taskFinished: boolean,
+  researchStatus: string,
+  tasks: (SearchTask | ThinkingTask)[],
+  maxDepth: number
+): string {
+  console.log("[DEBUG_BUTTON] Checking disabled status with:", {
+    isThinking,
+    taskFinished,
+    researchStatus,
+    tasksCount: tasks.length,
+    searchTasks: tasks.filter(t => t.type === "search").length,
+    completedSearchTasks: tasks.filter(t => t.type === "search" && (t as SearchTask).state === "completed").length,
+    maxDepth,
+    maxCurrentDepth: Math.max(...tasks.filter(t => t.type === "search").map(t => (t as SearchTask).depth || 0), 0)
+  });
+
+  if (isThinking || researchStatus !== "idle") {
+    console.log(
+      `[DEBUG_BUTTON] Disabled because: isThinking=${isThinking} OR researchStatus='${researchStatus}' !== 'idle'`
+    );
+    return t("research.status.researchInProgress");
+  }
+  
+  // 检查是否有任何搜索任务
+  const searchTasks = tasks.filter(t => t.type === "search") as SearchTask[];
+  if (searchTasks.length === 0) {
+    console.log(`[DEBUG_BUTTON] Disabled because: no search tasks exist`);
+    return t("research.status.noTasks");
+  }
+  
+  if (!taskFinished) {
+    console.log(`[DEBUG_BUTTON] Disabled because: taskFinished=${taskFinished}`);
+    return t("research.status.tasksRunning");
+  }
+  
+  const hasCompletedTasks = searchTasks.some(t => t.state === "completed");
+  if (!hasCompletedTasks) {
+    console.log(
+      `[DEBUG_BUTTON] Disabled because: hasCompletedTasks=${hasCompletedTasks}`
+    );
+    return t("research.status.noCompletedTasks");
+  }
+  
+  // 检查是否已达到最大深度
+  const maxCurrentDepth = Math.max(...searchTasks.map(t => t.depth || 0), 0);
+  if (maxCurrentDepth >= maxDepth) {
+    console.log(
+      `[DEBUG_BUTTON] Disabled because: maxCurrentDepth=${maxCurrentDepth} >= maxDepth=${maxDepth}`
+    );
+    return `已达到最大研究深度 ${maxDepth} 层`;
+  }
+  
+  console.log("[DEBUG_BUTTON] No reason to disable. Button should be active.");
+  return "";
+}
+
 function SearchResult() {
   const { t } = useTranslation();
-  const taskStore = useTaskStore();
   const {
-    status,
+    tasks,
+    suggestion,
+    updateTask,
+    researchStatus,
+  } = useTaskStore();
+  
+  const { maxResearchDepth, update } = useSettingStore();
+  const maxDepth = maxResearchDepth;
+
+  const {
     runSearchTask,
     runWiderResearch,
     runDeeperResearch,
     regenerateAndRerunTask,
     rerunTask,
     cancelTask,
+    regenerateSummary,
   } = useDeepResearch();
   const { generateId } = useKnowledge();
   const {
-    formattedTime,
     start: accurateTimerStart,
     stop: accurateTimerStop,
   } = useAccurateTimer();
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [originalTasks, setOriginalTasks] = useState<Record<string, SearchTask>>({});
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const isThinkingDeeper = useMemo(() => {
-    return isThinking && taskStore.thinkingProcess !== "";
-  }, [isThinking, taskStore.thinkingProcess]);
+
   const unfinishedTasks = useMemo(() => {
-    return taskStore.tasks.filter((item) => item.state !== "completed");
-  }, [taskStore.tasks]);
+    return tasks.filter(
+      (item): item is SearchTask => item.type === "search" && item.state !== "completed"
+    );
+  }, [tasks]);
   const taskFinished = useMemo(() => {
-    return taskStore.tasks.length > 0 && unfinishedTasks.length === 0;
-  }, [taskStore.tasks, unfinishedTasks]);
+    return tasks.length > 0 && unfinishedTasks.length === 0;
+  }, [tasks, unfinishedTasks]);
+
+  const deeperResearchDisabledReason = getDeeperResearchDisabledReason(
+    t,
+    isThinking,
+    taskFinished,
+    researchStatus,
+    tasks,
+    maxDepth
+  );
+
+  // 检查是否达到最大深度
+  const searchTasks = tasks.filter(t => t.type === "search") as SearchTask[];
+  const maxCurrentDepth = searchTasks.length > 0 ? Math.max(...searchTasks.map(t => t.depth || 0)) : 0;
+  const isAtMaxDepth = maxCurrentDepth >= maxDepth && taskFinished && !isThinking && researchStatus === "idle";
+  
+  console.log("[DEPTH_DEBUG] 深度检查:", {
+    maxCurrentDepth,
+    maxDepth,
+    searchTasksCount: searchTasks.length,
+    isAtMaxDepth,
+    taskFinished,
+    isThinking,
+    researchStatus
+  });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      suggestion: taskStore.suggestion,
+      suggestion: suggestion,
     },
   });
 
@@ -131,7 +266,7 @@ function SearchResult() {
       item.sources?.length > 0
         ? `#### ${t("research.common.sources")}\n\n${item.sources
           .map(
-            (source, idx) =>
+            (source: Source, idx: number) =>
               `${idx + 1}. [${source.title || source.url}][${idx + 1}]`
           )
           .join("\n")}`
@@ -148,7 +283,6 @@ function SearchResult() {
         await runSearchTask(unfinishedTasks);
       } else {
         if (values.suggestion) setSuggestion(values.suggestion);
-        console.log("Form submitted for continuing unfinished tasks or suggestion.");
       }
     } finally {
       setIsThinking(false);
@@ -171,16 +305,30 @@ function SearchResult() {
     }
   }
 
-  async function handleDeeperResearch() {
-    try {
-      accurateTimerStart();
-      setIsThinking(true);
-      await runDeeperResearch();
-    } finally {
-      setIsThinking(false);
-      accurateTimerStop();
+  const handleDeeperResearch = async (taskId: string) => {
+    console.log(`[DEBUG_UI] handleDeeperResearch called for taskId: ${taskId}`);
+    const task = tasks.find((t) => t.id === taskId) as SearchTask;
+    if (!task) {
+      console.error(`[DEBUG_UI] Task with id ${taskId} not found in tasks array!`);
+      return;
     }
-  }
+    const reason = getDeeperResearchDisabledReason(
+      t,
+      isThinking,
+      taskFinished,
+      researchStatus,
+      tasks,
+      maxDepth
+    );
+    console.log(`[DEBUG_UI] Disabled reason for task ${taskId}:`, reason || "None");
+
+    if (reason) {
+      toast.warning(reason);
+    } else {
+      console.log(`[DEBUG_UI] Calling runDeeperResearch for task ${taskId}...`);
+      runDeeperResearch(task.id);
+    }
+  };
 
   async function startTaskNow(item: SearchTask) {
     const { updateTask } = useTaskStore.getState();
@@ -226,31 +374,270 @@ function SearchResult() {
   }
 
   function handleRemove(id: string) {
-    cancelTask(id);
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    
+    if (task.type === "thinking") {
+      // 对于thinking task，确认后级联删除
+      const taskDepth = (task as ThinkingTask).depth;
+      const affectedTasks = tasks.filter(t => {
+        if (t.type === "thinking") {
+          return (t as ThinkingTask).depth >= taskDepth && t.id !== id;
+        } else {
+          return (t as SearchTask).depth >= taskDepth;
+        }
+      });
+      
+      console.log("【删除确认】thinking task深度:", taskDepth);
+      console.log("【删除确认】受影响的任务:", affectedTasks.map(t => ({ id: t.id, type: t.type, title: t.title, depth: t.type === "thinking" ? (t as ThinkingTask).depth : (t as SearchTask).depth })));
+      
+      if (window.confirm(
+        `删除此思考节点会影响 ${affectedTasks.length + 1} 个任务（包括本身）。\n\n确认删除吗？`
+      )) {
+        handleCascadeDelete(id, taskDepth);
+      }
+    } else {
+      // 对于search task，直接删除
+      cancelTask(id);
+    }
+  }
+  
+  function handleCascadeDelete(thinkingTaskId: string, fromDepth: number) {
+    const { removeTask, setResearchStatus } = useTaskStore.getState();
+    
+    console.log("【级联删除】开始删除，起始深度:", fromDepth);
+    
+    // 1. 首先强制停止正在进行的研究
+    if (researchStatus !== "idle") {
+      console.log("【级联删除】强制停止正在进行的研究, 当前状态:", researchStatus);
+      setResearchStatus("stopping");
+    }
+    
+    // 2. 找到要删除的所有任务
+    const tasksToRemove = tasks.filter(t => {
+      if (t.type === "thinking") {
+        // 删除同深度及更深的thinking tasks（不包括当前要删除的task，会单独处理）
+        return (t as ThinkingTask).depth >= fromDepth && t.id !== thinkingTaskId;
+      } else {
+        // 删除比thinking task深度更深的search tasks
+        return (t as SearchTask).depth >= fromDepth;
+      }
+    });
+    
+    console.log("【级联删除】要删除的任务数量:", tasksToRemove.length + 1);
+    console.log("【级联删除】要删除的任务列表:", tasksToRemove.map(t => ({ id: t.id, type: t.type, title: t.title })));
+    
+    // 3. 立即执行删除操作
+    console.log("【级联删除】开始删除thinking task:", thinkingTaskId);
+    removeTask(thinkingTaskId);
+    
+    // 4. 删除相关的所有任务
+    tasksToRemove.forEach(task => {
+      console.log("【级联删除】删除任务:", { id: task.id, type: task.type, title: task.title });
+      removeTask(task.id);
+    });
+    
+    // 5. 强制设置为idle状态并重新计算
+    setResearchStatus("idle");
+    setTimeout(() => {
+      recalculateResearchState();
+    }, 50);
+    
+    toast.success(`${t("research.common.cascadeDelete")}: ${tasksToRemove.length + 1} ${t("research.common.tasks")}`);
+  }
+  
+  
+  function handleCompressToUpperLevel(thinkingTaskId: string, thinkingTask: ThinkingTask) {
+    const { removeTask, updateTask } = useTaskStore.getState();
+    const taskDepth = thinkingTask.depth;
+    const targetDepth = taskDepth - 1;
+    
+    if (targetDepth < 0) {
+      toast.error("无法压缩到更高层级");
+      return;
+    }
+    
+    // 找到需要压缩的任务
+    const tasksToCompress = tasks.filter(t => 
+      t.type === "search" && (t as SearchTask).depth > taskDepth
+    ) as SearchTask[];
+    
+    const thinkingTasksToRemove = tasks.filter(t =>
+      t.type === "thinking" && (t as ThinkingTask).depth >= taskDepth
+    ) as ThinkingTask[];
+    
+    if (window.confirm(
+      `将 ${tasksToCompress.length} 个搜索任务压缩到第 ${targetDepth} 层，` +
+      `并删除 ${thinkingTasksToRemove.length} 个思考节点。\n\n确认执行此操作吗？`
+    )) {
+      // 1. 删除所有thinking tasks（包括当前的）
+      thinkingTasksToRemove.forEach(task => removeTask(task.id));
+      
+      // 2. 将搜索任务的深度调整到目标深度
+      tasksToCompress.forEach(task => {
+        updateTask(task.id, { depth: targetDepth });
+      });
+      
+      // 3. 重新计算状态
+      recalculateResearchState();
+      
+      toast.success(`已压缩 ${tasksToCompress.length} 个任务到第 ${targetDepth} 层`);
+    }
+  }
+  
+  function recalculateResearchState() {
+    const { setResearchStatus, setCurrentDepth, tasks: currentTasks } = useTaskStore.getState();
+    
+    // 重新获取当前任务列表
+    const remainingTasks = currentTasks;
+    
+    if (remainingTasks.length === 0) {
+      setResearchStatus("idle");
+      setCurrentDepth(0);
+      // 不要重置maxDepth！保持系统允许的最大深度设置
+      return;
+    }
+    
+    
+    // 计算当前深度（最高已完成的深度）
+    const searchTasks = remainingTasks.filter(t => t.type === "search") as SearchTask[];
+    const completedDepths = searchTasks
+      .filter(t => t.state === "completed")
+      .map(t => t.depth);
+    const currentDepth = completedDepths.length > 0 ? Math.max(...completedDepths) : 0;
+    
+    // 检查是否有正在进行的任务
+    const hasActiveResearch = remainingTasks.some(t => 
+      (t.type === "thinking" && (t as ThinkingTask).state === "processing") ||
+      (t.type === "search" && ["processing", "searching", "summarizing", "waiting"].includes((t as SearchTask).state))
+    );
+    
+    // 更新状态 - 注意：不要重置maxDepth系统限制！
+    setResearchStatus(hasActiveResearch ? "deeper-research" : "idle");
+    setCurrentDepth(currentDepth);
+    // setMaxDepth(maxDepth); // 删除这行！不要重置系统的最大深度限制
+    
+    const maxTaskDepth = remainingTasks.length > 0 ? Math.max(
+      ...remainingTasks.map(t => 
+        t.type === "thinking" ? (t as ThinkingTask).depth : (t as SearchTask).depth
+      ),
+      0
+    ) : 0;
+    
+    console.log("[RECALCULATE_STATE] Updated state:", {
+      remainingTasksCount: remainingTasks.length,
+      maxTaskDepth,
+      currentDepth,
+      researchStatus: hasActiveResearch ? "deeper-research" : "idle",
+      hasActiveResearch
+    });
   }
 
   useEffect(() => {
-    form.setValue("suggestion", taskStore.suggestion);
-  }, [taskStore.suggestion, form]);
+    form.setValue("suggestion", suggestion);
+  }, [suggestion, form]);
 
   return (
-    <section className="p-4 border rounded-md mt-4 print:hidden">
-      <h3 className="font-semibold text-lg border-b mb-2 leading-10">
-        {t("research.searchResult.title")}
-      </h3>
-      {taskStore.tasks.length === 0 ? (
-        <div>{t("research.searchResult.emptyTip")}</div>
-      ) : (
+    <div className="relative p-4 border rounded-md mt-4 print:hidden">
+      <div className="relative p-4 rounded-md" ref={containerRef}>
+        <h2 className="font-semibold text-lg leading-10">
+          {t("research.searchResult.title")}
+        </h2>
+
         <div>
           <Accordion className="mb-4" type="multiple">
-            {taskStore.tasks.map((item) => {
+            {tasks.map((item) => {
               const isEditing = editingTaskId === item.id;
+
+              if (item.type === "thinking") {
+                const thinkingTask = item as ThinkingTask;
+                return (
+                  <AccordionItem
+                    key={item.id}
+                    value={item.id}
+                    className="bg-blue-50/20 dark:bg-blue-950/10 rounded-md mb-2 border-l-2 border-l-blue-400/60"
+                  >
+                    <AccordionTrigger>
+                      <div className="flex items-center space-x-2 text-blue-500">
+                        {thinkingTask.state === "processing" ? (
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-4 w-4" />
+                        )}
+                        <span>{item.title}</span>
+                        {thinkingTask.state === "processing" && (
+                          <span className="ml-2 text-muted-foreground text-sm">
+                            ({getThinkingStateText(thinkingTask, t)})
+                          </span>
+                        )}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="p-4 bg-blue-500/5">
+                      {/* 检查是否有反思内容，如果有则使用三阶段视图 */}
+                      {thinkingTask.reflection || thinkingTask.strategicThinking ? (
+                        <ThreePhaseThinkingView
+                          reflection={thinkingTask.reflection}
+                          strategicThinking={thinkingTask.strategicThinking}
+                          reasoning={thinkingTask.reasoning}
+                          completionStatus={thinkingTask.completionStatus}
+                          researchGaps={thinkingTask.researchGaps}
+                        />
+                      ) : (
+                        <ThinkingView content={item.reasoning || ""} />
+                      )}
+                      <div className="flex items-center justify-end space-x-2 mt-4 pt-2 border-t">
+                        <Button
+                          onClick={() => handleCascadeDelete(item.id, (item as ThinkingTask).depth)}
+                          variant="destructive"
+                          size="sm"
+                          title="删除此思考节点及其后续所有相关任务"
+                        >
+                          <Trash className="mr-1 h-4 w-4" />
+                          {t("research.common.cascadeDelete")}
+                        </Button>
+                        {(() => {
+                          const thinkingTask = item as ThinkingTask;
+                          const searchTasksToMerge = tasks.filter(t => 
+                            t.type === "search" && (t as SearchTask).depth > thinkingTask.depth
+                          );
+                          
+                          if (searchTasksToMerge.length > 0 && thinkingTask.depth > 0) {
+                            return (
+                              <Button
+                                onClick={() => handleCompressToUpperLevel(item.id, thinkingTask)}
+                                variant="outline"
+                                size="sm"
+                                title={`保留搜索结果，将 ${searchTasksToMerge.length} 个搜索任务压缩到上一层`}
+                              >
+                                <RotateCcw className="mr-1 h-4 w-4" />
+                                {t("research.common.compressToUpperLevel")}
+                              </Button>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              }
+
               return (
                 <AccordionItem key={item.id} value={item.id}>
                   <AccordionTrigger>
-                    <div className="flex">
-                      <TaskState state={item.state} />
+                    <div className="flex items-center">
+                      <TaskState state={(item as SearchTask).state} />
                       <span className="ml-1">{item.title}</span>
+                      {[
+                        "searching",
+                        "summarizing",
+                        "waiting",
+                        "processing",
+                      ].includes((item as SearchTask).state) && (
+                          <span className="ml-2 text-muted-foreground text-sm">
+                            ({t(`research.status.${(item as SearchTask).state}`, '...')})
+                          </span>
+                        )}
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="prose prose-slate dark:prose-invert max-w-full min-h-20">
@@ -259,33 +646,51 @@ function SearchResult() {
                         <Input
                           value={item.title}
                           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                            taskStore.updateTask(item.id, { title: e.target.value })
+                            updateTask(item.id, { title: e.target.value })
                           }
                           className="text-lg font-semibold"
                         />
                         <Textarea
-                          value={item.researchGoal}
-                          readOnly
-                          className="bg-muted/50"
-                          rows={3}
+                          value={(item as SearchTask).researchGoal}
+                          onChange={(
+                            e: React.ChangeEvent<HTMLTextAreaElement>
+                          ) =>
+                            updateTask(item.id, {
+                              researchGoal: e.target.value,
+                            })
+                          }
+                          className="text-sm text-muted-foreground h-24"
+                          placeholder={t(
+                            "research.topic.researchGoalPlaceholder"
+                          )}
                         />
                       </div>
                     ) : (
                       <>
-                        <MagicDownView>
-                          {addQuoteBeforeAllLine(item.researchGoal)}
-                        </MagicDownView>
+                        {(() => {
+                          const goal = (item as SearchTask).researchGoal;
+                          return (
+                            <MagicDownView>
+                              {addQuoteBeforeAllLine(goal || "")}
+                            </MagicDownView>
+                          );
+                        })()}
                         <Separator className="mb-4" />
                       </>
                     )}
 
-                    <MagicDown
-                      value={item.learning}
-                      onChange={(value) =>
-                        taskStore.updateTask(item.id, { learning: value })
-                      }
-                      tools={<></>}
-                    />
+                    {(() => {
+                      const learning = (item as SearchTask).learning;
+                      return (
+                        <MagicDown
+                          value={learning || ""}
+                          onChange={(value) =>
+                            updateTask(item.id, { learning: value })
+                          }
+                          tools={<></>}
+                        />
+                      );
+                    })()}
                     <div className="flex items-center justify-end space-x-2 mt-4 pt-2 border-t">
                       {isEditing ? (
                         <Button
@@ -300,7 +705,7 @@ function SearchResult() {
                         <Button
                           onClick={() => {
                             setEditingTaskId(item.id);
-                            setOriginalTasks((prev) => ({ ...prev, [item.id]: item }));
+                            setOriginalTasks((prev) => ({ ...prev, [item.id]: item as SearchTask }));
                           }}
                           variant="outline"
                           size="sm"
@@ -310,9 +715,9 @@ function SearchResult() {
                         </Button>
                       )}
 
-                      {item.state === "waiting" && (
+                      {(item as SearchTask).state === "waiting" && (
                         <Button
-                          onClick={() => startTaskNow(item)}
+                          onClick={() => startTaskNow(item as SearchTask)}
                           variant="outline"
                           size="sm"
                         >
@@ -322,12 +727,25 @@ function SearchResult() {
                       )}
 
                       <Button
-                        onClick={() => handleRetry(item)}
+                        onClick={() => handleRetry(item as SearchTask)}
                         variant="outline"
                         size="sm"
                       >
                         <RotateCcw className="mr-1 h-4 w-4" />
                         {t("research.common.restudy")}
+                      </Button>
+                      <Button
+                        onClick={() => regenerateSummary(item.id)}
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          (item as SearchTask).state !== "completed" ||
+                          !(item as SearchTask).sources ||
+                          (item as SearchTask).sources!.length === 0
+                        }
+                      >
+                        <FilePenLine className="mr-1 h-4 w-4" />
+                        {t("research.common.regenerateSummary")}
                       </Button>
                       <Button
                         onClick={() => handleRemove(item.id)}
@@ -341,7 +759,7 @@ function SearchResult() {
                       <Separator orientation="vertical" className="h-6" />
 
                       <Button
-                        onClick={() => addToKnowledgeBase(item)}
+                        onClick={() => addToKnowledgeBase(item as SearchTask)}
                         variant="outline"
                         size="sm"
                       >
@@ -351,8 +769,8 @@ function SearchResult() {
                       <Button
                         onClick={() =>
                           downloadFile(
-                            getSearchResultContent(item),
-                            `${item.query}.md`,
+                            getSearchResultContent(item as SearchTask),
+                            `${(item as SearchTask).query}.md`,
                             "text/markdown;charset=utf-8"
                           )
                         }
@@ -364,27 +782,31 @@ function SearchResult() {
                       </Button>
                     </div>
 
-                    {item.images?.length > 0 ? (
+                    {(item as SearchTask).images?.length > 0 ? (
                       <>
                         <hr className="my-6" />
                         <h4>{t("research.searchResult.relatedImages")}</h4>
-                        <Lightbox data={item.images}></Lightbox>
+                        <Lightbox
+                          data={(item as SearchTask).images!}
+                        ></Lightbox>
                       </>
                     ) : null}
-                    {item.sources?.length > 0 ? (
+                    {(item as SearchTask).sources?.length > 0 ? (
                       <>
                         <hr className="my-6" />
                         <h4>{t("research.common.sources")}</h4>
                         <ol>
-                          {item.sources.map((source, idx) => {
-                            return (
-                              <li className="ml-2" key={idx}>
-                                <a href={source.url} target="_blank">
-                                  {source.title || source.url}
-                                </a>
-                              </li>
-                            );
-                          })}
+                          {(item as SearchTask).sources!.map(
+                            (source: Source, idx: number) => {
+                              return (
+                                <li className="ml-2" key={idx}>
+                                  <a href={source.url} target="_blank">
+                                    {source.title || source.url}
+                                  </a>
+                                </li>
+                              );
+                            }
+                          )}
                         </ol>
                       </>
                     ) : null}
@@ -393,17 +815,7 @@ function SearchResult() {
               );
             })}
           </Accordion>
-          {isThinkingDeeper && (
-            <div className="p-4 mt-4 mb-4 border-l-4 border-blue-500 bg-blue-50 dark:bg-gray-800 rounded-md">
-              <h4 className="font-semibold text-lg mb-2 flex items-center">
-                <LoaderCircle className="animate-spin mr-2" />
-                Deeper Research in Progress...
-              </h4>
-              <div className="prose prose-sm dark:prose-invert max-w-full mt-2">
-                <MagicDownView>{taskStore.thinkingProcess}</MagicDownView>
-              </div>
-            </div>
-          )}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)}>
               <FormField
@@ -432,47 +844,82 @@ function SearchResult() {
                   className="w-full"
                   type="button"
                   variant="outline"
-                  disabled={isThinking || !taskFinished}
+                  disabled={isThinking || !taskFinished || researchStatus !== "idle"}
                   onClick={handleWiderResearch}
                 >
-                  {isThinking ? (
-                    <>
-                      <LoaderCircle className="animate-spin" />
-                      <span>{status}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Search className="mr-2 h-4 w-4" />
-                      {t("research.common.widerResearch")}
-                    </>
-                  )}
+                  <TrendingUp className="mr-2" />
+                  {t("research.common.widerResearch")}
                 </Button>
-                <Button
-                  className="w-full"
-                  type="button"
-                  variant="default"
-                  disabled={isThinking || !taskFinished}
-                  onClick={handleDeeperResearch}
-                >
-                  {isThinking ? (
-                    <>
-                      <LoaderCircle className="animate-spin" />
-                      <span>{status}</span>
-                      <small className="font-mono">{formattedTime}</small>
-                    </>
-                  ) : (
-                    <>
-                      <TrendingUp className="mr-2 h-4 w-4" />
-                      {t("research.common.deeperResearch")}
-                    </>
-                  )}
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="w-full">
+                        {isAtMaxDepth ? (
+                          <Button
+                            className="w-full"
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              const newDepth = maxDepth + 1;
+                              update({ maxResearchDepth: newDepth });
+                              toast.success(`最大研究深度已增加至 ${newDepth} 层`);
+                            }}
+                          >
+                            <TrendingUp className="mr-2" />
+                            增加研究深度 (当前: {maxDepth} → {maxDepth + 1})
+                          </Button>
+                        ) : (
+                          <Button
+                            className="w-full"
+                            type="button"
+                            variant="default"
+                            disabled={!!deeperResearchDisabledReason}
+                            onClick={() => {
+                              // 找到第一个已完成的搜索任务
+                              const completedSearchTask = tasks.find(
+                                t => t.type === "search" && (t as SearchTask).state === "completed"
+                              );
+                              if (completedSearchTask) {
+                                handleDeeperResearch(completedSearchTask.id);
+                              } else {
+                                console.error("[DEBUG_UI] No completed search task found for deeper research");
+                                toast.error("没有找到已完成的搜索任务");
+                              }
+                            }}
+                          >
+                            <BrainCircuit className="mr-2" />
+                            {t("research.common.deeperResearch")}
+                          </Button>
+                        )}
+                      </div>
+                    </TooltipTrigger>
+                    {!isAtMaxDepth && deeperResearchDisabledReason && (
+                      <TooltipContent>
+                        <p>{deeperResearchDisabledReason}</p>
+                      </TooltipContent>
+                    )}
+                    {isAtMaxDepth && (
+                      <TooltipContent>
+                        <p>当前已达到最大研究深度 {maxDepth} 层，点击可增加深度限制</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </form>
           </Form>
         </div>
-      )}
-    </section>
+        
+        {/* Search Control Sidebar */}
+        <FloatingMenu 
+          targetRef={containerRef}
+          fixedTopOffset={16}
+          fixedRightOffset={-70}
+        >
+          <SearchControlSidebar />
+        </FloatingMenu>
+      </div>
+    </div>
   );
 }
 

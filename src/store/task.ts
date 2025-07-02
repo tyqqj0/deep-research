@@ -1,7 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { pick } from "radash";
-import { nanoid } from "nanoid";
+import type {
+  ResearchItem,
+  Resource,
+  SearchTask,
+  Source,
+  ImageSource,
+  ThinkingTask,
+} from "@/types";
 
 export interface TaskStore {
   id: string;
@@ -12,7 +19,7 @@ export interface TaskStore {
   feedback: string;
   reportPlan: string;
   suggestion: string;
-  tasks: SearchTask[];
+  tasks: ResearchItem[];
   requirement: string;
   title: string;
   finalReport: string;
@@ -20,20 +27,19 @@ export interface TaskStore {
   images: ImageSource[];
   knowledgeGraph: string;
   maxDepth: number;
-  thinkingProcess: string;
+  researchStatus: "idle" | "wider-research" | "deeper-research" | "stopping";
+  currentDepth: number;
 }
 
 interface TaskFunction {
-  update: (tasks: SearchTask[]) => void;
+  update: (tasks: ResearchItem[]) => void;
   setId: (id: string) => void;
   setTitle: (title: string) => void;
   setSuggestion: (suggestion: string) => void;
   setRequirement: (requirement: string) => void;
   setQuery: (query: string) => void;
-  addTask: (
-    task: Omit<SearchTask, "id" | "state" | "learning" | "sources" | "images">
-  ) => SearchTask;
-  updateTask: (id: string, task: Partial<SearchTask>) => void;
+  addTasks: (tasks: ResearchItem[]) => void;
+  updateTask: (id: string, task: Partial<SearchTask | ThinkingTask>) => void;
   removeTask: (id: string) => boolean;
   setQuestion: (question: string) => void;
   addResource: (resource: Resource) => void;
@@ -47,10 +53,16 @@ interface TaskFunction {
   setFeedback: (feedback: string) => void;
   updateKnowledgeGraph: (knowledgeGraph: string) => void;
   setMaxDepth: (depth: number) => void;
-  updateThinkingProcess: (text: string) => void;
+  setResearchStatus: (
+    status: "idle" | "wider-research" | "deeper-research" | "stopping"
+  ) => void;
+  setCurrentDepth: (depth: number) => void;
+  getTasksByDepth: (depth: number) => ResearchItem[];
+  isDepthCompleted: (depth: number) => boolean;
+  removeTasksByDepth: (depth: number) => void;
   clear: () => void;
   reset: () => void;
-  backup: () => TaskStore;
+  backup: () => Omit<TaskStore, "thinkingProcess">;
   restore: (taskStore: TaskStore) => void;
 }
 
@@ -71,7 +83,8 @@ const defaultValues: TaskStore = {
   images: [],
   knowledgeGraph: "",
   maxDepth: 3,
-  thinkingProcess: "",
+  researchStatus: "idle",
+  currentDepth: 0,
 };
 
 export const useTaskStore = create(
@@ -84,17 +97,8 @@ export const useTaskStore = create(
       setSuggestion: (suggestion) => set(() => ({ suggestion })),
       setRequirement: (requirement) => set(() => ({ requirement })),
       setQuery: (query) => set(() => ({ query })),
-      addTask: (task) => {
-        const newTask: SearchTask = {
-          ...task,
-          id: nanoid(),
-          state: "unprocessed",
-          learning: "",
-          sources: [],
-          images: [],
-        };
-        set((state) => ({ tasks: [...state.tasks, newTask] }));
-        return newTask;
+      addTasks: (tasks) => {
+        set((state) => ({ tasks: [...state.tasks, ...tasks] }));
       },
       updateTask: (id, task) => {
         const newTasks = get().tasks.map((item) => {
@@ -102,7 +106,7 @@ export const useTaskStore = create(
             return { ...item, ...task };
           }
           return item;
-        });
+        }) as ResearchItem[];
         set(() => ({ tasks: [...newTasks] }));
       },
       removeTask: (id) => {
@@ -134,16 +138,68 @@ export const useTaskStore = create(
       setFeedback: (feedback) => set(() => ({ feedback })),
       updateKnowledgeGraph: (knowledgeGraph) => set(() => ({ knowledgeGraph })),
       setMaxDepth: (depth) => set(() => ({ maxDepth: depth })),
-      updateThinkingProcess: (text) => set(() => ({ thinkingProcess: text })),
+      setResearchStatus: (status) => set(() => ({ researchStatus: status })),
+      setCurrentDepth: (depth) => set(() => ({ currentDepth: depth })),
+      getTasksByDepth: (depth) => {
+        const { tasks } = get();
+        return tasks.filter((t) => (t as any).depth === depth);
+      },
+      isDepthCompleted: (depth) => {
+        const { tasks } = get();
+        const tasksAtDepth = tasks.filter((t) => (t as any).depth === depth);
+        const searchTasks = tasksAtDepth.filter(
+          (t): t is SearchTask => t.type === "search"
+        );
+
+        if (searchTasks.length === 0) return false;
+
+        return searchTasks.every(
+          (t) =>
+            t.state === "completed" ||
+            t.state === "failed" ||
+            t.state === "cancelled"
+        );
+      },
+      removeTasksByDepth: (depth) => {
+        set((state) => {
+          const newTasks: ResearchItem[] = state.tasks.filter(
+            (t) => (t as any).depth !== depth
+          );
+          return { tasks: newTasks };
+        });
+      },
       clear: () => set(() => ({ tasks: [] })),
       reset: () => set(() => ({ ...defaultValues })),
       backup: () => {
+        const { ...rest } = get();
         return {
-          ...pick(get(), Object.keys(defaultValues) as (keyof TaskStore)[]),
+          ...pick(rest, Object.keys(defaultValues) as (keyof TaskStore)[]),
         } as TaskStore;
       },
       restore: (taskStore) => set(() => ({ ...taskStore })),
     }),
-    { name: "research" }
+    {
+      name: "research",
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.error("Failed to rehydrate task store", error);
+        }
+        if (state) {
+          const migratedTasks = state.tasks.map((task: any) => {
+            // Check for old search tasks that are missing the `type` property
+            if (
+              task &&
+              typeof task === "object" &&
+              !task.type &&
+              task.query
+            ) {
+              return { ...task, type: "search" };
+            }
+            return task;
+          });
+          state.tasks = migratedTasks;
+        }
+      },
+    }
   )
 );

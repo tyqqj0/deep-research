@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, type StorageValue } from "zustand/middleware";
 import { researchStore } from "@/utils/storage";
 import { clone, pick } from "radash";
+import type { Knowledge } from "@/types";
 
 export interface KnowledgeStore {
   knowledges: Knowledge[];

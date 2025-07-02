@@ -36,15 +36,31 @@ interface Source {
   images?: ImageSource[];
 }
 
+interface ThinkingTask {
+  id: string;
+  type: "thinking";
+  depth: number;
+  title: string;
+  reasoning: string;
+  state?: "processing" | "completed";
+  reflection?: string;
+  strategicThinking?: string;
+  completionStatus?: 'RESEARCH_COMPLETE' | 'RESEARCH_PARTIAL' | 'RESEARCH_INSUFFICIENT';
+  researchGaps?: string;
+}
+
 interface SearchTask {
   id: string;
+  type: "search";
   state:
   | "unprocessed"
   | "processing"
   | "completed"
   | "failed"
   | "waiting"
-  | "cancelled";
+  | "cancelled"
+  | "searching"
+  | "summarizing";
   query: string;
   title: string;
   researchGoal: string;
@@ -54,6 +70,8 @@ interface SearchTask {
   depth: number;
   timerId?: NodeJS.Timeout;
 }
+
+export type ResearchItem = ThinkingTask | SearchTask;
 
 interface PartialJson {
   value: JSONValue | undefined;

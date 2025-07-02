@@ -8,6 +8,7 @@ import { useSettingStore } from "@/store/setting";
 import { rewritingPrompt } from "@/constants/prompts";
 import { jinaReader, localCrawler } from "@/utils/crawler";
 import { fileParser } from "@/utils/parser";
+import type { FileMeta } from "@/types";
 import { getTextByteSize } from "@/utils/file";
 import {
   splitText,

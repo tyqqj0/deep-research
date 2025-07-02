@@ -31,6 +31,7 @@ import { useKnowledgeStore } from "@/store/knowledge";
 import { useTaskStore } from "@/store/task";
 import { getTextByteSize, formatSize } from "@/utils/file";
 import { cn } from "@/utils/style";
+import type { Knowledge as KnowledgeType } from "@/types";
 
 const Content = dynamic(() => import("./Content"));
 
@@ -51,7 +52,7 @@ function Knowledge({ open, onClose }: KnowledgeProps) {
   const { knowledges, save, remove } = useKnowledgeStore();
   const [tab, setTab] = useState<"list" | "edit">("list");
   const [currentId, setCurrentId] = useState<string>("");
-  const [knowledgeList, setKnowledgeList] = useState<Knowledge[]>([]);
+  const [knowledgeList, setKnowledgeList] = useState<KnowledgeType[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const showLoadMore = useMemo(() => {
     return knowledges.length > currentPage * PAGE_SIZE;

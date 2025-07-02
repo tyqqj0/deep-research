@@ -8,6 +8,7 @@ import {
 import { rewritingPrompt } from "@/constants/prompts";
 import { completePath } from "@/utils/url";
 import { pick, sort } from "radash";
+import type { Source, ImageSource } from "@/types";
 
 type TavilySearchResult = {
   title: string;

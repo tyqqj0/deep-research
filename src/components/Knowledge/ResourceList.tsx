@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
 import { Loader2, X } from "lucide-react";
-import Resource from "@/components/Knowledge/Resource";
+import ResourceComponent from "@/components/Knowledge/Resource";
 import ResourceIcon from "./ResourceIcon";
 import { formatSize } from "@/utils/file";
 import { cn } from "@/utils/style";
 import { isFunction } from "radash";
+import type { Resource } from "@/types";
 
 type Props = {
   className?: string;
@@ -72,11 +73,11 @@ function ResourceList({ className, resources, onRemove }: Props) {
         );
       })}
       {resourceId ? (
-        <Resource
+        <ResourceComponent
           id={resourceId}
           open={openResource}
           onClose={() => setOpenResource(false)}
-        ></Resource>
+        ></ResourceComponent>
       ) : null}
     </div>
   );
