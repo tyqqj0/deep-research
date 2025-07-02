@@ -32,33 +32,49 @@ React组件层     ← 负责翻译显示
 
 ## 📋 重构工作包
 
-### WP-I18N-1: 创建错误码系统
+### WP-I18N-1: 创建错误码系统 ✅
 **目标**: 建立统一的错误码枚举和消息键系统
 
-**创建文件**: `src/utils/deep-research/types/ErrorCodes.ts`
-```typescript
-export enum ResearchErrorCode {
-  SEARCH_FAILED = 'SEARCH_FAILED',
-  RETRY_EXHAUSTED = 'RETRY_EXHAUSTED', 
-  TASK_GENERATION_FAILED = 'TASK_GENERATION_FAILED',
-  AI_FAILED_TO_GENERATE_PLAN = 'AI_FAILED_TO_GENERATE_PLAN'
-}
+**状态**: 已完成 (2025-07-02)
 
-export interface ResearchError {
-  code: ResearchErrorCode;
-  messageKey: string;
-  params?: Record<string, any>;
-  originalError?: Error;
-}
-```
+**已创建文件**: `src/utils/deep-research/types/ErrorCodes.ts`
 
-### WP-I18N-2: 重构RetryManager
+**实现功能**:
+- ✅ ResearchErrorCode 枚举 (17个错误码)
+- ✅ ResearchError 接口
+- ✅ 错误码到翻译键映射 (ERROR_CODE_TO_MESSAGE_KEY)
+- ✅ ResearchErrorFactory 工厂类 (10个便捷创建方法)
+- ✅ ResearchErrorUtils 辅助工具类
+
+**主要错误码**:
+- 搜索相关: SEARCH_FAILED, SEARCH_ERROR, SEARCH_TIMEOUT
+- 任务生成: TASK_GENERATION_FAILED, AI_FAILED_TO_GENERATE_PLAN
+- 重试机制: RETRY_EXHAUSTED, MAX_RETRIES_EXCEEDED  
+- 深度研究: DEEPER_RESEARCH_FAILED, NO_COMPLETED_TASKS
+- AI服务: AI_PROVIDER_ERROR, AI_RESPONSE_INVALID, AI_QUOTA_EXCEEDED
+- 网络: NETWORK_ERROR, CONNECTION_TIMEOUT
+- 系统: SYSTEM_ERROR, UNKNOWN_ERROR
+
+### WP-I18N-2: 重构RetryManager ✅
 **目标**: 移除React Hook，使用错误码模式
 
-**修改**: `src/utils/deep-research/services/RetryManager.ts`
-- 移除 `useTranslation` 导入
-- `handleFinalFailure` 返回错误对象而非直接更新UI
-- 通过依赖注入传递错误处理回调
+**状态**: 已完成 (2025-07-02)
+
+**已修改**: `src/utils/deep-research/services/RetryManager.ts`
+
+**完成的修改**:
+- ✅ 移除 `useTranslation` 导入 (第2行)
+- ✅ 移除 `const { t } = useTranslation()` 调用 (第305行)
+- ✅ 添加 `ResearchError, ResearchErrorFactory` 导入
+- ✅ `handleFinalFailure` 返回 `ResearchError` 而非直接更新UI
+- ✅ 使用 `ResearchErrorFactory.createRetryExhausted()` 创建标准错误
+- ✅ 扩展 `RetryManagerDependencies` 接口，增加 `onResearchError` 回调
+- ✅ 保持功能完整性，通过依赖注入处理错误显示
+
+**架构改进**:
+- Utils层不再直接依赖React Hook
+- 错误处理遵循错误码模式
+- 更好的测试性和解耦
 
 ### WP-I18N-3: 重构SearchStrategy  
 **目标**: 移除i18next直接依赖

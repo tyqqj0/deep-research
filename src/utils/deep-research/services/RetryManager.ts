@@ -1,6 +1,6 @@
 import { useTaskStore } from "@/store/task";
-import { useTranslation } from "react-i18next";
 import type { SearchTask } from "@/types";
+import { ResearchError, ResearchErrorFactory } from "../types/ErrorCodes";
 
 /**
  * 重试状态接口
@@ -35,6 +35,11 @@ export interface RetryManagerDependencies {
    * 检查用户是否介入
    */
   isUserIntervened: () => boolean;
+  
+  /**
+   * 处理研究错误的回调函数
+   */
+  onResearchError?: (error: ResearchError) => void;
 }
 
 /**
@@ -289,8 +294,13 @@ export class RetryManager {
 
       console.log(`[自动重试] 所有重试均失败，任务ID: ${taskId}`);
 
-      // 所有重试都失败，标记为最终失败
-      await this.handleFinalFailure(taskId, originalError);
+      // 所有重试都失败，处理最终失败
+      const finalError = await this.handleFinalFailure(taskId, originalError);
+      
+      // 通过传统错误处理显示给用户
+      this.dependencies.handleError(`[最终失败] ${originalError.message} - 已尝试3次自动重试`);
+      
+      console.log('[自动重试] 最终失败错误对象:', finalError);
 
     } finally {
       this.clearRetryState(taskId);
@@ -299,20 +309,35 @@ export class RetryManager {
 
   /**
    * 处理最终失败
+   * 现在返回ResearchError而不是直接更新UI
    */
-  private async handleFinalFailure(taskId: string, originalError: Error): Promise<void> {
-    const { updateTask } = useTaskStore.getState();
-    const { t } = useTranslation();
-
-    const finalFailedContent = `❌ **${t("research.status.searchFailed")}**\n\n**${t("research.common.query")}**: ${taskId}\n\n**${t("research.status.searchError")}**: ${originalError.message}\n\n*已尝试3次自动重试（2次简单重试 + 1次智能重试）均失败。*\n\n*预留位置：未来可在此处自动切换搜索引擎。*`;
-
-    updateTask(taskId, {
-      state: "failed",
-      learning: finalFailedContent
-    });
-
-    // 显示最终失败的 toast
-    this.dependencies.handleError(`[最终失败] ${originalError.message} - 已尝试3次自动重试`);
+  private async handleFinalFailure(taskId: string, originalError: Error): Promise<ResearchError> {
+    // 获取任务标题用于错误上下文
+    const { tasks } = useTaskStore.getState();
+    const task = tasks.find(t => t.id === taskId);
+    const taskTitle = task?.title || taskId;
+    
+    // 创建重试耗尽错误
+    const retryError = ResearchErrorFactory.createRetryExhausted(
+      taskId,
+      3, // 重试次数
+      originalError
+    );
+    
+    // 添加任务标题到上下文
+    retryError.context = {
+      ...retryError.context,
+      taskTitle,
+      originalErrorMessage: originalError.message,
+      retryDescription: '已尝试3次自动重试（2次简单重试 + 1次智能重试）均失败'
+    };
+    
+    // 如果有错误处理回调，调用它
+    if (this.dependencies.onResearchError) {
+      this.dependencies.onResearchError(retryError);
+    }
+    
+    return retryError;
   }
 
   /**
