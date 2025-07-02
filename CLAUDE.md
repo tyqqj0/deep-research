@@ -141,3 +141,112 @@ pnpm lint
 - 渐进式 Web 应用 (PWA) 功能
 - 注重隐私：默认所有数据本地存储
 - 支持多密钥 API 密钥（逗号分隔）
+
+## Deep Research 重构计划
+
+### 当前问题分析
+
+`useDeepResearch` hook (1900+ 行) 存在以下问题：
+1. **违反单一职责原则**: 承担了太多职责（搜索、重试、状态管理、UI逻辑等）
+2. **函数过大**: `runDeeperResearch`(468行)、`runSearchTask`(317行) 等函数过于庞大
+3. **状态管理混乱**: 多种状态交织，难以维护
+4. **业务逻辑与UI逻辑混合**: 违反分层架构原则
+5. **代码重复**: 相似逻辑未抽象复用
+
+### 重构目标
+
+将 `src/hooks/useDeepResearch.ts` 重构为模块化的文件夹结构，实现：
+- 职责分离
+- 代码复用
+- 易于测试
+- 更好的维护性
+
+### 新架构设计
+
+```
+src/utils/deep-research/
+├── core/                     # 核心引擎
+│   ├── ResearchEngine.ts     # 主研究引擎
+│   ├── TaskScheduler.ts      # 任务调度器  
+│   └── StateManager.ts       # 状态管理器
+├── strategies/               # 研究策略
+│   ├── SearchStrategy.ts     # 搜索策略 (runSearchTask)
+│   ├── WiderStrategy.ts      # 扩展研究策略 (runWiderResearch)
+│   └── DeeperStrategy.ts     # 深度研究策略 (runDeeperResearch)
+├── services/                 # 业务服务
+│   ├── RetryManager.ts       # 重试管理
+│   ├── TaskRunner.ts         # 任务执行器
+│   └── StreamProcessor.ts    # 流式处理
+├── types/                    # 类型定义
+│   ├── research.ts           # 研究相关类型
+│   └── strategy.ts           # 策略相关类型
+└── index.ts                  # 统一导出
+```
+
+### 重构策略
+
+#### 第一阶段：核心模块拆分
+1. **SearchStrategy** (`runSearchTask` 317行)
+   - 搜索任务执行逻辑
+   - 错误处理和重试
+   - 并行执行管理
+
+2. **DeeperStrategy** (`runDeeperResearch` 468行)  
+   - 深度研究逻辑
+   - 三阶段思考流程
+   - 任务生成和调度
+
+3. **WiderStrategy** (`runWiderResearch` 95行)
+   - 扩展研究逻辑
+   - 建议处理
+   - 查询生成
+
+#### 第二阶段：支持服务抽取
+1. **RetryManager** - 自动重试逻辑独立管理
+2. **TaskRunner** - 统一任务执行接口
+3. **StreamProcessor** - 流式处理和状态更新
+
+#### 第三阶段：状态管理优化
+1. **StateManager** - 集中状态管理
+2. **ResearchEngine** - 高层编排器
+3. **TaskScheduler** - 任务调度和生命周期
+
+### 设计模式应用
+
+1. **策略模式**: 不同研究策略（搜索、扩展、深度）
+2. **命令模式**: 任务执行和撤销
+3. **观察者模式**: 状态变化通知
+4. **工厂模式**: 策略和服务实例创建
+5. **单例模式**: 重试状态管理
+
+### 依赖关系设计
+
+```
+useDeepResearch (Hook)
+    ↓
+ResearchEngine (Core)
+    ↓
+TaskScheduler + StateManager
+    ↓
+Strategies (Search/Wider/Deeper)
+    ↓
+Services (Retry/Runner/Stream)
+```
+
+### 重构实施步骤
+
+1. **Phase 1**: 创建新文件夹结构和基础类型
+2. **Phase 2**: 迁移 `runSearchTask` → `SearchStrategy`
+3. **Phase 3**: 迁移 `runDeeperResearch` → `DeeperStrategy`  
+4. **Phase 4**: 迁移 `runWiderResearch` → `WiderStrategy`
+5. **Phase 5**: 抽取重试逻辑 → `RetryManager`
+6. **Phase 6**: 创建 `ResearchEngine` 统一入口
+7. **Phase 7**: 重构 `useDeepResearch` 为轻量级 hook
+8. **Phase 8**: 测试验证和性能优化
+
+### 关键原则
+
+- **向后兼容**: 保持现有 API 不变
+- **渐进式重构**: 逐步迁移，避免大爆炸式重构
+- **测试驱动**: 每个模块都应可独立测试
+- **类型安全**: 强类型约束，减少运行时错误
