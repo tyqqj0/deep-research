@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { LibraryItem, LiteratureTree } from '../libs/db';
+import { LITERATURE_SOURCES, DEFAULT_LIBRARY_ITEM_SOURCE, LiteratureSource } from '../libs/db/constants';
 import { TreeController } from '../libs/tree/TreeController';
+import { zoteroService, ZoteroConfig, ZoteroSyncResult } from '../libs/zotero';
 import { nanoid } from 'nanoid';
 
 // Define State interface
@@ -11,15 +13,37 @@ interface LibraryState {
   isLoading: boolean;
   error: string | null;
   treeVersion: number; // Version number to trigger UI updates
+  
+  // Filtering and search
+  sourceFilter: LiteratureSource | 'all';
+  searchTerm: string;
+  
+  // Zotero integration
+  zoteroConfig: ZoteroConfig | null;
+  isZoteroConfigured: boolean;
+  zoteroSyncResult: ZoteroSyncResult | null;
 }
 
 // Define Actions interface
 interface LibraryActions {
+  // Core actions
   initialize: () => Promise<void>;
   selectTree: (treeId: string) => Promise<void>;
   runMCTS: () => Promise<void>;
-  addLibraryItem: (itemData: Omit<LibraryItem, 'id' | 'createdAt'>) => Promise<void>;
+  addLibraryItem: (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateLibraryItem: (id: string, itemData: Partial<LibraryItem>) => Promise<void>;
+  deleteLibraryItem: (id: string) => Promise<void>;
   clearError: () => void;
+  
+  // Search and filtering
+  setSourceFilter: (source: LiteratureSource | 'all') => void;
+  setSearchTerm: (term: string) => void;
+  getFilteredItems: () => LibraryItem[];
+  
+  // Zotero integration
+  configureZotero: (config: ZoteroConfig) => Promise<boolean>;
+  syncWithZotero: () => Promise<ZoteroSyncResult>;
+  clearZoteroConfig: () => void;
 }
 
 // Mock library service interface (to be replaced with actual service)
@@ -64,6 +88,15 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   isLoading: false,
   error: null,
   treeVersion: 0,
+  
+  // Filtering and search
+  sourceFilter: 'all',
+  searchTerm: '',
+  
+  // Zotero integration
+  zoteroConfig: null,
+  isZoteroConfigured: false,
+  zoteroSyncResult: null,
 
   // Clear error action
   clearError: () => {
@@ -150,14 +183,16 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   },
 
   // Add library item action
-  addLibraryItem: async (itemData: Omit<LibraryItem, 'id' | 'createdAt'>) => {
+  addLibraryItem: async (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       set({ isLoading: true, error: null });
       
       const newItem: LibraryItem = {
         ...itemData,
         id: nanoid(),
-        createdAt: new Date()
+        source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE,
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
       
       await mockLibraryService.addLibraryItem(newItem);
@@ -175,5 +210,172 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         error: error instanceof Error ? error.message : 'Failed to add library item' 
       });
     }
+  },
+
+  // Update library item action
+  updateLibraryItem: async (id: string, itemData: Partial<LibraryItem>) => {
+    try {
+      set({ isLoading: true, error: null });
+      
+      const { items } = get();
+      const existingItem = items.find(item => item.id === id);
+      
+      if (!existingItem) {
+        throw new Error(`Library item with id ${id} not found`);
+      }
+      
+      const updatedItem: LibraryItem = {
+        ...existingItem,
+        ...itemData,
+        updatedAt: new Date()
+      };
+      
+      await mockLibraryService.addLibraryItem(updatedItem);
+      
+      // Update items list
+      const updatedItems = items.map(item => 
+        item.id === id ? updatedItem : item
+      );
+      
+      set({ 
+        items: updatedItems, 
+        isLoading: false 
+      });
+    } catch (error) {
+      set({ 
+        isLoading: false, 
+        error: error instanceof Error ? error.message : 'Failed to update library item' 
+      });
+    }
+  },
+
+  // Delete library item action
+  deleteLibraryItem: async (id: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      
+      // Remove from local state (mock implementation)
+      const { items } = get();
+      const updatedItems = items.filter(item => item.id !== id);
+      
+      set({ 
+        items: updatedItems, 
+        isLoading: false 
+      });
+    } catch (error) {
+      set({ 
+        isLoading: false, 
+        error: error instanceof Error ? error.message : 'Failed to delete library item' 
+      });
+    }
+  },
+
+  // Search and filtering actions
+  setSourceFilter: (source: LiteratureSource | 'all') => {
+    set({ sourceFilter: source });
+  },
+
+  setSearchTerm: (term: string) => {
+    set({ searchTerm: term });
+  },
+
+  getFilteredItems: () => {
+    const { items, sourceFilter, searchTerm } = get();
+    
+    let filtered = items;
+    
+    // Filter by source
+    if (sourceFilter !== 'all') {
+      filtered = filtered.filter(item => item.source === sourceFilter);
+    }
+    
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(item => 
+        item.title.toLowerCase().includes(term) ||
+        item.authors.some(author => author.toLowerCase().includes(term)) ||
+        item.publication?.toLowerCase().includes(term) ||
+        item.abstract?.toLowerCase().includes(term)
+      );
+    }
+    
+    return filtered;
+  },
+
+  // Zotero integration actions
+  configureZotero: async (config: ZoteroConfig) => {
+    try {
+      set({ isLoading: true, error: null });
+      
+      zoteroService.setConfig(config);
+      const isConnected = await zoteroService.testConnection();
+      
+      if (isConnected) {
+        set({ 
+          zoteroConfig: config,
+          isZoteroConfigured: true,
+          isLoading: false 
+        });
+        return true;
+      } else {
+        throw new Error('Failed to connect to Zotero');
+      }
+    } catch (error) {
+      set({ 
+        isLoading: false, 
+        error: error instanceof Error ? error.message : 'Failed to configure Zotero' 
+      });
+      return false;
+    }
+  },
+
+  syncWithZotero: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      
+      if (!get().isZoteroConfigured) {
+        throw new Error('Zotero not configured');
+      }
+      
+      const { items } = get();
+      const syncResult = await zoteroService.syncItems(items);
+      
+      if (syncResult.success) {
+        // Refresh items list after sync
+        const updatedItems = await mockLibraryService.getAllLibraryItems();
+        set({ 
+          items: updatedItems,
+          zoteroSyncResult: syncResult,
+          isLoading: false 
+        });
+      } else {
+        throw new Error(syncResult.errors.join('; '));
+      }
+      
+      return syncResult;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to sync with Zotero';
+      set({ 
+        isLoading: false, 
+        error: errorMessage,
+        zoteroSyncResult: {
+          success: false,
+          itemsAdded: 0,
+          itemsUpdated: 0,
+          itemsSkipped: 0,
+          errors: [errorMessage]
+        }
+      });
+      return get().zoteroSyncResult!;
+    }
+  },
+
+  clearZoteroConfig: () => {
+    set({ 
+      zoteroConfig: null,
+      isZoteroConfigured: false,
+      zoteroSyncResult: null 
+    });
   }
 }));

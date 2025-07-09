@@ -1,4 +1,5 @@
 import Dexie, { Table } from 'dexie';
+import { LiteratureSource } from './constants';
 
 // TypeScript Interfaces
 export interface LibraryItem {
@@ -6,9 +7,13 @@ export interface LibraryItem {
   title: string;
   authors: string[];
   year: number;
-  publication: string;
+  source?: LiteratureSource; // 来源类型
+  publication?: string;
+  abstract?: string;
+  summary?: string;
   zoteroKey?: string;
   createdAt: Date;
+  updatedAt?: Date; // 添加更新时间
 }
 
 export interface MCTSNode {
@@ -38,11 +43,14 @@ export class MyDatabase extends Dexie {
     
     // Define schemas
     this.version(1).stores({
-      library: '++id, title', // id auto-increment, title indexed
-      literatureTrees: '++id, name' // id auto-increment, name indexed
+      library: '++id, title, *authors, year, source, publication, zoteroKey, createdAt', // Multi-index for search
+      literatureTrees: '++id, name, createdAt' // id auto-increment, name indexed
     });
   }
 }
 
 // Export singleton instance
 export const db = new MyDatabase();
+
+// Export constants and types
+export * from './constants';

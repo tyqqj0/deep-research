@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LITERATURE_SOURCES } from './constants';
 
 // Zod Schema for LibraryItem
 export const LibraryItemSchema = z.object({
@@ -6,9 +7,19 @@ export const LibraryItemSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   authors: z.array(z.string()).min(1, 'At least one author is required'),
   year: z.number().int().min(1000).max(new Date().getFullYear() + 10),
-  publication: z.string().min(1, 'Publication is required'),
+  source: z.enum([
+    LITERATURE_SOURCES.MANUAL,
+    LITERATURE_SOURCES.SEARCH,
+    LITERATURE_SOURCES.IMPORT,
+    LITERATURE_SOURCES.KNOWLEDGE,
+    LITERATURE_SOURCES.ZOTERO
+  ]).optional(),
+  publication: z.string().optional(),
+  abstract: z.string().optional(),
+  summary: z.string().optional(),
   zoteroKey: z.string().optional(),
-  createdAt: z.date()
+  createdAt: z.date(),
+  updatedAt: z.date().optional()
 });
 
 // Zod Schema for MCTSNode
