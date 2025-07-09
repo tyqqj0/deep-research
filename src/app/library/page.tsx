@@ -14,12 +14,14 @@ import { useLibraryStore } from "@/store/libraryStore";
 import { LITERATURE_SOURCES, SOURCE_METADATA } from "@/libs/db/constants";
 import { LiteratureList } from "@/components/Library/LiteratureList";
 import { AddLiteratureForm } from "@/components/Library/AddLiteratureForm";
+import { ZoteroImport } from "@/components/Library/ZoteroImport";
 import { toast } from "sonner";
 
 export default function LibraryPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showZoteroImport, setShowZoteroImport] = useState(false);
   
   const {
     items,
@@ -97,10 +99,10 @@ export default function LibraryPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {alert('TODO: Import functionality' /* TODO: Import functionality */)}}
+            onClick={() => setShowZoteroImport(true)}
           >
             <Upload className="h-4 w-4 mr-2" />
-            Import
+            Import from Zotero
           </Button>
           <Button
             onClick={() => setShowAddForm(true)}
@@ -267,12 +269,12 @@ export default function LibraryPage() {
                 </div>
                 
                 {!isZoteroConfigured ? (
-                  <Button onClick={() => {/* TODO: Configure Zotero */}}>
+                  <Button onClick={() => setShowZoteroImport(true)}>
                     Configure Zotero
                   </Button>
                 ) : (
                   <div className="flex gap-2">
-                    <Button onClick={() => {/* TODO: Sync with Zotero */}}>
+                    <Button onClick={() => setShowZoteroImport(true)}>
                       Sync Now
                     </Button>
                     <Button variant="outline" onClick={() => {/* TODO: Disconnect */}}>
@@ -291,6 +293,14 @@ export default function LibraryPage() {
         <AddLiteratureForm
           open={showAddForm}
           onClose={() => setShowAddForm(false)}
+        />
+      )}
+
+      {/* Zotero Import Modal */}
+      {showZoteroImport && (
+        <ZoteroImport
+          open={showZoteroImport}
+          onClose={() => setShowZoteroImport(false)}
         />
       )}
     </div>
