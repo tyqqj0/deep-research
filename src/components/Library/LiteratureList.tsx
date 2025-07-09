@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LibraryItem } from "@/libs/db";
 import { LiteratureListItem } from "./LiteratureListItem";
+import { Pagination } from "./Pagination";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,10 @@ export function LiteratureList({
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
 
   // Sort items
   const sortedItems = [...items].sort((a, b) => {
@@ -72,6 +77,37 @@ export function LiteratureList({
     setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
   };
 
+  // Calculate pagination data
+  const totalItems = sortedItems.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const currentPageItems = sortedItems.slice(startIndex, endIndex);
+
+  // Handle pagination changes
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    setSelectedItems(new Set()); // Clear selection when changing page
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1); // Reset to first page when changing page size
+    setSelectedItems(new Set()); // Clear selection when changing page size
+  };
+
+  // Reset to first page when items change (e.g., search/filter)
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
+  // Clear selection when items change
+  useEffect(() => {
+    setSelectedItems(new Set());
+  }, [items.length]);
+
   const toggleItemSelection = (id: string) => {
     const newSelected = new Set(selectedItems);
     if (newSelected.has(id)) {
@@ -83,7 +119,7 @@ export function LiteratureList({
   };
 
   const selectAllItems = () => {
-    setSelectedItems(new Set(items.map(item => item.id)));
+    setSelectedItems(new Set(currentPageItems.map(item => item.id)));
   };
 
   const clearSelection = () => {
@@ -175,16 +211,16 @@ export function LiteratureList({
             <Button
               variant="outline"
               size="sm"
-              onClick={selectedItems.size === items.length ? clearSelection : selectAllItems}
+              onClick={selectedItems.size === currentPageItems.length ? clearSelection : selectAllItems}
             >
-              {selectedItems.size === items.length ? 'Deselect All' : 'Select All'}
+              {selectedItems.size === currentPageItems.length ? 'Deselect All' : 'Select All'}
             </Button>
           </div>
 
           {/* Sort Controls */}
           <div className="flex items-center gap-2">
             <Select value={sortField} onValueChange={(value) => setSortField(value as SortField)}>
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="h-8 w-32 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -232,7 +268,7 @@ export function LiteratureList({
           ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' 
           : 'space-y-4'
       }>
-        {sortedItems.map((item) => (
+        {currentPageItems.map((item) => (
           <LiteratureListItem
             key={item.id}
             item={item}
@@ -246,12 +282,17 @@ export function LiteratureList({
         ))}
       </div>
 
-      {/* Pagination or Load More */}
-      {sortedItems.length > 20 && (
-        <div className="text-center pt-4">
-          <Button variant="outline" onClick={() => {/* TODO: Load more */}}>
-            Load More
-          </Button>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-6">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+          />
         </div>
       )}
     </div>

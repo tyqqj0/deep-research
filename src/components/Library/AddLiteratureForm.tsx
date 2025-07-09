@@ -86,7 +86,7 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
     try {
       setIsSubmitting(true);
       
-      await addLibraryItem({
+      const result = await addLibraryItem({
         title: data.title,
         authors: data.authors,
         year: data.year,
@@ -97,8 +97,16 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
         zoteroKey: data.zoteroKey || undefined,
       });
 
-      toast.success("Literature added successfully!");
-      handleClose();
+      if (result && result.success) {
+        toast.success("Literature added successfully!");
+        handleClose();
+      } else if (result && result.duplicate) {
+        // Handle duplicate case
+        toast.warning(`Literature "${data.title}" already exists in your library.`);
+        // Form stays open for user to modify or cancel
+      } else {
+        toast.error("Failed to add literature. Please try again.");
+      }
     } catch (error) {
       toast.error("Failed to add literature. Please try again.");
       console.error("Error adding literature:", error);

@@ -32,15 +32,42 @@ export class LibraryService {
   }
 
   /**
-   * Add new library item
+   * Check for duplicate literature by title
    */
-  async addLibraryItem(item: LibraryItem): Promise<void> {
+  async checkDuplicateByTitle(title: string): Promise<LibraryItem[]> {
+    try {
+      const duplicates = await this.db.library
+        .where('title')
+        .equalsIgnoreCase(title.trim())
+        .toArray();
+      return duplicates;
+    } catch (error) {
+      console.error('Error checking duplicates:', error);
+      throw new Error('Failed to check duplicates');
+    }
+  }
+
+  /**
+   * Add new library item with duplicate check
+   */
+  async addLibraryItem(item: LibraryItem): Promise<{ success: boolean; duplicate?: LibraryItem[] }> {
     try {
       // Validate the item
       const validatedItem = LibraryItemSchema.parse(item);
       
+      // Check for duplicates
+      const duplicates = await this.checkDuplicateByTitle(validatedItem.title);
+      
+      if (duplicates.length > 0) {
+        return {
+          success: false,
+          duplicate: duplicates
+        };
+      }
+      
       // Add to database
       await this.db.library.add(validatedItem);
+      return { success: true };
     } catch (error) {
       console.error('Error adding library item:', error);
       throw new Error('Failed to add library item');

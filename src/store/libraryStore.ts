@@ -165,7 +165,16 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         updatedAt: new Date()
       };
       
-      await libraryService.addLibraryItem(newItem);
+      const result = await libraryService.addLibraryItem(newItem);
+      
+      if (!result.success) {
+        // Handle duplicate case
+        set({ 
+          isLoading: false, 
+          error: `Literature "${itemData.title}" already exists. Found ${result.duplicate?.length} duplicate(s).` 
+        });
+        return { success: false, duplicate: result.duplicate };
+      }
       
       // Refresh the items list
       const updatedItems = await libraryService.getAllLibraryItems();
@@ -174,11 +183,14 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         items: updatedItems, 
         isLoading: false 
       });
+      
+      return { success: true };
     } catch (error) {
       set({ 
         isLoading: false, 
         error: error instanceof Error ? error.message : 'Failed to add library item' 
       });
+      return { success: false, error: error instanceof Error ? error.message : 'Failed to add library item' };
     }
   },
 
