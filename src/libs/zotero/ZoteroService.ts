@@ -144,7 +144,14 @@ export class ZoteroService {
       const response = await this.makeRequest(endpoint);
       
       if (response.success) {
-        this.collections = Array.isArray(response.data) ? response.data : [];
+        const rawCollections = Array.isArray(response.data) ? response.data : [];
+        this.collections = rawCollections.map(item => ({
+          key: item.data?.key || item.key,
+          version: item.data?.version || item.version,
+          name: item.data?.name || item.name || 'Untitled Collection',
+          parentCollection: item.data?.parentCollection || item.parentCollection,
+          itemsCount: item.meta?.numItems || item.itemsCount
+        }));
         return this.collections;
       }
       
@@ -178,7 +185,19 @@ export class ZoteroService {
       const response = await this.makeRequest(endpoint);
       
       if (response.success) {
-        this.groups = Array.isArray(response.data) ? response.data : [];
+        const rawGroups = Array.isArray(response.data) ? response.data : [];
+        this.groups = rawGroups.map(item => ({
+          id: item.data?.id || item.id,
+          name: item.data?.name || item.name || 'Untitled Group',
+          description: item.data?.description || item.description,
+          type: item.data?.type || item.type || 'Private',
+          access: item.data?.access || item.access || 'private',
+          library: item.library || {
+            type: 'group',
+            id: item.data?.id || item.id,
+            name: item.data?.name || item.name || 'Untitled Group'
+          }
+        }));
         return this.groups;
       }
       

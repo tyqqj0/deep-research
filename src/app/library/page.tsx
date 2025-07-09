@@ -14,14 +14,21 @@ import { useLibraryStore } from "@/store/libraryStore";
 import { LITERATURE_SOURCES, SOURCE_METADATA } from "@/libs/db/constants";
 import { LiteratureList } from "@/components/Library/LiteratureList";
 import { AddLiteratureForm } from "@/components/Library/AddLiteratureForm";
-import { ZoteroImport } from "@/components/Library/ZoteroImportEnhanced";
+import { ZoteroLogin } from "@/components/Library/ZoteroLogin";
+import { ZoteroImportSection } from "@/components/Library/ZoteroImportSection";
 import { toast } from "sonner";
+import type { ZoteroUserInfo, ZoteroCollection, ZoteroGroup } from "@/libs/zotero/types";
+import { zoteroService } from "@/libs/zotero";
 
 export default function LibraryPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const [showAddForm, setShowAddForm] = useState(false);
-  const [showZoteroImport, setShowZoteroImport] = useState(false);
+  const [showZoteroLogin, setShowZoteroLogin] = useState(false);
+  const [zoteroUserInfo, setZoteroUserInfo] = useState<ZoteroUserInfo | null>(null);
+  const [zoteroCollections, setZoteroCollections] = useState<ZoteroCollection[]>([]);
+  const [zoteroGroups, setZoteroGroups] = useState<ZoteroGroup[]>([]);
+  const [isZoteroConnected, setIsZoteroConnected] = useState(false);
   
   const {
     items,
@@ -44,6 +51,21 @@ export default function LibraryPage() {
     const initializeAsync = async () => {
       try {
         await initialize();
+        
+        // Check if Zotero is already configured
+        const storedConfig = zoteroService.getStoredConfig();
+        if (storedConfig) {
+          setIsZoteroConnected(true);
+          // Try to get cached user info
+          const cachedUserInfo = zoteroService.getCachedUserInfo();
+          if (cachedUserInfo) {
+            setZoteroUserInfo(cachedUserInfo);
+          }
+          const cachedCollections = zoteroService.getCachedCollections();
+          const cachedGroups = zoteroService.getCachedGroups();
+          setZoteroCollections(cachedCollections);
+          setZoteroGroups(cachedGroups);
+        }
       } catch (error) {
         console.error('Library initialization failed:', error);
       }
@@ -106,7 +128,7 @@ export default function LibraryPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowZoteroImport(true)}
+            onClick={() => setShowZoteroLogin(true)}
           >
             <Upload className="h-4 w-4 mr-2" />
             Import from Zotero
@@ -263,46 +285,13 @@ export default function LibraryPage() {
         </TabsContent>
         
         <TabsContent value="sync" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <RefreshCw className="h-5 w-5" />
-                Zotero Integration
-              </CardTitle>
-              <CardDescription>
-                Sync your literature with Zotero library
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Badge variant={isZoteroConfigured ? "default" : "secondary"}>
-                    {isZoteroConfigured ? "Connected" : "Not Connected"}
-                  </Badge>
-                  {zoteroSyncResult && (
-                    <Badge variant="outline">
-                      Last sync: {zoteroSyncResult.itemsAdded} added, {zoteroSyncResult.itemsUpdated} updated
-                    </Badge>
-                  )}
-                </div>
-                
-                {!isZoteroConfigured ? (
-                  <Button onClick={() => setShowZoteroImport(true)}>
-                    Configure Zotero
-                  </Button>
-                ) : (
-                  <div className="flex gap-2">
-                    <Button onClick={() => setShowZoteroImport(true)}>
-                      Sync Now
-                    </Button>
-                    <Button variant="outline" onClick={() => {/* TODO: Disconnect */}}>
-                      Disconnect
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <ZoteroImportSection
+            isConnected={isZoteroConnected}
+            userInfo={zoteroUserInfo}
+            collections={zoteroCollections}
+            groups={zoteroGroups}
+            onLoginClick={() => setShowZoteroLogin(true)}
+          />
         </TabsContent>
       </Tabs>
 
@@ -314,11 +303,17 @@ export default function LibraryPage() {
         />
       )}
 
-      {/* Zotero Import Modal */}
-      {showZoteroImport && (
-        <ZoteroImport
-          open={showZoteroImport}
-          onClose={() => setShowZoteroImport(false)}
+      {/* Zotero Login Modal */}
+      {showZoteroLogin && (
+        <ZoteroLogin
+          open={showZoteroLogin}
+          onClose={() => setShowZoteroLogin(false)}
+          onLoginSuccess={(userInfo, collections, groups) => {
+            setZoteroUserInfo(userInfo);
+            setZoteroCollections(collections);
+            setZoteroGroups(groups);
+            setIsZoteroConnected(true);
+          }}
         />
       )}
     </div>
