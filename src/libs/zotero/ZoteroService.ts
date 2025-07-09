@@ -41,7 +41,8 @@ export class ZoteroService {
     if (this.config) {
       localStorage.setItem(this.storageKey, JSON.stringify({
         ...this.config,
-        useProxy: this.useProxy
+        useProxy: this.useProxy,
+        currentLibrary: this.currentLibrary
       }));
     }
   }
@@ -61,6 +62,7 @@ export class ZoteroService {
           baseUrl: config.baseUrl || this.baseUrl
         };
         this.useProxy = config.useProxy || false;
+        this.currentLibrary = config.currentLibrary || null;
       }
     } catch (error) {
       console.error('Failed to load Zotero config from storage:', error);
@@ -161,9 +163,23 @@ export class ZoteroService {
 
       this.availableLibraries = libraries;
       
+      // Restore current library if it exists in the available libraries
+      if (this.currentLibrary) {
+        const matchedLibrary = libraries.find(lib => lib.id === this.currentLibrary!.id);
+        if (matchedLibrary) {
+          this.currentLibrary = matchedLibrary; // Use the fresh library object
+          console.log(`[ZoteroService] Restored current library: ${this.currentLibrary.name}`);
+        } else {
+          console.warn(`[ZoteroService] Previously selected library ${this.currentLibrary.id} not found, resetting to default`);
+          this.currentLibrary = null;
+        }
+      }
+      
       // Set default to personal library if none selected
       if (!this.currentLibrary) {
         this.currentLibrary = libraries[0];
+        this.saveToStorage(); // Save the default library selection
+        console.log(`[ZoteroService] Set default library: ${this.currentLibrary.name}`);
       }
 
       return libraries;
@@ -183,6 +199,7 @@ export class ZoteroService {
     }
 
     this.currentLibrary = library;
+    this.saveToStorage(); // Save the current library selection
     
     // Fetch collections for the selected library
     return await this.fetchCollectionsForLibrary(library);
@@ -353,6 +370,7 @@ export class ZoteroService {
    */
   setCurrentLibrary(library: ZoteroLibrary): void {
     this.currentLibrary = library;
+    this.saveToStorage(); // Save the current library selection
   }
 
   /**
