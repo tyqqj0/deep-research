@@ -3,4 +3,4 @@ export { LiteratureList } from './LiteratureList';
 export { LiteratureListItem } from './LiteratureListItem';
 export { AddLiteratureForm } from './AddLiteratureForm';
 export { Pagination } from './Pagination';
-export { ZoteroImport } from './ZoteroImport';
+export { ZoteroImport } from './ZoteroImportEnhanced';

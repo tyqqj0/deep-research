@@ -1,16 +1,22 @@
 import { LibraryItem } from '../db';
 import { LITERATURE_SOURCES } from '../db/constants';
 import { generateLibraryItemId } from '../utils/uuid';
-import type { ZoteroConfig, ZoteroItem, ZoteroSyncResult, ZoteroApiResponse } from './types';
+import type { ZoteroConfig, ZoteroItem, ZoteroSyncResult, ZoteroApiResponse, ZoteroUserInfo, ZoteroCollection, ZoteroGroup } from './types';
 
 export class ZoteroService {
   private config: ZoteroConfig | null = null;
   private baseUrl = 'https://api.zotero.org';
   private useProxy = false;
+  private userInfo: ZoteroUserInfo | null = null;
+  private collections: ZoteroCollection[] = [];
+  private groups: ZoteroGroup[] = [];
+  private storageKey = 'zotero-config';
 
   constructor(config?: ZoteroConfig) {
     if (config) {
       this.config = config;
+    } else {
+      this.loadFromStorage();
     }
   }
 
@@ -23,6 +29,58 @@ export class ZoteroService {
       baseUrl: config.baseUrl || this.baseUrl
     };
     this.useProxy = config.useProxy || false;
+    this.saveToStorage();
+  }
+
+  /**
+   * Save configuration to localStorage
+   */
+  private saveToStorage(): void {
+    if (this.config) {
+      localStorage.setItem(this.storageKey, JSON.stringify({
+        ...this.config,
+        useProxy: this.useProxy
+      }));
+    }
+  }
+
+  /**
+   * Load configuration from localStorage
+   */
+  private loadFromStorage(): void {
+    try {
+      const stored = localStorage.getItem(this.storageKey);
+      if (stored) {
+        const config = JSON.parse(stored);
+        this.config = {
+          apiKey: config.apiKey,
+          userId: config.userId,
+          groupId: config.groupId,
+          baseUrl: config.baseUrl || this.baseUrl
+        };
+        this.useProxy = config.useProxy || false;
+      }
+    } catch (error) {
+      console.error('Failed to load Zotero config from storage:', error);
+    }
+  }
+
+  /**
+   * Clear stored configuration
+   */
+  clearStorage(): void {
+    localStorage.removeItem(this.storageKey);
+    this.config = null;
+    this.userInfo = null;
+    this.collections = [];
+    this.groups = [];
+  }
+
+  /**
+   * Get stored configuration
+   */
+  getStoredConfig(): ZoteroConfig | null {
+    return this.config;
   }
 
   /**
@@ -35,19 +93,114 @@ export class ZoteroService {
   /**
    * Get user information from API key
    */
-  async getUserInfo(): Promise<{ userID?: string; username?: string; error?: string }> {
+  async getUserInfo(): Promise<ZoteroUserInfo & { error?: string }> {
     try {
       const response = await this.makeRequest('/keys/current');
       if (response.success && response.data) {
-        return {
+        this.userInfo = {
           userID: response.data.userID?.toString(),
-          username: response.data.username
+          username: response.data.username,
+          displayName: response.data.displayName,
+          email: response.data.email
         };
+        return this.userInfo;
       }
       return { error: response.error || 'Failed to get user info' };
     } catch (error) {
       return { error: error instanceof Error ? error.message : 'Unknown error' };
     }
+  }
+
+  /**
+   * Get cached user info
+   */
+  getCachedUserInfo(): ZoteroUserInfo | null {
+    return this.userInfo;
+  }
+
+  /**
+   * Fetch collections from Zotero
+   */
+  async fetchCollections(): Promise<ZoteroCollection[]> {
+    if (!this.isConfigured()) {
+      throw new Error('Zotero not configured');
+    }
+
+    try {
+      // Ensure we have user ID
+      let userId = this.config!.userId;
+      if (!userId) {
+        const userInfo = await this.getUserInfo();
+        if (userInfo.error) {
+          throw new Error(`Failed to get user ID: ${userInfo.error}`);
+        }
+        userId = userInfo.userID;
+      }
+
+      const endpoint = this.config!.groupId 
+        ? `/groups/${this.config!.groupId}/collections`
+        : `/users/${userId}/collections`;
+
+      const response = await this.makeRequest(endpoint);
+      
+      if (response.success) {
+        this.collections = Array.isArray(response.data) ? response.data : [];
+        return this.collections;
+      }
+      
+      throw new Error(response.error || 'Failed to fetch collections');
+    } catch (error) {
+      console.error('Failed to fetch Zotero collections:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch groups from Zotero
+   */
+  async fetchGroups(): Promise<ZoteroGroup[]> {
+    if (!this.isConfigured()) {
+      throw new Error('Zotero not configured');
+    }
+
+    try {
+      // Ensure we have user ID
+      let userId = this.config!.userId;
+      if (!userId) {
+        const userInfo = await this.getUserInfo();
+        if (userInfo.error) {
+          throw new Error(`Failed to get user ID: ${userInfo.error}`);
+        }
+        userId = userInfo.userID;
+      }
+
+      const endpoint = `/users/${userId}/groups`;
+      const response = await this.makeRequest(endpoint);
+      
+      if (response.success) {
+        this.groups = Array.isArray(response.data) ? response.data : [];
+        return this.groups;
+      }
+      
+      throw new Error(response.error || 'Failed to fetch groups');
+    } catch (error) {
+      console.error('Failed to fetch Zotero groups:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get cached collections
+   */
+  getCachedCollections(): ZoteroCollection[] {
+    return this.collections;
+  }
+
+  /**
+   * Get cached groups
+   */
+  getCachedGroups(): ZoteroGroup[] {
+    return this.groups;
   }
 
   /**
@@ -117,7 +270,7 @@ export class ZoteroService {
   /**
    * Fetch items from Zotero
    */
-  async fetchItems(limit = 100): Promise<ZoteroItem[]> {
+  async fetchItems(limit = 100, collectionKey?: string): Promise<ZoteroItem[]> {
     if (!this.isConfigured()) {
       throw new Error('Zotero not configured');
     }
@@ -138,9 +291,16 @@ export class ZoteroService {
         this.config!.userId = userId;
       }
 
-      const endpoint = this.config!.groupId 
-        ? `/groups/${this.config!.groupId}/items`
-        : `/users/${userId}/items`;
+      let endpoint: string;
+      if (this.config!.groupId) {
+        endpoint = collectionKey 
+          ? `/groups/${this.config!.groupId}/collections/${collectionKey}/items`
+          : `/groups/${this.config!.groupId}/items`;
+      } else {
+        endpoint = collectionKey 
+          ? `/users/${userId}/collections/${collectionKey}/items`
+          : `/users/${userId}/items`;
+      }
 
       const response = await this.makeRequest(`${endpoint}?limit=${limit}`);
       
@@ -183,7 +343,7 @@ export class ZoteroService {
   /**
    * Sync items from Zotero to library
    */
-  async syncItems(existingItems: LibraryItem[] = []): Promise<ZoteroSyncResult> {
+  async syncItems(existingItems: LibraryItem[] = [], collectionKey?: string): Promise<ZoteroSyncResult> {
     const result: ZoteroSyncResult = {
       success: false,
       itemsAdded: 0,
@@ -193,7 +353,7 @@ export class ZoteroService {
     };
 
     try {
-      const zoteroItems = await this.fetchItems();
+      const zoteroItems = await this.fetchItems(100, collectionKey);
       const existingZoteroKeys = new Set(
         existingItems
           .filter(item => item.zoteroKey)

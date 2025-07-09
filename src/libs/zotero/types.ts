@@ -39,10 +39,41 @@ export interface ZoteroSyncResult {
   itemsUpdated: number;
   itemsSkipped: number;
   errors: string[];
+  newItems?: any[];
+  updatedItems?: any[];
 }
 
 export interface ZoteroApiResponse<T = any> {
   data: T;
   success: boolean;
   error?: string;
+  details?: any;
+}
+
+export interface ZoteroUserInfo {
+  userID?: string;
+  username?: string;
+  displayName?: string;
+  email?: string;
+}
+
+export interface ZoteroCollection {
+  key: string;
+  version: number;
+  name: string;
+  parentCollection?: string;
+  itemsCount?: number;
+}
+
+export interface ZoteroGroup {
+  id: string;
+  name: string;
+  description?: string;
+  type: string;
+  access: string;
+  library: {
+    type: string;
+    id: string;
+    name: string;
+  };
 }

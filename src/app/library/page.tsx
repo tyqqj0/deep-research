@@ -14,7 +14,7 @@ import { useLibraryStore } from "@/store/libraryStore";
 import { LITERATURE_SOURCES, SOURCE_METADATA } from "@/libs/db/constants";
 import { LiteratureList } from "@/components/Library/LiteratureList";
 import { AddLiteratureForm } from "@/components/Library/AddLiteratureForm";
-import { ZoteroImport } from "@/components/Library/ZoteroImport";
+import { ZoteroImport } from "@/components/Library/ZoteroImportEnhanced";
 import { toast } from "sonner";
 
 export default function LibraryPage() {
