@@ -420,7 +420,7 @@ export class ZoteroService {
   }
 
   /**
-   * Fetch items from Zotero
+   * Fetch items from Zotero with pagination support
    * Note: Collection metadata shows total count including notes/attachments,
    * but this method filters to only regular items (books, articles, etc.)
    */
@@ -471,8 +471,65 @@ export class ZoteroService {
       console.log(`[ZoteroService] Collection key: ${collectionKey || 'all'}`);
       console.log(`[ZoteroService] Library: ${library.name} (${library.isPersonal ? 'personal' : 'group'})`);
 
-      console.log(`[ZoteroService] Making API request to: ${endpoint}?limit=${limit}`);
-      let response = await this.makeRequest(`${endpoint}?limit=${limit}`);
+      // Fetch all items with pagination
+      const allItems = await this.fetchAllItemsWithPagination(endpoint, limit);
+      
+      // Filter out non-regular items (notes, attachments, etc.)
+      const regularItems = allItems.filter(item => {
+        const itemType = item.data?.itemType || item.itemType;
+        console.log(`[ZoteroService] Item type check: data.itemType="${item.data?.itemType}", itemType="${item.itemType}"`);
+        return itemType !== 'note' && itemType !== 'attachment';
+      });
+      
+      console.log(`[ZoteroService] Total items fetched: ${allItems.length}`);
+      console.log(`[ZoteroService] After filtering: ${regularItems.length} regular items`);
+      
+      // Debug: Print the first few items to understand the structure
+      if (allItems.length > 0) {
+        console.log(`[ZoteroService] First item structure:`, JSON.stringify(allItems[0], null, 2));
+        if (allItems.length > 1) {
+          console.log(`[ZoteroService] Second item structure:`, JSON.stringify(allItems[1], null, 2));
+        }
+      }
+      
+      // Debug: Print the first regular item to see what we're working with
+      if (regularItems.length > 0) {
+        console.log(`[ZoteroService] First regular item:`, JSON.stringify(regularItems[0], null, 2));
+      }
+      
+      if (collectionKey) {
+        const collection = this.collections.find(c => c.key === collectionKey);
+        if (collection) {
+          console.log(`[ZoteroService] Collection "${collection.name}" metadata shows ${collection.itemsCount} items`);
+          console.log(`[ZoteroService] Actually fetched ${regularItems.length} regular items`);
+        }
+      }
+      
+      console.log(`[ZoteroService] ========== FETCH ITEMS END ==========`);
+      return regularItems;
+    } catch (error) {
+      console.error(`[ZoteroService] EXCEPTION in fetchItems:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch all items using pagination
+   */
+  private async fetchAllItemsWithPagination(endpoint: string, limit: number): Promise<ZoteroItem[]> {
+    const allItems: ZoteroItem[] = [];
+    let start = 0;
+    let hasMore = true;
+    let pageCount = 0;
+    
+    while (hasMore) {
+      pageCount++;
+      console.log(`[ZoteroService] Fetching page ${pageCount} (start=${start}, limit=${limit})`);
+      
+      const url = `${endpoint}?limit=${limit}&start=${start}`;
+      console.log(`[ZoteroService] Making API request to: ${url}`);
+      
+      let response = await this.makeRequest(url);
       console.log(`[ZoteroService] API Response success: ${response.success}`);
       
       // If direct call fails with network error, try proxy
@@ -482,7 +539,7 @@ export class ZoteroService {
         this.useProxy = true;
         
         try {
-          response = await this.makeRequest(`${endpoint}?limit=${limit}`);
+          response = await this.makeRequest(url);
           console.log(`[ZoteroService] Proxy API Response success: ${response.success}`);
           
           if (response.success) {
@@ -498,52 +555,31 @@ export class ZoteroService {
         }
       }
       
-      if (response.success) {
-        const items = Array.isArray(response.data) ? response.data : [];
-        console.log(`[ZoteroService] Fetched ${items.length} items`);
-        
-        // Debug: Print the first few items to understand the structure
-        if (items.length > 0) {
-          console.log(`[ZoteroService] First item structure:`, JSON.stringify(items[0], null, 2));
-          if (items.length > 1) {
-            console.log(`[ZoteroService] Second item structure:`, JSON.stringify(items[1], null, 2));
-          }
-        }
-        
-        // Filter out non-regular items (notes, attachments, etc.)
-        const regularItems = items.filter(item => {
-          const itemType = item.data?.itemType || item.itemType;
-          console.log(`[ZoteroService] Item type check: data.itemType="${item.data?.itemType}", itemType="${item.itemType}"`);
-          return itemType !== 'note' && itemType !== 'attachment';
-        });
-        
-        console.log(`[ZoteroService] After filtering: ${regularItems.length} regular items`);
-        
-        // Debug: Print the first regular item to see what we're working with
-        if (regularItems.length > 0) {
-          console.log(`[ZoteroService] First regular item:`, JSON.stringify(regularItems[0], null, 2));
-        }
-        
-        if (collectionKey) {
-          const collection = this.collections.find(c => c.key === collectionKey);
-          if (collection) {
-            console.log(`[ZoteroService] Collection "${collection.name}" metadata shows ${collection.itemsCount} items`);
-            console.log(`[ZoteroService] Actually fetched ${regularItems.length} regular items`);
-          }
-        }
-        
-        console.log(`[ZoteroService] ========== FETCH ITEMS END ==========`);
-        return regularItems;
-      } else {
+      if (!response.success) {
         console.log(`[ZoteroService] API Request failed:`, response.error);
         console.log(`[ZoteroService] Full response:`, response);
+        throw new Error(response.error || 'Failed to fetch items');
       }
       
-      throw new Error(response.error || 'Failed to fetch items');
-    } catch (error) {
-      console.error(`[ZoteroService] EXCEPTION in fetchItems:`, error);
-      throw error;
+      const items = Array.isArray(response.data) ? response.data : [];
+      console.log(`[ZoteroService] Page ${pageCount} fetched ${items.length} items`);
+      
+      allItems.push(...items);
+      
+      // Check if we have more items to fetch
+      // Zotero returns less than the limit when we've reached the end
+      hasMore = items.length === limit;
+      start += limit;
+      
+      // Safety check to avoid infinite loops
+      if (pageCount > 100) {
+        console.warn(`[ZoteroService] Reached maximum page count (100), stopping pagination`);
+        break;
+      }
     }
+    
+    console.log(`[ZoteroService] Pagination complete: ${pageCount} pages, ${allItems.length} total items`);
+    return allItems;
   }
 
   /**
