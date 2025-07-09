@@ -425,7 +425,11 @@ export class ZoteroService {
    * but this method filters to only regular items (books, articles, etc.)
    */
   async fetchItems(limit = 100, collectionKey?: string): Promise<ZoteroItem[]> {
+    console.log(`[ZoteroService] ========== FETCH ITEMS START ==========`);
+    console.log(`[ZoteroService] Parameters: limit=${limit}, collectionKey=${collectionKey}`);
+    
     if (!this.isConfigured()) {
+      console.log(`[ZoteroService] ERROR: Zotero not configured`);
       throw new Error('Zotero not configured');
     }
 
@@ -467,7 +471,9 @@ export class ZoteroService {
       console.log(`[ZoteroService] Collection key: ${collectionKey || 'all'}`);
       console.log(`[ZoteroService] Library: ${library.name} (${library.isPersonal ? 'personal' : 'group'})`);
 
+      console.log(`[ZoteroService] Making API request to: ${endpoint}?limit=${limit}`);
       const response = await this.makeRequest(`${endpoint}?limit=${limit}`);
+      console.log(`[ZoteroService] API Response success: ${response.success}`);
       
       if (response.success) {
         const items = Array.isArray(response.data) ? response.data : [];
@@ -503,12 +509,16 @@ export class ZoteroService {
           }
         }
         
+        console.log(`[ZoteroService] ========== FETCH ITEMS END ==========`);
         return regularItems;
+      } else {
+        console.log(`[ZoteroService] API Request failed:`, response.error);
+        console.log(`[ZoteroService] Full response:`, response);
       }
       
       throw new Error(response.error || 'Failed to fetch items');
     } catch (error) {
-      console.error('Failed to fetch Zotero items:', error);
+      console.error(`[ZoteroService] EXCEPTION in fetchItems:`, error);
       throw error;
     }
   }
@@ -572,6 +582,9 @@ export class ZoteroService {
    * Sync items from Zotero to library
    */
   async syncItems(existingItems: LibraryItem[] = [], collectionKey?: string): Promise<ZoteroSyncResult> {
+    console.log(`[ZoteroService] ========== SYNC ITEMS START ==========`);
+    console.log(`[ZoteroService] Sync parameters: existingItems=${existingItems.length}, collectionKey=${collectionKey}`);
+    
     const result: ZoteroSyncResult = {
       success: false,
       itemsAdded: 0,
@@ -581,7 +594,9 @@ export class ZoteroService {
     };
 
     try {
+      console.log(`[ZoteroService] Calling fetchItems...`);
       const zoteroItems = await this.fetchItems(100, collectionKey);
+      console.log(`[ZoteroService] fetchItems returned ${zoteroItems.length} items`);
       const existingZoteroKeys = new Set(
         existingItems
           .filter(item => item.zoteroKey)
