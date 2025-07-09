@@ -8,14 +8,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LayoutGrid, List, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { LayoutGrid, List, ArrowUpDown, ArrowUp, ArrowDown, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface LiteratureListProps {
   items: LibraryItem[];
   isLoading: boolean;
   onEdit: (item: LibraryItem) => void;
   onDelete: (id: string) => void;
+  onBulkDelete: (ids: string[]) => void;
   onSelectForTree: (item: LibraryItem) => void;
 }
 
@@ -28,12 +39,14 @@ export function LiteratureList({
   isLoading, 
   onEdit, 
   onDelete, 
+  onBulkDelete,
   onSelectForTree 
 }: LiteratureListProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -127,8 +140,14 @@ export function LiteratureList({
   };
 
   const handleBulkDelete = () => {
-    selectedItems.forEach(id => onDelete(id));
+    setShowBulkDeleteDialog(true);
+  };
+
+  const confirmBulkDelete = () => {
+    const idsToDelete = Array.from(selectedItems);
+    onBulkDelete(idsToDelete);
     clearSelection();
+    setShowBulkDeleteDialog(false);
   };
 
   if (isLoading) {
@@ -192,9 +211,11 @@ export function LiteratureList({
                 variant="outline"
                 size="sm"
                 onClick={handleBulkDelete}
-                className="text-red-600"
+                className="text-red-600 hover:bg-red-50"
+                disabled={isLoading}
               >
-                Delete Selected
+                <Trash2 className="h-3 w-3 mr-1" />
+                Delete Selected ({selectedItems.size})
               </Button>
               <Button
                 variant="outline"
@@ -295,6 +316,28 @@ export function LiteratureList({
           />
         </div>
       )}
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Selected Literature</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedItems.size} selected literature items? 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmBulkDelete} 
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete {selectedItems.size} Items
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

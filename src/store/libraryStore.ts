@@ -35,6 +35,7 @@ interface LibraryActions {
   addLibraryItems: (itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]) => Promise<any>;
   updateLibraryItem: (id: string, itemData: Partial<LibraryItem>) => Promise<void>;
   deleteLibraryItem: (id: string) => Promise<void>;
+  deleteLibraryItems: (ids: string[]) => Promise<void>;
   clearError: () => void;
   
   // Search and filtering
@@ -303,6 +304,36 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       set({ 
         isLoading: false, 
         error: error instanceof Error ? error.message : 'Failed to delete library item' 
+      });
+    }
+  },
+
+  // Delete multiple library items in batch
+  deleteLibraryItems: async (ids: string[]) => {
+    try {
+      set({ isLoading: true, error: null });
+      
+      console.log(`[LibraryStore] Batch deleting ${ids.length} items`);
+      
+      // Delete all items in parallel for better performance
+      const deletePromises = ids.map(id => libraryService.deleteLibraryItem(id));
+      await Promise.all(deletePromises);
+      
+      // Update local state in one operation
+      const { items } = get();
+      const updatedItems = items.filter(item => !ids.includes(item.id));
+      
+      console.log(`[LibraryStore] Batch delete completed. ${updatedItems.length} items remaining`);
+      
+      set({ 
+        items: updatedItems, 
+        isLoading: false 
+      });
+    } catch (error) {
+      console.error('[LibraryStore] Batch delete error:', error);
+      set({ 
+        isLoading: false, 
+        error: error instanceof Error ? error.message : 'Failed to delete library items' 
       });
     }
   },

@@ -46,16 +46,14 @@ export default function LibraryPage() {
     setSourceFilter,
     setSearchTerm,
     getFilteredItems,
+    deleteLibraryItems,
     clearError,
     isZoteroConfigured,
     zoteroSyncResult
   } = useLibraryStore();
 
   // Use useMemo to ensure filteredItems updates when items change
-  const filteredItems = useMemo(() => {
-    console.log(`[LibraryPage] Filtering ${items.length} items`);
-    return getFilteredItems();
-  }, [items, sourceFilter, searchTerm, getFilteredItems]);
+  const filteredItems = useMemo(() => getFilteredItems(), [items, sourceFilter, searchTerm, getFilteredItems]);
 
   useEffect(() => {
     const initializeAsync = async () => {
@@ -124,6 +122,15 @@ export default function LibraryPage() {
   const handleCloseEditForm = () => {
     setShowEditForm(false);
     setEditingItem(null);
+  };
+
+  const handleBulkDelete = async (ids: string[]) => {
+    try {
+      await deleteLibraryItems(ids);
+      toast.success(`Successfully deleted ${ids.length} literature items!`);
+    } catch (error) {
+      toast.error("Failed to delete literature items");
+    }
   };
 
   return (
@@ -280,6 +287,7 @@ export default function LibraryPage() {
                 toast.error("Failed to delete literature item");
               }
             }}
+            onBulkDelete={handleBulkDelete}
             onSelectForTree={(item) => {
               // TODO: Implement tree selection
               toast.info(`Add "${item.title}" to tree functionality coming soon!`);
