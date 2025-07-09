@@ -472,8 +472,31 @@ export class ZoteroService {
       console.log(`[ZoteroService] Library: ${library.name} (${library.isPersonal ? 'personal' : 'group'})`);
 
       console.log(`[ZoteroService] Making API request to: ${endpoint}?limit=${limit}`);
-      const response = await this.makeRequest(`${endpoint}?limit=${limit}`);
+      let response = await this.makeRequest(`${endpoint}?limit=${limit}`);
       console.log(`[ZoteroService] API Response success: ${response.success}`);
+      
+      // If direct call fails with network error, try proxy
+      if (!response.success && !this.useProxy && response.error?.includes('Network error')) {
+        console.log(`[ZoteroService] Direct API failed, trying proxy mode...`);
+        const originalUseProxy = this.useProxy;
+        this.useProxy = true;
+        
+        try {
+          response = await this.makeRequest(`${endpoint}?limit=${limit}`);
+          console.log(`[ZoteroService] Proxy API Response success: ${response.success}`);
+          
+          if (response.success) {
+            console.log(`[ZoteroService] Proxy mode worked! Keeping proxy enabled.`);
+            // Keep proxy enabled for future requests
+          } else {
+            console.log(`[ZoteroService] Proxy mode also failed, restoring original setting`);
+            this.useProxy = originalUseProxy;
+          }
+        } catch (proxyError) {
+          console.log(`[ZoteroService] Proxy mode exception:`, proxyError);
+          this.useProxy = originalUseProxy;
+        }
+      }
       
       if (response.success) {
         const items = Array.isArray(response.data) ? response.data : [];
