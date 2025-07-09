@@ -68,10 +68,10 @@ export default function LibraryPage() {
       <div className="flex justify-between items-center mb-8">
         <div className="flex items-center gap-4">
           <Button
-            variant="ghost"
-            size="sm"
+            variant="outline"
+            size="lg"
             onClick={() => router.back()}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 text-lg px-6 py-3 font-semibold"
           >
             <ArrowLeft className="h-4 w-4" />
             Back
@@ -89,7 +89,7 @@ export default function LibraryPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {/* TODO: Export functionality */}}
+            onClick={() => {alert('TODO: Export functionality' /* TODO: Export functionality */)}}
           >
             <Download className="h-4 w-4 mr-2" />
             Export
@@ -97,7 +97,7 @@ export default function LibraryPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {/* TODO: Import functionality */}}
+            onClick={() => {alert('TODO: Import functionality' /* TODO: Import functionality */)}}
           >
             <Upload className="h-4 w-4 mr-2" />
             Import
