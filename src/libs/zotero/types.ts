@@ -77,3 +77,11 @@ export interface ZoteroGroup {
     name: string;
   };
 }
+
+export interface ZoteroLibrary {
+  id: string;
+  name: string;
+  type: 'user' | 'group';
+  isPersonal: boolean;
+  groupInfo?: ZoteroGroup;
+}

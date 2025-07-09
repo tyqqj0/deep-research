@@ -1,7 +1,7 @@
 import { LibraryItem } from '../db';
 import { LITERATURE_SOURCES } from '../db/constants';
 import { generateLibraryItemId } from '../utils/uuid';
-import type { ZoteroConfig, ZoteroItem, ZoteroSyncResult, ZoteroApiResponse, ZoteroUserInfo, ZoteroCollection, ZoteroGroup } from './types';
+import type { ZoteroConfig, ZoteroItem, ZoteroSyncResult, ZoteroApiResponse, ZoteroUserInfo, ZoteroCollection, ZoteroGroup, ZoteroLibrary } from './types';
 
 export class ZoteroService {
   private config: ZoteroConfig | null = null;
@@ -10,6 +10,8 @@ export class ZoteroService {
   private userInfo: ZoteroUserInfo | null = null;
   private collections: ZoteroCollection[] = [];
   private groups: ZoteroGroup[] = [];
+  private availableLibraries: ZoteroLibrary[] = [];
+  private currentLibrary: ZoteroLibrary | null = null;
   private storageKey = 'zotero-config';
 
   constructor(config?: ZoteroConfig) {
@@ -74,6 +76,8 @@ export class ZoteroService {
     this.userInfo = null;
     this.collections = [];
     this.groups = [];
+    this.availableLibraries = [];
+    this.currentLibrary = null;
   }
 
   /**
@@ -119,40 +123,102 @@ export class ZoteroService {
   }
 
   /**
-   * Fetch collections from Zotero
+   * Get available libraries (personal + groups)
    */
-  async fetchCollections(): Promise<ZoteroCollection[]> {
+  async getAvailableLibraries(): Promise<ZoteroLibrary[]> {
     if (!this.isConfigured()) {
       throw new Error('Zotero not configured');
     }
 
     try {
-      // Ensure we have user ID
-      let userId = this.config!.userId;
-      if (!userId) {
-        const userInfo = await this.getUserInfo();
-        if (userInfo.error) {
-          throw new Error(`Failed to get user ID: ${userInfo.error}`);
-        }
-        userId = userInfo.userID;
+      // Get user info first
+      const userInfo = await this.getUserInfo();
+      if (userInfo.error) {
+        throw new Error(`Failed to get user info: ${userInfo.error}`);
       }
 
-      const endpoint = this.config!.groupId 
-        ? `/groups/${this.config!.groupId}/collections`
-        : `/users/${userId}/collections`;
+      const libraries: ZoteroLibrary[] = [];
+
+      // Add personal library
+      libraries.push({
+        id: userInfo.userID || 'current',
+        name: `${userInfo.username || userInfo.displayName || 'Personal'} Library`,
+        type: 'user',
+        isPersonal: true
+      });
+
+      // Add group libraries
+      const groups = await this.fetchGroups();
+      groups.forEach(group => {
+        libraries.push({
+          id: group.id,
+          name: group.name,
+          type: 'group',
+          isPersonal: false,
+          groupInfo: group
+        });
+      });
+
+      this.availableLibraries = libraries;
+      
+      // Set default to personal library if none selected
+      if (!this.currentLibrary) {
+        this.currentLibrary = libraries[0];
+      }
+
+      return libraries;
+    } catch (error) {
+      console.error('Failed to get available libraries:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Switch to a different library
+   */
+  async switchLibrary(libraryId: string): Promise<ZoteroCollection[]> {
+    const library = this.availableLibraries.find(lib => lib.id === libraryId);
+    if (!library) {
+      throw new Error(`Library with ID ${libraryId} not found`);
+    }
+
+    this.currentLibrary = library;
+    
+    // Fetch collections for the selected library
+    return await this.fetchCollectionsForLibrary(library);
+  }
+
+  /**
+   * Fetch collections from Zotero for a specific library
+   */
+  async fetchCollectionsForLibrary(library: ZoteroLibrary): Promise<ZoteroCollection[]> {
+    if (!this.isConfigured()) {
+      throw new Error('Zotero not configured');
+    }
+
+    try {
+      const endpoint = library.isPersonal 
+        ? `/users/${library.id}/collections`
+        : `/groups/${library.id}/collections`;
 
       const response = await this.makeRequest(endpoint);
       
       if (response.success) {
         const rawCollections = Array.isArray(response.data) ? response.data : [];
-        this.collections = rawCollections.map(item => ({
+        const collections = rawCollections.map(item => ({
           key: item.data?.key || item.key,
           version: item.data?.version || item.version,
           name: item.data?.name || item.name || 'Untitled Collection',
           parentCollection: item.data?.parentCollection || item.parentCollection,
           itemsCount: item.meta?.numItems || item.itemsCount
         }));
-        return this.collections;
+        
+        // Update cached collections if this is the current library
+        if (this.currentLibrary?.id === library.id) {
+          this.collections = collections;
+        }
+        
+        return collections;
       }
       
       throw new Error(response.error || 'Failed to fetch collections');
@@ -160,6 +226,22 @@ export class ZoteroService {
       console.error('Failed to fetch Zotero collections:', error);
       throw error;
     }
+  }
+
+  /**
+   * Fetch collections from current library
+   */
+  async fetchCollections(): Promise<ZoteroCollection[]> {
+    if (!this.currentLibrary) {
+      // Get available libraries first
+      await this.getAvailableLibraries();
+    }
+    
+    if (!this.currentLibrary) {
+      throw new Error('No library selected');
+    }
+
+    return await this.fetchCollectionsForLibrary(this.currentLibrary);
   }
 
   /**
@@ -220,6 +302,27 @@ export class ZoteroService {
    */
   getCachedGroups(): ZoteroGroup[] {
     return this.groups;
+  }
+
+  /**
+   * Get available libraries
+   */
+  getCachedLibraries(): ZoteroLibrary[] {
+    return this.availableLibraries;
+  }
+
+  /**
+   * Get current library
+   */
+  getCurrentLibrary(): ZoteroLibrary | null {
+    return this.currentLibrary;
+  }
+
+  /**
+   * Set current library
+   */
+  setCurrentLibrary(library: ZoteroLibrary): void {
+    this.currentLibrary = library;
   }
 
   /**
@@ -310,15 +413,21 @@ export class ZoteroService {
         this.config!.userId = userId;
       }
 
+      // Use current library for fetching items
+      const library = this.currentLibrary;
+      if (!library) {
+        throw new Error('No library selected');
+      }
+
       let endpoint: string;
-      if (this.config!.groupId) {
+      if (library.isPersonal) {
         endpoint = collectionKey 
-          ? `/groups/${this.config!.groupId}/collections/${collectionKey}/items`
-          : `/groups/${this.config!.groupId}/items`;
+          ? `/users/${library.id}/collections/${collectionKey}/items`
+          : `/users/${library.id}/items`;
       } else {
         endpoint = collectionKey 
-          ? `/users/${userId}/collections/${collectionKey}/items`
-          : `/users/${userId}/items`;
+          ? `/groups/${library.id}/collections/${collectionKey}/items`
+          : `/groups/${library.id}/items`;
       }
 
       const response = await this.makeRequest(`${endpoint}?limit=${limit}`);

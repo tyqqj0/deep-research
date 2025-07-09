@@ -17,7 +17,7 @@ import { AddLiteratureForm } from "@/components/Library/AddLiteratureForm";
 import { ZoteroLogin } from "@/components/Library/ZoteroLogin";
 import { ZoteroImportSection } from "@/components/Library/ZoteroImportSection";
 import { toast } from "sonner";
-import type { ZoteroUserInfo, ZoteroCollection, ZoteroGroup } from "@/libs/zotero/types";
+import type { ZoteroUserInfo, ZoteroCollection, ZoteroGroup, ZoteroLibrary } from "@/libs/zotero/types";
 import { zoteroService } from "@/libs/zotero";
 
 export default function LibraryPage() {
@@ -28,6 +28,8 @@ export default function LibraryPage() {
   const [zoteroUserInfo, setZoteroUserInfo] = useState<ZoteroUserInfo | null>(null);
   const [zoteroCollections, setZoteroCollections] = useState<ZoteroCollection[]>([]);
   const [zoteroGroups, setZoteroGroups] = useState<ZoteroGroup[]>([]);
+  const [zoteroLibraries, setZoteroLibraries] = useState<ZoteroLibrary[]>([]);
+  const [currentZoteroLibrary, setCurrentZoteroLibrary] = useState<ZoteroLibrary | null>(null);
   const [isZoteroConnected, setIsZoteroConnected] = useState(false);
   
   const {
@@ -63,8 +65,12 @@ export default function LibraryPage() {
           }
           const cachedCollections = zoteroService.getCachedCollections();
           const cachedGroups = zoteroService.getCachedGroups();
+          const cachedLibraries = zoteroService.getCachedLibraries();
+          const currentLibrary = zoteroService.getCurrentLibrary();
           setZoteroCollections(cachedCollections);
           setZoteroGroups(cachedGroups);
+          setZoteroLibraries(cachedLibraries);
+          setCurrentZoteroLibrary(currentLibrary);
         }
       } catch (error) {
         console.error('Library initialization failed:', error);
@@ -92,6 +98,17 @@ export default function LibraryPage() {
   };
 
   const sourceStats = getSourceStats();
+
+  const handleZoteroLibraryChange = async (libraryId: string) => {
+    try {
+      const collections = await zoteroService.switchLibrary(libraryId);
+      setZoteroCollections(collections);
+      setCurrentZoteroLibrary(zoteroService.getCurrentLibrary());
+    } catch (error) {
+      toast.error('Failed to switch library');
+      console.error('Library switch error:', error);
+    }
+  };
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -132,17 +149,6 @@ export default function LibraryPage() {
           >
             <Upload className="h-4 w-4 mr-2" />
             Import from Zotero
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              const { initialize: reinitialize } = useLibraryStore.getState();
-              await reinitialize();
-            }}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
           </Button>
           <Button
             onClick={() => setShowAddForm(true)}
@@ -290,7 +296,10 @@ export default function LibraryPage() {
             userInfo={zoteroUserInfo}
             collections={zoteroCollections}
             groups={zoteroGroups}
+            libraries={zoteroLibraries}
+            currentLibrary={currentZoteroLibrary}
             onLoginClick={() => setShowZoteroLogin(true)}
+            onLibraryChange={handleZoteroLibraryChange}
           />
         </TabsContent>
       </Tabs>
@@ -308,11 +317,20 @@ export default function LibraryPage() {
         <ZoteroLogin
           open={showZoteroLogin}
           onClose={() => setShowZoteroLogin(false)}
-          onLoginSuccess={(userInfo, collections, groups) => {
+          onLoginSuccess={async (userInfo, collections, groups) => {
             setZoteroUserInfo(userInfo);
             setZoteroCollections(collections);
             setZoteroGroups(groups);
             setIsZoteroConnected(true);
+            
+            // Get libraries after successful login
+            try {
+              const libraries = await zoteroService.getAvailableLibraries();
+              setZoteroLibraries(libraries);
+              setCurrentZoteroLibrary(zoteroService.getCurrentLibrary());
+            } catch (error) {
+              console.error('Failed to get libraries:', error);
+            }
           }}
         />
       )}
