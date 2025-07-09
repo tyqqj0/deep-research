@@ -88,7 +88,9 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         trees, 
         isLoading: false 
       });
+      
     } catch (error) {
+      console.error('LibraryStore: Initialization failed:', error);
       set({ 
         isLoading: false, 
         error: error instanceof Error ? error.message : 'Failed to initialize library' 

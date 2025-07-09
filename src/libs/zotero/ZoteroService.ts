@@ -6,6 +6,7 @@ import type { ZoteroConfig, ZoteroItem, ZoteroSyncResult, ZoteroApiResponse } fr
 export class ZoteroService {
   private config: ZoteroConfig | null = null;
   private baseUrl = 'https://api.zotero.org';
+  private useProxy = false;
 
   constructor(config?: ZoteroConfig) {
     if (config) {
@@ -16,11 +17,12 @@ export class ZoteroService {
   /**
    * Set Zotero API configuration
    */
-  setConfig(config: ZoteroConfig): void {
+  setConfig(config: ZoteroConfig & { useProxy?: boolean }): void {
     this.config = {
       ...config,
       baseUrl: config.baseUrl || this.baseUrl
     };
+    this.useProxy = config.useProxy || false;
   }
 
   /**
@@ -31,19 +33,84 @@ export class ZoteroService {
   }
 
   /**
+   * Get user information from API key
+   */
+  async getUserInfo(): Promise<{ userID?: string; username?: string; error?: string }> {
+    try {
+      const response = await this.makeRequest('/keys/current');
+      if (response.success && response.data) {
+        return {
+          userID: response.data.userID?.toString(),
+          username: response.data.username
+        };
+      }
+      return { error: response.error || 'Failed to get user info' };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  /**
    * Test Zotero API connection
    */
-  async testConnection(): Promise<boolean> {
+  async testConnection(): Promise<{ success: boolean; error?: string; details?: any }> {
     if (!this.isConfigured()) {
-      throw new Error('Zotero not configured');
+      return { success: false, error: 'Zotero not configured' };
     }
 
     try {
-      const response = await this.makeRequest('/users/current');
-      return response.success;
+
+      // Try direct API call first - use /keys/current to validate API key
+      let response = await this.makeRequest('/keys/current');
+      
+      // If direct call fails with network error, try proxy
+      if (!response.success && !this.useProxy && response.error?.includes('Network error')) {
+        const originalUseProxy = this.useProxy;
+        this.useProxy = true;
+        
+        try {
+          response = await this.makeRequest('/keys/current');
+          
+          if (response.success) {
+            return { 
+              success: true, 
+              details: { 
+                method: 'proxy',
+                message: 'Direct API failed, but proxy worked. Consider enabling proxy mode.',
+                userData: response.data
+              }
+            };
+          }
+        } finally {
+          this.useProxy = originalUseProxy;
+        }
+      }
+      
+      if (response.success) {
+        // Store user ID from the response for future use
+        if (response.data?.userID && !this.config?.userId) {
+          this.config.userId = response.data.userID.toString();
+        }
+        return { 
+          success: true,
+          details: {
+            userData: response.data
+          }
+        };
+      } else {
+        return { 
+          success: false, 
+          error: response.error || 'Unknown error',
+          details: response
+        };
+      }
     } catch (error) {
       console.error('Zotero connection test failed:', error);
-      return false;
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: error
+      };
     }
   }
 
@@ -56,9 +123,24 @@ export class ZoteroService {
     }
 
     try {
+      // Ensure we have user ID
+      let userId = this.config!.userId;
+      if (!userId) {
+        const userInfo = await this.getUserInfo();
+        if (userInfo.error) {
+          throw new Error(`Failed to get user ID: ${userInfo.error}`);
+        }
+        userId = userInfo.userID;
+        if (!userId) {
+          throw new Error('Could not determine user ID from API key');
+        }
+        // Store for future use
+        this.config!.userId = userId;
+      }
+
       const endpoint = this.config!.groupId 
         ? `/groups/${this.config!.groupId}/items`
-        : `/users/${this.config!.userId || 'current'}/items`;
+        : `/users/${userId}/items`;
 
       const response = await this.makeRequest(`${endpoint}?limit=${limit}`);
       
@@ -145,6 +227,8 @@ export class ZoteroService {
       }
 
       result.success = true;
+      result.newItems = newItems;
+      result.updatedItems = updatedItems;
       return result;
     } catch (error) {
       result.errors.push(`Sync failed: ${error}`);
@@ -160,26 +244,79 @@ export class ZoteroService {
       throw new Error('Zotero not configured');
     }
 
-    const url = `${this.config.baseUrl}${endpoint}`;
+    // Use proxy if enabled, otherwise direct API call
+    const url = this.useProxy 
+      ? `/api/zotero${endpoint}` 
+      : `${this.config.baseUrl}${endpoint}`;
+      
     const headers = {
       'Authorization': `Bearer ${this.config.apiKey}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Zotero-API-Version': '3'
     };
 
+
     try {
-      const response = await fetch(url, { headers });
+      const fetchOptions: RequestInit = {
+        headers,
+        method: 'GET'
+      };
+      
+      // Only set CORS mode for direct API calls
+      if (!this.useProxy) {
+        fetchOptions.mode = 'cors';
+      }
+      
+      const response = await fetch(url, fetchOptions);
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        let errorText = '';
+        try {
+          const responseData = await response.json();
+          errorText = responseData.error || responseData.details || response.statusText;
+        } catch (e) {
+          try {
+            errorText = await response.text();
+          } catch (e2) {
+            // Unable to read error response
+          }
+        }
+        
+        const errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        return {
+          data: null,
+          success: false,
+          error: errorMessage,
+          details: {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText,
+            proxy: this.useProxy
+          }
+        };
       }
 
       const data = await response.json();
       return { data, success: true };
     } catch (error) {
+      // If direct API call fails with network error, suggest trying proxy
+      if (!this.useProxy && error instanceof Error && error.message.includes('fetch')) {
+        return {
+          data: null,
+          success: false,
+          error: `Network error: ${error.message}. Try enabling proxy mode.`,
+          details: {
+            error,
+            suggestion: 'Enable proxy mode to bypass CORS/network issues'
+          }
+        };
+      }
+      
       return { 
         data: null, 
         success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: error
       };
     }
   }

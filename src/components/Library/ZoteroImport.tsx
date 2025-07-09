@@ -48,6 +48,12 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<ZoteroSyncResult | null>(null);
   const [importProgress, setImportProgress] = useState(0);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [useProxy, setUseProxy] = useState(false);
+  const [userInfo, setUserInfo] = useState<{ userID?: string; username?: string } | null>(null);
+  const [availableItems, setAvailableItems] = useState<any[]>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
   
   const { libraryItems, addLibraryItem, updateLibraryItem } = useLibraryStore();
 
@@ -75,30 +81,49 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
     setIsConnected(false);
     setImportResult(null);
     setImportProgress(0);
+    setConnectionError(null);
+    setDebugInfo(null);
+    setUserInfo(null);
     onClose();
   };
 
   const testConnection = async (data: ConfigFormData) => {
     setIsTesting(true);
+    setConnectionError(null);
+    setDebugInfo(null);
+    
     try {
-      const config: ZoteroConfig = {
+      const config: ZoteroConfig & { useProxy?: boolean } = {
         apiKey: data.apiKey,
         userId: data.userId || undefined,
         groupId: data.groupId || undefined,
+        useProxy: useProxy
       };
 
       zoteroService.setConfig(config);
-      const success = await zoteroService.testConnection();
+      const result = await zoteroService.testConnection();
       
-      if (success) {
+      if (result.success) {
         setIsConnected(true);
+        // Extract user info from the connection result
+        if (result.details?.userData) {
+          setUserInfo({
+            userID: result.details.userData.userID?.toString(),
+            username: result.details.userData.username
+          });
+        }
         setActiveTab("import");
         toast.success("Zotero connection successful!");
       } else {
-        toast.error("Failed to connect to Zotero. Please check your API key.");
+        setConnectionError(result.error || "Unknown error");
+        setDebugInfo(result.details);
+        toast.error(`Connection failed: ${result.error}`);
       }
     } catch (error) {
-      toast.error("Connection test failed. Please check your configuration.");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setConnectionError(errorMessage);
+      setDebugInfo(error);
+      toast.error(`Connection test failed: ${errorMessage}`);
       console.error("Zotero connection test error:", error);
     } finally {
       setIsTesting(false);
@@ -127,7 +152,32 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
       setImportResult(result);
 
       if (result.success) {
-        // Process the sync result
+        // Actually save the items to the database
+        if (result.newItems && result.newItems.length > 0) {
+          for (const item of result.newItems) {
+            try {
+              // Remove id, createdAt, updatedAt for addLibraryItem
+              const { id, createdAt, updatedAt, ...itemData } = item;
+              await addLibraryItem(itemData);
+            } catch (error) {
+              console.error('Failed to save item:', item.title, error);
+              result.errors.push(`Failed to save "${item.title}": ${error}`);
+            }
+          }
+        }
+        
+        if (result.updatedItems && result.updatedItems.length > 0) {
+          for (const item of result.updatedItems) {
+            try {
+              await updateLibraryItem(item.id, item);
+            } catch (error) {
+              console.error('Failed to update item:', item.title, error);
+              result.errors.push(`Failed to update "${item.title}": ${error}`);
+            }
+          }
+        }
+        
+        // Show success messages
         if (result.itemsAdded > 0) {
           toast.success(`Successfully imported ${result.itemsAdded} new items from Zotero!`);
         }
@@ -143,8 +193,19 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
         toast.error("Import failed. Please check the error details.");
       }
     } catch (error) {
-      toast.error("Import failed. Please try again.");
       console.error("Zotero import error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Import failed: ${errorMessage}`);
+      
+      // Show detailed error in the result
+      setImportResult({
+        success: false,
+        itemsAdded: 0,
+        itemsUpdated: 0,
+        itemsSkipped: 0,
+        errors: [errorMessage]
+      });
+      setActiveTab("result");
     } finally {
       setIsImporting(false);
     }
@@ -153,9 +214,17 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
   const getConnectionStatus = () => {
     if (isConnected) {
       return (
-        <div className="flex items-center gap-2 text-green-600">
-          <CheckCircle className="h-4 w-4" />
-          <span className="text-sm">Connected to Zotero</span>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-green-600">
+            <CheckCircle className="h-4 w-4" />
+            <span className="text-sm">Connected to Zotero</span>
+          </div>
+          {userInfo && (
+            <div className="text-xs text-muted-foreground">
+              {userInfo.username && <div>User: {userInfo.username}</div>}
+              {userInfo.userID && <div>ID: {userInfo.userID}</div>}
+            </div>
+          )}
         </div>
       );
     }
@@ -256,6 +325,27 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                     </div>
                   </div>
 
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="useProxy"
+                      checked={useProxy}
+                      onChange={(e) => setUseProxy(e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <Label htmlFor="useProxy" className="text-sm">
+                      Use proxy for API calls (recommended - fixes CORS issues)
+                    </Label>
+                  </div>
+                  
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Recommendation:</strong> Enable proxy mode above to bypass CORS limitations. 
+                      Direct API calls from browsers are restricted by CORS policy.
+                    </AlertDescription>
+                  </Alert>
+
                   <Button
                     type="submit"
                     disabled={isTesting || !watchedValues.apiKey}
@@ -273,6 +363,33 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                       </>
                     )}
                   </Button>
+
+                  {connectionError && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>Connection Error:</strong> {connectionError}
+                        {debugInfo && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-sm font-medium">Debug Information</summary>
+                            <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto">
+                              {JSON.stringify(debugInfo, null, 2)}
+                            </pre>
+                            <Button variant="outline" onClick={() => {
+                              window.open("http://localhost:3000/debug/zotero", "_blank");
+                            }}>
+                              zotero debug
+                            </Button>
+                            <Button variant="outline" onClick={() => {
+                              window.open("http://localhost:3000/debug/proxy", "_blank");
+                            }}>
+                              proxy debug
+                            </Button>
+                          </details>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </form>
               </CardContent>
             </Card>
@@ -282,6 +399,19 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
               <AlertDescription>
                 <strong>Privacy Notice:</strong> Your API key is stored locally and never sent to our servers. 
                 All communication is direct between your browser and Zotero's API.
+              </AlertDescription>
+            </Alert>
+
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Troubleshooting:</strong> If connection fails, ensure:
+                <ul className="list-disc list-inside mt-1 text-sm">
+                  <li>Your API key is correct and active</li>
+                  <li>Your browser allows cross-origin requests</li>
+                  <li>Zotero servers are accessible</li>
+                  <li>Check browser console for detailed errors</li>
+                </ul>
               </AlertDescription>
             </Alert>
           </TabsContent>

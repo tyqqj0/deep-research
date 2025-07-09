@@ -41,8 +41,15 @@ export default function LibraryPage() {
   const filteredItems = getFilteredItems();
 
   useEffect(() => {
-    initialize();
-  }, [initialize]);
+    const initializeAsync = async () => {
+      try {
+        await initialize();
+      } catch (error) {
+        console.error('Library initialization failed:', error);
+      }
+    };
+    initializeAsync();
+  }, []);
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);
@@ -103,6 +110,17 @@ export default function LibraryPage() {
           >
             <Upload className="h-4 w-4 mr-2" />
             Import from Zotero
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const { initialize: reinitialize } = useLibraryStore.getState();
+              await reinitialize();
+            }}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
           </Button>
           <Button
             onClick={() => setShowAddForm(true)}
