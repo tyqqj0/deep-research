@@ -7,11 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  MoreHorizontal, 
-  Edit2, 
-  Trash2, 
-  Eye, 
+import {
+  MoreHorizontal,
+  Edit2,
+  Trash2,
+  Eye,
   Plus,
   ExternalLink,
   Calendar,
@@ -94,7 +94,11 @@ export function LiteratureListItem({
                 <div className="flex items-center gap-2 mt-1">
                   <div className="flex items-center gap-1 text-sm text-muted-foreground">
                     <User className="h-3 w-3" />
-                    <span>{item.authors.join(', ')}</span>
+                    <span>
+                      {viewMode === 'grid' && item.authors.length > 1
+                        ? `${item.authors[0]}...`
+                        : item.authors.join(', ')}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1 text-sm text-muted-foreground">
                     <Calendar className="h-3 w-3" />
@@ -103,15 +107,15 @@ export function LiteratureListItem({
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
               {/* Source Badge */}
-              <Badge 
-                variant="outline" 
-                className={`text-xs ${sourceMetadata?.color || 'bg-gray-100 text-gray-800'}`}
+              <Badge
+                variant="outline"
+                className={`text-xs ${sourceMetadata?.color || 'bg-gray-100 text-gray-800'} px-2`}
+                title={sourceMetadata?.name}
               >
-                <span className="mr-1">{sourceMetadata?.icon}</span>
-                {sourceMetadata?.name}
+                {sourceMetadata?.icon} {viewMode === 'list' && sourceMetadata?.name}
               </Badge>
 
               {/* Actions Dropdown */}
@@ -131,7 +135,7 @@ export function LiteratureListItem({
                     Add to Tree
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     onClick={() => setShowDeleteDialog(true)}
                     className="text-red-600"
                   >
@@ -191,20 +195,20 @@ export function LiteratureListItem({
                     Zotero
                   </Badge>
                 )}
-                
+
                 {/* Quick Actions */}
                 <div className="flex items-center gap-1">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="h-7 w-7 p-0"
                     onClick={onEdit}
                   >
                     <Edit2 className="h-3 w-3" />
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="h-7 w-7 p-0"
                     onClick={onSelectForTree}
                   >

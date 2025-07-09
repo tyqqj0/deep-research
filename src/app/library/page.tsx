@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { Plus, Search, Filter, Download, Upload, RefreshCw, ArrowLeft } from "lucide-react";
@@ -14,16 +14,20 @@ import { useLibraryStore } from "@/store/libraryStore";
 import { LITERATURE_SOURCES, SOURCE_METADATA } from "@/libs/db/constants";
 import { LiteratureList } from "@/components/Library/LiteratureList";
 import { AddLiteratureForm } from "@/components/Library/AddLiteratureForm";
+import { EditLiteratureForm } from "@/components/Library/EditLiteratureForm";
 import { ZoteroLogin } from "@/components/Library/ZoteroLogin";
 import { ZoteroImportSection } from "@/components/Library/ZoteroImportSection";
 import { toast } from "sonner";
 import type { ZoteroUserInfo, ZoteroCollection, ZoteroGroup, ZoteroLibrary } from "@/libs/zotero/types";
 import { zoteroService } from "@/libs/zotero";
+import type { LibraryItem } from "@/libs/db";
 
 export default function LibraryPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
   const [showZoteroLogin, setShowZoteroLogin] = useState(false);
   const [zoteroUserInfo, setZoteroUserInfo] = useState<ZoteroUserInfo | null>(null);
   const [zoteroCollections, setZoteroCollections] = useState<ZoteroCollection[]>([]);
@@ -47,7 +51,11 @@ export default function LibraryPage() {
     zoteroSyncResult
   } = useLibraryStore();
 
-  const filteredItems = getFilteredItems();
+  // Use useMemo to ensure filteredItems updates when items change
+  const filteredItems = useMemo(() => {
+    console.log(`[LibraryPage] Filtering ${items.length} items`);
+    return getFilteredItems();
+  }, [items, sourceFilter, searchTerm, getFilteredItems]);
 
   useEffect(() => {
     const initializeAsync = async () => {
@@ -87,7 +95,7 @@ export default function LibraryPage() {
     setSourceFilter(value as any);
   };
 
-  const getSourceStats = () => {
+  const sourceStats = useMemo(() => {
     const stats = Object.keys(LITERATURE_SOURCES).reduce((acc, key) => {
       const source = LITERATURE_SOURCES[key as keyof typeof LITERATURE_SOURCES];
       acc[source] = items.filter(item => item.source === source).length;
@@ -95,9 +103,7 @@ export default function LibraryPage() {
     }, {} as Record<string, number>);
     
     return stats;
-  };
-
-  const sourceStats = getSourceStats();
+  }, [items]);
 
   const handleZoteroLibraryChange = async (libraryId: string) => {
     try {
@@ -108,6 +114,16 @@ export default function LibraryPage() {
       toast.error('Failed to switch library');
       console.error('Library switch error:', error);
     }
+  };
+
+  const handleEditLiterature = (item: LibraryItem) => {
+    setEditingItem(item);
+    setShowEditForm(true);
+  };
+
+  const handleCloseEditForm = () => {
+    setShowEditForm(false);
+    setEditingItem(null);
   };
 
   return (
@@ -254,10 +270,7 @@ export default function LibraryPage() {
           <LiteratureList
             items={filteredItems}
             isLoading={isLoading}
-            onEdit={(item) => {
-              // TODO: Implement edit form
-              toast.info(`Edit functionality for "${item.title}" coming soon!`);
-            }}
+            onEdit={handleEditLiterature}
             onDelete={async (id) => {
               try {
                 const { deleteLibraryItem } = useLibraryStore.getState();
@@ -309,6 +322,15 @@ export default function LibraryPage() {
         <AddLiteratureForm
           open={showAddForm}
           onClose={() => setShowAddForm(false)}
+        />
+      )}
+
+      {/* Edit Literature Form Modal */}
+      {showEditForm && (
+        <EditLiteratureForm
+          open={showEditForm}
+          onClose={handleCloseEditForm}
+          item={editingItem}
         />
       )}
 

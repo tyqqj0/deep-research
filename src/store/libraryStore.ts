@@ -32,6 +32,7 @@ interface LibraryActions {
   selectTree: (treeId: string) => Promise<void>;
   runMCTS: () => Promise<void>;
   addLibraryItem: (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  addLibraryItems: (itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]) => Promise<any>;
   updateLibraryItem: (id: string, itemData: Partial<LibraryItem>) => Promise<void>;
   deleteLibraryItem: (id: string) => Promise<void>;
   clearError: () => void;
@@ -151,6 +152,56 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         isLoading: false, 
         error: error instanceof Error ? error.message : 'Failed to run MCTS simulation' 
       });
+    }
+  },
+
+  // Add multiple library items in batch
+  addLibraryItems: async (itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]) => {
+    try {
+      set({ isLoading: true, error: null });
+      
+      const results = [];
+      
+      for (const itemData of itemsData) {
+        const newItem: LibraryItem = {
+          ...itemData,
+          id: generateLibraryItemId(),
+          source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        const result = await libraryService.addLibraryItem(newItem);
+        results.push({ item: newItem, result });
+      }
+      
+      // Refresh the items list once after all additions
+      const updatedItems = await libraryService.getAllLibraryItems();
+      
+      console.log('[LibraryStore] addLibraryItems updating state with', updatedItems.length, 'items');
+      
+      set({ 
+        items: updatedItems, 
+        isLoading: false 
+      });
+      
+      return {
+        success: true,
+        results,
+        totalAdded: results.filter(r => r.result.success).length,
+        totalDuplicates: results.filter(r => !r.result.success).length
+      };
+    } catch (error) {
+      console.error('[LibraryStore] addLibraryItems error:', error);
+      set({ 
+        isLoading: false, 
+        error: error instanceof Error ? error.message : 'Failed to add library items' 
+      });
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to add library items',
+        results: []
+      };
     }
   },
 

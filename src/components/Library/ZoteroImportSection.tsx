@@ -51,7 +51,7 @@ export function ZoteroImportSection({
   const [importProgress, setImportProgress] = useState(0);
   const [selectedCollection, setSelectedCollection] = useState<string>("__all__");
   
-  const { libraryItems, addLibraryItem, updateLibraryItem } = useLibraryStore();
+  const { items: libraryItems, addLibraryItems, updateLibraryItem } = useLibraryStore();
 
   const startImport = async () => {
     if (!isConnected || !currentLibrary) {
@@ -72,12 +72,16 @@ export function ZoteroImportSection({
       const collectionKey = selectedCollection && selectedCollection !== "__all__" ? selectedCollection : undefined;
       const result = await zoteroService.syncItems(libraryItems, collectionKey);
       
-      // Add new items to the library
-      if (result.newItems) {
-        for (const item of result.newItems) {
+      // Add new items to the library in batch
+      if (result.newItems && result.newItems.length > 0) {
+        const itemsToAdd = result.newItems.map(item => {
           const { id, createdAt, updatedAt, ...itemData } = item;
-          await addLibraryItem(itemData);
-        }
+          return itemData;
+        });
+        
+        console.log(`[ZoteroImport] Batch adding ${itemsToAdd.length} items to UI state`);
+        const batchResult = await addLibraryItems(itemsToAdd);
+        console.log(`[ZoteroImport] Batch add result:`, batchResult);
       }
       
       // Update existing items
@@ -122,8 +126,7 @@ export function ZoteroImportSection({
       toast.info("Refreshing collections...");
       await zoteroService.fetchCollectionsForLibrary(currentLibrary);
       toast.success("Collections refreshed!");
-      // Force a re-render by updating the parent component
-      window.location.reload();
+      // Parent component will handle the UI refresh through proper state management
     } catch (error) {
       toast.error("Failed to refresh collections");
       console.error("Refresh error:", error);

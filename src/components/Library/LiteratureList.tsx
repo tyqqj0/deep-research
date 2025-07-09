@@ -119,7 +119,7 @@ export function LiteratureList({
   };
 
   const selectAllItems = () => {
-    setSelectedItems(new Set(currentPageItems.map(item => item.id)));
+    setSelectedItems(new Set(items.map(item => item.id)));
   };
 
   const clearSelection = () => {
@@ -211,9 +211,9 @@ export function LiteratureList({
             <Button
               variant="outline"
               size="sm"
-              onClick={selectedItems.size === currentPageItems.length ? clearSelection : selectAllItems}
+              onClick={selectedItems.size === items.length ? clearSelection : selectAllItems}
             >
-              {selectedItems.size === currentPageItems.length ? 'Deselect All' : 'Select All'}
+              {selectedItems.size === items.length ? 'Deselect All' : 'Select All'}
             </Button>
           </div>
 
