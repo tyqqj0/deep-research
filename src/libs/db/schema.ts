@@ -3,7 +3,7 @@ import { LITERATURE_SOURCES } from './constants';
 
 // Zod Schema for LibraryItem
 export const LibraryItemSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().uuid('Invalid UUID format'),
   title: z.string().min(1, 'Title is required'),
   authors: z.array(z.string()).min(1, 'At least one author is required'),
   year: z.number().int().min(1000).max(new Date().getFullYear() + 10),
@@ -24,18 +24,18 @@ export const LibraryItemSchema = z.object({
 
 // Zod Schema for MCTSNode
 export const MCTSNodeSchema = z.object({
-  id: z.string().uuid(),
-  parentId: z.string().uuid().nullable(),
-  libraryItemId: z.string().uuid(),
+  id: z.string().uuid('Invalid UUID format'),
+  parentId: z.string().uuid('Invalid UUID format').nullable(),
+  libraryItemId: z.string().uuid('Invalid UUID format'),
   visits: z.number().int().min(0),
   wins: z.number()
 });
 
 // Zod Schema for LiteratureTree
 export const LiteratureTreeSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().uuid('Invalid UUID format'),
   name: z.string().min(1, 'Name is required'),
-  rootNodeId: z.string().uuid(),
+  rootNodeId: z.string().uuid('Invalid UUID format'),
   nodes: z.record(z.string().uuid(), MCTSNodeSchema),
   createdAt: z.date()
 });

@@ -1,6 +1,6 @@
 import { db, LibraryItem, LiteratureTree } from './index';
 import { LibraryItemSchema } from './schema';
-import { nanoid } from 'nanoid';
+import { generateLibraryItemId } from '../utils/uuid';
 
 export class LibraryService {
   private db = db;
@@ -237,7 +237,7 @@ export class LibraryService {
           // Generate new ID to avoid conflicts
           const itemWithNewId: LibraryItem = {
             ...item,
-            id: nanoid(),
+            id: generateLibraryItemId(),
             createdAt: new Date(item.createdAt),
             updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined
           };

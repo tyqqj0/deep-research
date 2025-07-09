@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { Plus, Search, Filter, Download, Upload, RefreshCw } from "lucide-react";
+import { Plus, Search, Filter, Download, Upload, RefreshCw, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 
 export default function LibraryPage() {
   const { t } = useTranslation();
+  const router = useRouter();
   const [showAddForm, setShowAddForm] = useState(false);
   
   const {
@@ -64,13 +66,24 @@ export default function LibraryPage() {
     <div className="container mx-auto p-6 max-w-7xl">
       {/* Page Header */}
       <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Literature Library
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300 mt-1">
-            Manage your research literature collection
-          </p>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.back()}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              Literature Library
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300 mt-1">
+              Manage your research literature collection
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button

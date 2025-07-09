@@ -1,6 +1,6 @@
 import { LibraryItem } from '../db';
 import { LITERATURE_SOURCES } from '../db/constants';
-import { nanoid } from 'nanoid';
+import { generateLibraryItemId } from '../utils/uuid';
 import type { ZoteroConfig, ZoteroItem, ZoteroSyncResult, ZoteroApiResponse } from './types';
 
 export class ZoteroService {
@@ -85,7 +85,7 @@ export class ZoteroService {
     const year = zoteroItem.date ? this.extractYear(zoteroItem.date) : new Date().getFullYear();
 
     return {
-      id: nanoid(),
+      id: generateLibraryItemId(),
       title: zoteroItem.title || 'Untitled',
       authors,
       year,

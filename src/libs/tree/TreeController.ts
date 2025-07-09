@@ -1,5 +1,5 @@
 import { LiteratureTree, MCTSNode } from '../db';
-import { nanoid } from 'nanoid';
+import { generateNodeId } from '../utils/uuid';
 
 export class TreeController {
   private tree: LiteratureTree;
@@ -51,7 +51,7 @@ export class TreeController {
 
   addChild(parentId: string, newItemId: string): MCTSNode {
     const newNode: MCTSNode = {
-      id: nanoid(),
+      id: generateNodeId(),
       parentId,
       libraryItemId: newItemId,
       visits: 0,
@@ -104,7 +104,7 @@ export class TreeController {
   private _expandNode(node: MCTSNode): MCTSNode {
     // For demonstration, we'll create a new child with a random literature item ID
     // In a real implementation, this would be based on available literature items
-    const newItemId = `item_${nanoid()}`;
+    const newItemId = `item_${generateNodeId()}`;
     return this.addChild(node.id, newItemId);
   }
 

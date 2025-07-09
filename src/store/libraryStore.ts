@@ -4,7 +4,7 @@ import { LITERATURE_SOURCES, DEFAULT_LIBRARY_ITEM_SOURCE, LiteratureSource } fro
 import { libraryService } from '../libs/db/LibraryService';
 import { TreeController } from '../libs/tree/TreeController';
 import { zoteroService, ZoteroConfig, ZoteroSyncResult } from '../libs/zotero';
-import { nanoid } from 'nanoid';
+import { generateLibraryItemId } from '../libs/utils/uuid';
 
 // Define State interface
 interface LibraryState {
@@ -159,7 +159,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       
       const newItem: LibraryItem = {
         ...itemData,
-        id: nanoid(),
+        id: generateLibraryItemId(),
         source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE,
         createdAt: new Date(),
         updatedAt: new Date()
