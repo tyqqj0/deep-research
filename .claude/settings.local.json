@@ -9,7 +9,9 @@
       "Bash(git commit:*)",
       "Bash(find:*)",
       "WebFetch(domain:www.zotero.org)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(mv:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": []
   }

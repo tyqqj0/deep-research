@@ -368,6 +368,10 @@ export function ZoteroImportSection({
                   )}
                 </div>
               )}
+              <div className="mt-2 text-xs text-muted-foreground">
+                <strong>Note:</strong> Collection counts may differ from import counts because we only import regular items (books, articles, etc.) 
+                and exclude notes, attachments, and other metadata items.
+              </div>
             </AlertDescription>
           </Alert>
         </CardContent>

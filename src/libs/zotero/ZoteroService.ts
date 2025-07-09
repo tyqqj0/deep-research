@@ -205,13 +205,29 @@ export class ZoteroService {
       
       if (response.success) {
         const rawCollections = Array.isArray(response.data) ? response.data : [];
-        const collections = rawCollections.map(item => ({
-          key: item.data?.key || item.key,
-          version: item.data?.version || item.version,
-          name: item.data?.name || item.name || 'Untitled Collection',
-          parentCollection: item.data?.parentCollection || item.parentCollection,
-          itemsCount: item.meta?.numItems || item.itemsCount
-        }));
+        
+        // Debug logging
+        console.log(`[ZoteroService] Raw collections response:`, rawCollections);
+        
+        const collections = rawCollections.map(item => {
+          const collection = {
+            key: item.data?.key || item.key,
+            version: item.data?.version || item.version,
+            name: item.data?.name || item.name || 'Untitled Collection',
+            parentCollection: item.data?.parentCollection || item.parentCollection,
+            itemsCount: item.meta?.numItems || item.itemsCount
+          };
+          
+          // Debug each collection
+          console.log(`[ZoteroService] Collection "${collection.name}":`, {
+            key: collection.key,
+            itemsCount: collection.itemsCount,
+            rawMeta: item.meta,
+            rawData: item.data
+          });
+          
+          return collection;
+        });
         
         // Update cached collections if this is the current library
         if (this.currentLibrary?.id === library.id) {
@@ -312,6 +328,20 @@ export class ZoteroService {
   }
 
   /**
+   * Get actual count of regular items in a collection
+   * This provides the accurate count by filtering out notes and attachments
+   */
+  async getActualItemCount(collectionKey?: string): Promise<number> {
+    try {
+      const items = await this.fetchItems(1000, collectionKey); // Fetch up to 1000 items
+      return items.length;
+    } catch (error) {
+      console.error('Failed to get actual item count:', error);
+      return 0;
+    }
+  }
+
+  /**
    * Get current library
    */
   getCurrentLibrary(): ZoteroLibrary | null {
@@ -391,6 +421,8 @@ export class ZoteroService {
 
   /**
    * Fetch items from Zotero
+   * Note: Collection metadata shows total count including notes/attachments,
+   * but this method filters to only regular items (books, articles, etc.)
    */
   async fetchItems(limit = 100, collectionKey?: string): Promise<ZoteroItem[]> {
     if (!this.isConfigured()) {
@@ -430,10 +462,34 @@ export class ZoteroService {
           : `/groups/${library.id}/items`;
       }
 
+      // Debug logging
+      console.log(`[ZoteroService] Fetching items from: ${endpoint}`);
+      console.log(`[ZoteroService] Collection key: ${collectionKey || 'all'}`);
+      console.log(`[ZoteroService] Library: ${library.name} (${library.isPersonal ? 'personal' : 'group'})`);
+
       const response = await this.makeRequest(`${endpoint}?limit=${limit}`);
       
       if (response.success) {
-        return Array.isArray(response.data) ? response.data : [];
+        const items = Array.isArray(response.data) ? response.data : [];
+        console.log(`[ZoteroService] Fetched ${items.length} items`);
+        
+        // Filter out non-regular items (notes, attachments, etc.)
+        const regularItems = items.filter(item => {
+          const itemType = item.data?.itemType || item.itemType;
+          return itemType !== 'note' && itemType !== 'attachment';
+        });
+        
+        console.log(`[ZoteroService] After filtering: ${regularItems.length} regular items`);
+        
+        if (collectionKey) {
+          const collection = this.collections.find(c => c.key === collectionKey);
+          if (collection) {
+            console.log(`[ZoteroService] Collection "${collection.name}" metadata shows ${collection.itemsCount} items`);
+            console.log(`[ZoteroService] Actually fetched ${regularItems.length} regular items`);
+          }
+        }
+        
+        return regularItems;
       }
       
       throw new Error(response.error || 'Failed to fetch items');
@@ -452,6 +508,11 @@ export class ZoteroService {
       return `${creator.firstName || ''} ${creator.lastName || ''}`.trim();
     }).filter(Boolean) || [];
 
+    // Ensure at least one author (required by schema)
+    if (authors.length === 0) {
+      authors.push('Unknown Author');
+    }
+
     const year = zoteroItem.date ? this.extractYear(zoteroItem.date) : new Date().getFullYear();
 
     return {
@@ -460,9 +521,9 @@ export class ZoteroService {
       authors,
       year,
       source: LITERATURE_SOURCES.ZOTERO,
-      publication: zoteroItem.publicationTitle,
-      abstract: zoteroItem.abstractNote,
-      zoteroKey: zoteroItem.key,
+      publication: zoteroItem.publicationTitle || undefined,
+      abstract: zoteroItem.abstractNote || undefined,
+      zoteroKey: zoteroItem.key || undefined,
       createdAt: new Date(zoteroItem.dateAdded || Date.now()),
       updatedAt: new Date(zoteroItem.dateModified || Date.now())
     };
