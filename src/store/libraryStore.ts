@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { LibraryItem, LiteratureTree } from '../libs/db';
 import { LITERATURE_SOURCES, DEFAULT_LIBRARY_ITEM_SOURCE, LiteratureSource } from '../libs/db/constants';
+import { libraryService } from '../libs/db/LibraryService';
 import { TreeController } from '../libs/tree/TreeController';
 import { zoteroService, ZoteroConfig, ZoteroSyncResult } from '../libs/zotero';
 import { nanoid } from 'nanoid';
@@ -46,38 +47,7 @@ interface LibraryActions {
   clearZoteroConfig: () => void;
 }
 
-// Mock library service interface (to be replaced with actual service)
-interface LibraryService {
-  getAllLibraryItems: () => Promise<LibraryItem[]>;
-  getAllTrees: () => Promise<LiteratureTree[]>;
-  getTreeById: (treeId: string) => Promise<LiteratureTree | null>;
-  addLibraryItem: (item: LibraryItem) => Promise<void>;
-  saveTree: (tree: LiteratureTree) => Promise<void>;
-}
-
-// Mock library service implementation (temporary)
-const mockLibraryService: LibraryService = {
-  getAllLibraryItems: async () => {
-    // Mock implementation - will be replaced with actual database calls
-    return [];
-  },
-  getAllTrees: async () => {
-    // Mock implementation - will be replaced with actual database calls
-    return [];
-  },
-  getTreeById: async (treeId: string) => {
-    // Mock implementation - will be replaced with actual database calls
-    return null;
-  },
-  addLibraryItem: async (item: LibraryItem) => {
-    // Mock implementation - will be replaced with actual database calls
-    console.log('Adding library item:', item);
-  },
-  saveTree: async (tree: LiteratureTree) => {
-    // Mock implementation - will be replaced with actual database calls
-    console.log('Saving tree:', tree);
-  }
-};
+// Use the real library service
 
 // Create Zustand store
 export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) => ({
@@ -109,8 +79,8 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       set({ isLoading: true, error: null });
       
       const [items, trees] = await Promise.all([
-        mockLibraryService.getAllLibraryItems(),
-        mockLibraryService.getAllTrees()
+        libraryService.getAllLibraryItems(),
+        libraryService.getAllTrees()
       ]);
       
       set({ 
@@ -131,13 +101,13 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     try {
       set({ isLoading: true, error: null });
       
-      const treeData = await mockLibraryService.getTreeById(treeId);
+      const treeData = await libraryService.getTreeById(treeId);
       
       if (!treeData) {
         throw new Error(`Tree with id ${treeId} not found`);
       }
       
-      const newController = new TreeController(treeData, mockLibraryService);
+      const newController = new TreeController(treeData, libraryService);
       
       set({ 
         activeTreeController: newController, 
@@ -195,10 +165,10 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         updatedAt: new Date()
       };
       
-      await mockLibraryService.addLibraryItem(newItem);
+      await libraryService.addLibraryItem(newItem);
       
       // Refresh the items list
-      const updatedItems = await mockLibraryService.getAllLibraryItems();
+      const updatedItems = await libraryService.getAllLibraryItems();
       
       set({ 
         items: updatedItems, 
@@ -230,7 +200,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         updatedAt: new Date()
       };
       
-      await mockLibraryService.addLibraryItem(updatedItem);
+      await libraryService.updateLibraryItem(id, itemData);
       
       // Update items list
       const updatedItems = items.map(item => 
@@ -254,7 +224,9 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     try {
       set({ isLoading: true, error: null });
       
-      // Remove from local state (mock implementation)
+      await libraryService.deleteLibraryItem(id);
+      
+      // Update local state
       const { items } = get();
       const updatedItems = items.filter(item => item.id !== id);
       
@@ -343,7 +315,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       
       if (syncResult.success) {
         // Refresh items list after sync
-        const updatedItems = await mockLibraryService.getAllLibraryItems();
+        const updatedItems = await libraryService.getAllLibraryItems();
         set({ 
           items: updatedItems,
           zoteroSyncResult: syncResult,

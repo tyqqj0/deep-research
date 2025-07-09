@@ -1,6 +1,7 @@
 "use client";
 import { useTranslation } from "react-i18next";
-import { Settings, Github, History, BookText } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Settings, Github, History, BookText, Database } from "lucide-react";
 import { Button } from "@/components/Internal/Button";
 import { useGlobalStore } from "@/store/global";
 
@@ -8,6 +9,7 @@ const VERSION = process.env.NEXT_PUBLIC_VERSION;
 
 function Header() {
   const { t } = useTranslation();
+  const router = useRouter();
   const { setOpenSetting, setOpenHistory, setOpenKnowledge } = useGlobalStore();
 
   return (
@@ -47,6 +49,15 @@ function Header() {
             onClick={() => setOpenKnowledge(true)}
           >
             <BookText />
+          </Button>
+          <Button
+            className="h-8 w-8"
+            variant="ghost"
+            size="icon"
+            title="Literature Library"
+            onClick={() => router.push('/library')}
+          >
+            <Database className="h-5 w-5" />
           </Button>
           <Button
             className="h-8 w-8"
