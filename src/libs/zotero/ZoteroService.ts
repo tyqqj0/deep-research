@@ -20,6 +20,9 @@ export class ZoteroService {
     } else {
       this.loadFromStorage();
     }
+    // Always start with direct API attempts, let makeRequest handle proxy fallback
+    this.useProxy = false;
+    console.log(`[ZoteroService] Initialized with proxy disabled, will auto-fallback if needed`);
   }
 
   /**
@@ -382,32 +385,8 @@ export class ZoteroService {
     }
 
     try {
-
-      // Try direct API call first - use /keys/current to validate API key
-      let response = await this.makeRequest('/keys/current');
-      
-      // If direct call fails with network error, try proxy
-      if (!response.success && !this.useProxy && response.error?.includes('Network error')) {
-        const originalUseProxy = this.useProxy;
-        this.useProxy = true;
-        
-        try {
-          response = await this.makeRequest('/keys/current');
-          
-          if (response.success) {
-            return { 
-              success: true, 
-              details: { 
-                method: 'proxy',
-                message: 'Direct API failed, but proxy worked. Consider enabling proxy mode.',
-                userData: response.data
-              }
-            };
-          }
-        } finally {
-          this.useProxy = originalUseProxy;
-        }
-      }
+      // Use /keys/current to validate API key (makeRequest handles proxy fallback automatically)
+      const response = await this.makeRequest('/keys/current');
       
       if (response.success) {
         // Store user ID from the response for future use
@@ -417,6 +396,7 @@ export class ZoteroService {
         return { 
           success: true,
           details: {
+            method: this.useProxy ? 'proxy' : 'direct',
             userData: response.data
           }
         };
@@ -545,33 +525,7 @@ export class ZoteroService {
       console.log(`[ZoteroService] Fetching page ${pageCount} (start=${start}, limit=${limit})`);
       
       const url = `${endpoint}?limit=${limit}&start=${start}`;
-      console.log(`[ZoteroService] Making API request to: ${url}`);
-      
-      let response = await this.makeRequest(url);
-      console.log(`[ZoteroService] API Response success: ${response.success}`);
-      
-      // If direct call fails with network error, try proxy
-      if (!response.success && !this.useProxy && response.error?.includes('Network error')) {
-        console.log(`[ZoteroService] Direct API failed, trying proxy mode...`);
-        const originalUseProxy = this.useProxy;
-        this.useProxy = true;
-        
-        try {
-          response = await this.makeRequest(url);
-          console.log(`[ZoteroService] Proxy API Response success: ${response.success}`);
-          
-          if (response.success) {
-            console.log(`[ZoteroService] Proxy mode worked! Keeping proxy enabled.`);
-            // Keep proxy enabled for future requests
-          } else {
-            console.log(`[ZoteroService] Proxy mode also failed, restoring original setting`);
-            this.useProxy = originalUseProxy;
-          }
-        } catch (proxyError) {
-          console.log(`[ZoteroService] Proxy mode exception:`, proxyError);
-          this.useProxy = originalUseProxy;
-        }
-      }
+      const response = await this.makeRequest(url);
       
       if (!response.success) {
         console.log(`[ZoteroService] API Request failed:`, response.error);
@@ -717,9 +671,48 @@ export class ZoteroService {
   }
 
   /**
-   * Make API request to Zotero
+   * Make API request to Zotero with automatic proxy fallback
    */
   private async makeRequest(endpoint: string): Promise<ZoteroApiResponse> {
+    if (!this.config) {
+      throw new Error('Zotero not configured');
+    }
+
+    console.log(`[ZoteroService] Making request to: ${endpoint} (useProxy: ${this.useProxy})`);
+
+    // Try direct API call first (if not already using proxy)
+    let response = await this.makeDirectRequest(endpoint);
+    
+    // If direct call fails with network error, try proxy automatically
+    if (!response.success && !this.useProxy && response.error?.includes('Network error')) {
+      console.log(`[ZoteroService] Direct API failed, trying proxy mode...`);
+      const originalUseProxy = this.useProxy;
+      this.useProxy = true;
+      
+      try {
+        response = await this.makeDirectRequest(endpoint);
+        console.log(`[ZoteroService] Proxy API Response success: ${response.success}`);
+        
+        if (response.success) {
+          console.log(`[ZoteroService] Proxy mode worked! Keeping proxy enabled.`);
+          this.saveToStorage(); // Save proxy preference
+        } else {
+          console.log(`[ZoteroService] Proxy mode also failed, restoring original setting`);
+          this.useProxy = originalUseProxy;
+        }
+      } catch (proxyError) {
+        console.log(`[ZoteroService] Proxy mode exception:`, proxyError);
+        this.useProxy = originalUseProxy;
+      }
+    }
+    
+    return response;
+  }
+
+  /**
+   * Make direct API request without fallback logic
+   */
+  private async makeDirectRequest(endpoint: string): Promise<ZoteroApiResponse> {
     if (!this.config) {
       throw new Error('Zotero not configured');
     }
@@ -734,7 +727,6 @@ export class ZoteroService {
       'Content-Type': 'application/json',
       'Zotero-API-Version': '3'
     };
-
 
     try {
       const fetchOptions: RequestInit = {
