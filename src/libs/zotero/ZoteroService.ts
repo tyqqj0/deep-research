@@ -473,13 +473,27 @@ export class ZoteroService {
         const items = Array.isArray(response.data) ? response.data : [];
         console.log(`[ZoteroService] Fetched ${items.length} items`);
         
+        // Debug: Print the first few items to understand the structure
+        if (items.length > 0) {
+          console.log(`[ZoteroService] First item structure:`, JSON.stringify(items[0], null, 2));
+          if (items.length > 1) {
+            console.log(`[ZoteroService] Second item structure:`, JSON.stringify(items[1], null, 2));
+          }
+        }
+        
         // Filter out non-regular items (notes, attachments, etc.)
         const regularItems = items.filter(item => {
           const itemType = item.data?.itemType || item.itemType;
+          console.log(`[ZoteroService] Item type check: data.itemType="${item.data?.itemType}", itemType="${item.itemType}"`);
           return itemType !== 'note' && itemType !== 'attachment';
         });
         
         console.log(`[ZoteroService] After filtering: ${regularItems.length} regular items`);
+        
+        // Debug: Print the first regular item to see what we're working with
+        if (regularItems.length > 0) {
+          console.log(`[ZoteroService] First regular item:`, JSON.stringify(regularItems[0], null, 2));
+        }
         
         if (collectionKey) {
           const collection = this.collections.find(c => c.key === collectionKey);
@@ -503,7 +517,28 @@ export class ZoteroService {
    * Convert Zotero item to LibraryItem
    */
   convertToLibraryItem(zoteroItem: ZoteroItem): LibraryItem {
-    const authors = zoteroItem.creators?.map(creator => {
+    console.log(`[ZoteroService] Converting item to LibraryItem:`, JSON.stringify(zoteroItem, null, 2));
+    
+    // Try both structures: direct fields and data object
+    const title = zoteroItem.title || (zoteroItem as any).data?.title || 'Untitled';
+    const creators = zoteroItem.creators || (zoteroItem as any).data?.creators || [];
+    const date = zoteroItem.date || (zoteroItem as any).data?.date;
+    const publicationTitle = zoteroItem.publicationTitle || (zoteroItem as any).data?.publicationTitle;
+    const abstractNote = zoteroItem.abstractNote || (zoteroItem as any).data?.abstractNote;
+    const dateAdded = zoteroItem.dateAdded || (zoteroItem as any).data?.dateAdded;
+    const dateModified = zoteroItem.dateModified || (zoteroItem as any).data?.dateModified;
+    
+    console.log(`[ZoteroService] Extracted data:`, {
+      title,
+      creators,
+      date,
+      publicationTitle,
+      abstractNote,
+      dateAdded,
+      dateModified
+    });
+    
+    const authors = creators?.map((creator: any) => {
       if (creator.name) return creator.name;
       return `${creator.firstName || ''} ${creator.lastName || ''}`.trim();
     }).filter(Boolean) || [];
@@ -513,20 +548,24 @@ export class ZoteroService {
       authors.push('Unknown Author');
     }
 
-    const year = zoteroItem.date ? this.extractYear(zoteroItem.date) : new Date().getFullYear();
+    const year = date ? this.extractYear(date) : new Date().getFullYear();
 
-    return {
+    const libraryItem = {
       id: generateLibraryItemId(),
-      title: zoteroItem.title || 'Untitled',
+      title,
       authors,
       year,
       source: LITERATURE_SOURCES.ZOTERO,
-      publication: zoteroItem.publicationTitle || undefined,
-      abstract: zoteroItem.abstractNote || undefined,
+      publication: publicationTitle || undefined,
+      abstract: abstractNote || undefined,
       zoteroKey: zoteroItem.key || undefined,
-      createdAt: new Date(zoteroItem.dateAdded || Date.now()),
-      updatedAt: new Date(zoteroItem.dateModified || Date.now())
+      createdAt: new Date(dateAdded || Date.now()),
+      updatedAt: new Date(dateModified || Date.now())
     };
+    
+    console.log(`[ZoteroService] Final LibraryItem:`, libraryItem);
+    
+    return libraryItem;
   }
 
   /**
