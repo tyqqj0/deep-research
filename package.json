@@ -48,6 +48,7 @@
     "@xiangfa/mdeditor": "^0.2.3",
     "@zip.js/zip.js": "^2.7.60",
     "ai": "^4.3.12",
+    "citation-js": "^0.7.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "copy-to-clipboard": "^3.3.3",

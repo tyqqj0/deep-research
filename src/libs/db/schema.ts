@@ -1,6 +1,20 @@
 import { z } from 'zod';
 import { LITERATURE_SOURCES } from './constants';
 
+// Define and export ParsingStatus enum
+export const ParsingStatusEnum = [
+  'IDLE',
+  'PENDING_PDF_FETCH',
+  'PENDING_PARSE', // Legacy, can be removed later
+  'AWAITING_MANUAL_UPLOAD',
+  'PENDING_MINERU_SUBMISSION',
+  'PARSING_IN_MINERU',
+  'SUCCESS',
+  'PARTIAL_SUCCESS',
+  'FAILED',
+  'PARSING_FAILED'
+] as const;
+
 // Zod Schema for LibraryItem
 export const LibraryItemSchema = z.object({
   id: z.string().uuid('Invalid UUID format'),
@@ -18,6 +32,11 @@ export const LibraryItemSchema = z.object({
   abstract: z.string().optional(),
   summary: z.string().optional(),
   zoteroKey: z.string().optional(),
+  doi: z.string().optional(),
+  url: z.string().url().optional(),
+  pdfPath: z.string().optional(),
+  mineruTaskId: z.string().optional(),
+  parsingStatus: z.enum(ParsingStatusEnum).default('IDLE'),
   createdAt: z.date(),
   updatedAt: z.date().optional()
 });
@@ -40,7 +59,16 @@ export const LiteratureTreeSchema = z.object({
   createdAt: z.date()
 });
 
+// Zod Schema for Citation
+export const CitationSchema = z.object({
+  id: z.number().int().positive().optional(), // Auto-increment ID
+  sourceItemId: z.string().uuid('Invalid UUID format'),
+  targetItemId: z.string().uuid('Invalid UUID format'),
+  createdAt: z.date().default(() => new Date())
+});
+
 // Export types derived from schemas
 export type LibraryItem = z.infer<typeof LibraryItemSchema>;
 export type MCTSNode = z.infer<typeof MCTSNodeSchema>;
 export type LiteratureTree = z.infer<typeof LiteratureTreeSchema>;
+export type Citation = z.infer<typeof CitationSchema>;

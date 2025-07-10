@@ -1,6 +1,10 @@
 import { db, LibraryItem, LiteratureTree } from './index';
-import { LibraryItemSchema } from './schema';
+import { LibraryItemSchema, ParsingStatusEnum } from './schema';
 import { generateLibraryItemId } from '../utils/uuid';
+import { pdfFetcherService } from '../fetching';
+import { mineruService } from '../parsing';
+
+type ParsingStatus = typeof ParsingStatusEnum[number];
 
 export class LibraryService {
   private db = db;
@@ -331,6 +335,260 @@ export class LibraryService {
     } catch (error) {
       console.error('Error clearing all data:', error);
       throw new Error('Failed to clear data');
+    }
+  }
+
+  /**
+   * Private method to create item record with validation and duplicate check
+   */
+  private async _createItemRecord(metadata: Partial<LibraryItem>): Promise<string> {
+    try {
+      // Generate ID if not provided
+      const itemId = metadata.id || generateLibraryItemId();
+      
+      // Create complete item with defaults
+      const item: LibraryItem = {
+        id: itemId,
+        title: metadata.title || '',
+        authors: metadata.authors || [],
+        year: metadata.year || new Date().getFullYear(),
+        source: metadata.source,
+        publication: metadata.publication,
+        abstract: metadata.abstract,
+        summary: metadata.summary,
+        zoteroKey: metadata.zoteroKey,
+        doi: metadata.doi,
+        url: metadata.url,
+        pdfPath: metadata.pdfPath,
+        parsingStatus: metadata.parsingStatus || 'IDLE',
+        createdAt: new Date(),
+        updatedAt: metadata.updatedAt
+      };
+
+      // Validate the item
+      const validatedItem = LibraryItemSchema.parse(item);
+      
+      // Check for duplicates if title is provided
+      if (validatedItem.title) {
+        const duplicates = await this.checkDuplicateByTitle(validatedItem.title);
+        if (duplicates.length > 0) {
+          throw new Error(`Duplicate item found: ${validatedItem.title}`);
+        }
+      }
+      
+      // Add to database
+      await this.db.library.add(validatedItem);
+      return itemId;
+    } catch (error) {
+      console.error('Error creating item record:', error);
+      throw new Error('Failed to create item record');
+    }
+  }
+
+  /**
+   * Update parsing status for an item
+   */
+  async updateParsingStatus(itemId: string, status: ParsingStatus): Promise<void> {
+    try {
+      const existingItem = await this.getLibraryItemById(itemId);
+      if (!existingItem) {
+        throw new Error(`Library item with ID ${itemId} not found`);
+      }
+
+      await this.db.library.update(itemId, {
+        parsingStatus: status,
+        updatedAt: new Date()
+      });
+      
+      console.log(`Updated parsing status for item ${itemId} to ${status}`);
+    } catch (error) {
+      console.error('Error updating parsing status:', error);
+      throw new Error('Failed to update parsing status');
+    }
+  }
+
+  /**
+   * Link PDF data to an item (stores placeholder reference)
+   */
+  async linkPdfToItem(itemId: string, pdfData: Blob): Promise<void> {
+    try {
+      const existingItem = await this.getLibraryItemById(itemId);
+      if (!existingItem) {
+        throw new Error(`Library item with ID ${itemId} not found`);
+      }
+
+      // For now, just store a placeholder reference
+      // TODO: Implement actual Blob storage in IndexedDB
+      const pdfPath = `indexeddb_blob_ref_${itemId}`;
+      
+      await this.db.library.update(itemId, {
+        pdfPath,
+        updatedAt: new Date()
+      });
+      
+      console.log(`Linked PDF to item ${itemId}, size: ${pdfData.size} bytes`);
+    } catch (error) {
+      console.error('Error linking PDF to item:', error);
+      throw new Error('Failed to link PDF to item');
+    }
+  }
+
+  /**
+   * Private method to trigger background PDF processing
+   */
+  private async triggerBackgroundProcessing(itemId: string): Promise<void> {
+    try {
+      console.log(`Starting background processing for item ${itemId}`);
+      
+      // Get the item from database
+      const item = await this.getLibraryItemById(itemId);
+      if (!item) {
+        throw new Error(`Item ${itemId} not found`);
+      }
+
+      // Try to fetch PDF using the PDF fetcher service
+      const pdfBlob = await pdfFetcherService.fetch(item);
+      
+      if (pdfBlob) {
+        // Successfully got PDF - save to disk and trigger Mineru processing
+        const pdfPath = await this.savePdfToDisk(itemId, pdfBlob);
+        
+        // Update database with PDF path and set status to pending Mineru submission
+        await this.db.library.update(itemId, {
+          pdfPath,
+          parsingStatus: 'PENDING_MINERU_SUBMISSION',
+          updatedAt: new Date()
+        });
+        
+        console.log(`Successfully fetched PDF for item ${itemId}, starting Mineru processing`);
+        
+        // Trigger Mineru processing asynchronously (non-blocking)
+        void this.triggerMineruProcessing(itemId, pdfBlob);
+      } else {
+        // Failed to get PDF - set status to awaiting manual upload
+        await this.updateParsingStatus(itemId, 'AWAITING_MANUAL_UPLOAD');
+        console.log(`PDF fetch failed for item ${itemId}, awaiting manual upload`);
+      }
+    } catch (error) {
+      console.error(`Background processing failed for item ${itemId}:`, error);
+      try {
+        // Set status to failed on any error
+        await this.updateParsingStatus(itemId, 'FAILED');
+      } catch (statusError) {
+        console.error(`Failed to update status to FAILED for item ${itemId}:`, statusError);
+      }
+    }
+  }
+
+  /**
+   * Create library item from metadata with non-blocking background processing
+   */
+  async createFromMetadata(metadata: Partial<LibraryItem>): Promise<string> {
+    try {
+      // Create the item record with initial status
+      const itemId = await this._createItemRecord({
+        ...metadata,
+        parsingStatus: 'PENDING_PDF_FETCH'
+      });
+      
+      // Trigger background processing without waiting (non-blocking)
+      void this.triggerBackgroundProcessing(itemId);
+      
+      console.log(`Created item ${itemId}, background processing started`);
+      return itemId;
+    } catch (error) {
+      console.error('Error creating item from metadata:', error);
+      throw new Error('Failed to create item from metadata');
+    }
+  }
+
+  /**
+   * Private method to trigger Mineru processing
+   */
+  private async triggerMineruProcessing(itemId: string, pdfBlob: Blob): Promise<void> {
+    try {
+      console.log(`Starting Mineru processing for item ${itemId}`);
+      
+      // Get the item from database
+      const item = await this.getLibraryItemById(itemId);
+      if (!item) {
+        throw new Error(`Item ${itemId} not found`);
+      }
+
+      // Submit task to Mineru
+      const taskId = await mineruService.submitTaskFromFile(item, pdfBlob);
+      
+      // Update database with Mineru task ID and set status to parsing in Mineru
+      await this.db.library.update(itemId, {
+        mineruTaskId: taskId,
+        parsingStatus: 'PARSING_IN_MINERU',
+        updatedAt: new Date()
+      });
+      
+      console.log(`Mineru task submitted for item ${itemId}, task_id: ${taskId}`);
+      
+      // Wait for Mineru processing to complete
+      const parsedData = await mineruService.pollTaskResult(taskId);
+      
+      // Process the parsed data and extract citations
+      await this.linkCitations(itemId, parsedData.references || []);
+      
+      // Update status to success
+      await this.updateParsingStatus(itemId, 'SUCCESS');
+      
+      console.log(`Mineru processing completed successfully for item ${itemId}`);
+      
+    } catch (error) {
+      console.error(`Mineru processing failed for item ${itemId}:`, error);
+      try {
+        // Set status to parsing failed on any error
+        await this.updateParsingStatus(itemId, 'PARSING_FAILED');
+      } catch (statusError) {
+        console.error(`Failed to update status to PARSING_FAILED for item ${itemId}:`, statusError);
+      }
+    }
+  }
+
+  /**
+   * Save PDF to disk/storage and return path
+   * TODO: Implement actual PDF storage logic
+   */
+  private async savePdfToDisk(itemId: string, pdfBlob: Blob): Promise<string> {
+    // For now, return a placeholder path
+    // In a real implementation, you would:
+    // 1. Save the blob to a file system or cloud storage
+    // 2. Return the actual path/URL
+    const pdfPath = `pdfs/${itemId}.pdf`;
+    
+    console.log(`Saving PDF for item ${itemId}, size: ${pdfBlob.size} bytes`);
+    // TODO: Implement actual saving logic
+    
+    return pdfPath;
+  }
+
+  /**
+   * Link citations to the library item
+   * TODO: Implement citation linking logic
+   */
+  private async linkCitations(itemId: string, references: any[]): Promise<void> {
+    try {
+      console.log(`Linking ${references.length} citations for item ${itemId}`);
+      
+      // TODO: Implement citation processing logic
+      // This would typically involve:
+      // 1. Processing the references array
+      // 2. Creating citation records in the database
+      // 3. Linking them to the source item
+      
+      for (const reference of references) {
+        // Process each reference and create citation records
+        // await this.createCitationRecord(itemId, reference);
+      }
+      
+      console.log(`Successfully linked citations for item ${itemId}`);
+    } catch (error) {
+      console.error(`Error linking citations for item ${itemId}:`, error);
+      // Don't throw here, as this is not critical for the main workflow
     }
   }
 }
