@@ -37,6 +37,11 @@ export const LibraryItemSchema = z.object({
   pdfPath: z.string().optional(),
   mineruTaskId: z.string().optional(),
   parsingStatus: z.enum(ParsingStatusEnum).default('IDLE'),
+  parsingProgress: z.object({
+    extractedPages: z.number().int().min(0).optional(),
+    totalPages: z.number().int().min(0).optional(),
+    startTime: z.string().optional()
+  }).optional(),
   createdAt: z.date(),
   updatedAt: z.date().optional()
 });

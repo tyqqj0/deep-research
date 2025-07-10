@@ -721,20 +721,25 @@ export class LibraryService {
         throw new Error(`Item ${itemId} not found`);
       }
 
-      // Submit task to Mineru
-      const taskId = await mineruService.submitTaskFromFile(item, pdfBlob);
+      // Submit task to Mineru (now returns batch_id instead of task_id)
+      const batchId = await mineruService.submitTaskFromFile(item, pdfBlob);
       
-      // Update database with Mineru task ID and set status to parsing in Mineru
+      // Update database with Mineru batch ID and set status to parsing in Mineru
       await this.db.library.update(itemId, {
-        mineruTaskId: taskId,
+        mineruTaskId: batchId,
         parsingStatus: 'PARSING_IN_MINERU',
         updatedAt: new Date()
       });
       
-      console.log(`Mineru task submitted for item ${itemId}, task_id: ${taskId}`);
+      console.log(`Mineru task submitted for item ${itemId}, batch_id: ${batchId}`);
       
-      // Wait for Mineru processing to complete
-      const parsedData = await mineruService.pollTaskResult(taskId);
+      // Wait for Mineru processing to complete with progress tracking
+      const parsedData = await mineruService.pollTaskResult(batchId, (progress) => {
+        // 异步更新进度到数据库
+        this.updateParsingProgress(itemId, progress).catch(error => {
+          console.error(`Failed to update progress for item ${itemId}:`, error);
+        });
+      });
       
       // Process the parsed data and extract citations
       await this.linkCitations(itemId, parsedData.references || []);
@@ -821,13 +826,17 @@ export class LibraryService {
    */
   async createFromPdfUpload(pdfFile: File): Promise<string> {
     try {
-      // Create basic item record with PDF file name as title
+      // Generate unique title from PDF file name
+      const baseTitle = pdfFile.name.replace(/\.pdf$/i, '');
+      const uniqueTitle = await this.generateUniqueTitle(baseTitle);
+      
+      // Create basic item record with unique title
       const itemId = await this._createItemRecord({
-        title: pdfFile.name.replace(/\.pdf$/i, ''),
+        title: uniqueTitle,
         authors: ['Unknown'],
         year: new Date().getFullYear(),
         parsingStatus: 'PENDING_MINERU_SUBMISSION',
-        source: 'MANUAL'
+        source: 'manual'
       });
       
       // Convert File to Blob for processing
@@ -843,7 +852,12 @@ export class LibraryService {
       console.log(`Created item ${itemId} from PDF upload, starting Mineru processing`);
       
       // Trigger Mineru processing asynchronously (non-blocking)
-      void this.triggerMineruProcessing(itemId, pdfBlob);
+      // Don't await - let it run in background, errors will be handled internally
+      this.triggerMineruProcessing(itemId, pdfBlob).catch(error => {
+        console.error(`Background Mineru processing failed for item ${itemId}:`, error);
+        // Item is already created and will remain in database
+        // Status will be updated to PARSING_FAILED by triggerMineruProcessing
+      });
       
       return itemId;
     } catch (error) {
@@ -986,6 +1000,69 @@ export class LibraryService {
     } catch (error) {
       console.error(`Error linking citations for item ${itemId}:`, error);
       // 不在这里抛出异常，因为引用链接不是主要工作流的关键步骤
+    }
+  }
+
+  /**
+   * 📈 更新解析进度
+   */
+  async updateParsingProgress(itemId: string, progress: { extractedPages: number; totalPages: number; startTime: string }): Promise<void> {
+    try {
+      await this.db.library.update(itemId, {
+        parsingProgress: progress,
+        updatedAt: new Date()
+      });
+      
+      // 只记录重要的进度节点，减少日志噪音
+      if (progress.extractedPages % 10 === 0 || progress.extractedPages === progress.totalPages) {
+        console.log(`📈 Progress update: ${progress.extractedPages}/${progress.totalPages} pages`);
+      }
+    } catch (error) {
+      console.error(`Failed to update parsing progress for item ${itemId}:`, error);
+    }
+  }
+
+  /**
+   * 🔤 生成唯一标题 - 避免重复文献标题冲突
+   * 
+   * 📝 使用场景: PDF上传时确保标题唯一性
+   * 
+   * 🔄 处理逻辑:
+   * 1. 检查基础标题是否已存在
+   * 2. 如果存在，添加数字后缀 (2), (3), etc.
+   * 3. 返回唯一的标题
+   */
+  private async generateUniqueTitle(baseTitle: string): Promise<string> {
+    try {
+      // Check if base title already exists
+      const duplicates = await this.checkDuplicateByTitle(baseTitle);
+      
+      if (duplicates.length === 0) {
+        // No duplicates, use original title
+        return baseTitle;
+      }
+      
+      // Find a unique title by adding suffix
+      let counter = 2;
+      let uniqueTitle = `${baseTitle} (${counter})`;
+      
+      while (true) {
+        const duplicatesWithSuffix = await this.checkDuplicateByTitle(uniqueTitle);
+        if (duplicatesWithSuffix.length === 0) {
+          return uniqueTitle;
+        }
+        counter++;
+        uniqueTitle = `${baseTitle} (${counter})`;
+        
+        // Prevent infinite loop
+        if (counter > 100) {
+          throw new Error('Could not generate unique title after 100 attempts');
+        }
+      }
+    } catch (error) {
+      console.error('Error generating unique title:', error);
+      // Fallback: use timestamp suffix
+      return `${baseTitle}_${Date.now()}`;
     }
   }
 }

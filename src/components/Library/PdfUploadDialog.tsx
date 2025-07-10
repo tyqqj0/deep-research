@@ -92,7 +92,7 @@ export function PdfUploadDialog({
       if (itemId) {
         // Upload for specific item
         await libraryService.uploadPdfForExistingItem(itemId, selectedFiles[0]);
-        toast.success("PDF uploaded successfully! Processing will begin shortly.");
+        toast.success("PDF uploaded and saved to library! Automatic processing will begin shortly.");
       } else {
         // Bulk upload - create new items
         const totalFiles = selectedFiles.length;
@@ -101,7 +101,7 @@ export function PdfUploadDialog({
           await libraryService.createFromPdfUpload(file);
           setUploadProgress(((i + 1) / totalFiles) * 100);
         }
-        toast.success(`${totalFiles} PDF${totalFiles > 1 ? 's' : ''} uploaded successfully! Processing will begin shortly.`);
+        toast.success(`${totalFiles} PDF${totalFiles > 1 ? 's' : ''} uploaded and saved to library! Automatic processing will begin shortly.`);
       }
 
       // Refresh the library store

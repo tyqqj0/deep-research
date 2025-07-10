@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
 type ParsingStatus = 
@@ -33,6 +34,11 @@ interface ParsingStatusIndicatorProps {
   onUploadPdf?: () => void;
   showUploadButton?: boolean;
   className?: string;
+  parsingProgress?: {
+    extractedPages: number;
+    totalPages: number;
+    startTime: string;
+  };
 }
 
 interface StatusConfig {
@@ -117,7 +123,7 @@ const statusConfigs: Record<ParsingStatus, StatusConfig> = {
   'FAILED': {
     icon: <XCircle className="h-3 w-3" />,
     label: 'Failed',
-    description: 'Processing failed due to an error',
+    description: 'Processing failed due to an error. Document is saved, you can retry or manage manually.',
     color: 'bg-red-100 text-red-800 border-red-300',
     variant: 'destructive',
     showUpload: false
@@ -125,7 +131,7 @@ const statusConfigs: Record<ParsingStatus, StatusConfig> = {
   'PARSING_FAILED': {
     icon: <XCircle className="h-3 w-3" />,
     label: 'Parse Failed',
-    description: 'PDF parsing failed in Mineru',
+    description: 'PDF parsing failed in Mineru. Document is saved, you can retry or manage manually.',
     color: 'bg-red-100 text-red-800 border-red-300',
     variant: 'destructive',
     showUpload: false
@@ -136,7 +142,8 @@ export function ParsingStatusIndicator({
   status, 
   onUploadPdf, 
   showUploadButton = true, 
-  className 
+  className,
+  parsingProgress
 }: ParsingStatusIndicatorProps) {
   const config = statusConfigs[status];
   
@@ -146,6 +153,7 @@ export function ParsingStatusIndicator({
   }
 
   const shouldShowUpload = config.showUpload && showUploadButton && onUploadPdf;
+  const shouldShowProgress = status === 'PARSING_IN_MINERU' && parsingProgress && parsingProgress.totalPages > 0;
 
   return (
     <TooltipProvider>
@@ -161,12 +169,41 @@ export function ParsingStatusIndicator({
             >
               {config.icon}
               <span>{config.label}</span>
+              {shouldShowProgress && (
+                <span className="ml-1 text-xs opacity-80">
+                  {parsingProgress.extractedPages}/{parsingProgress.totalPages}
+                </span>
+              )}
             </Badge>
           </TooltipTrigger>
           <TooltipContent>
             <p className="text-sm">{config.description}</p>
+            {shouldShowProgress && (
+              <div className="mt-2 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span>Progress:</span>
+                  <span>{parsingProgress.extractedPages}/{parsingProgress.totalPages} pages</span>
+                </div>
+                <Progress 
+                  value={(parsingProgress.extractedPages / parsingProgress.totalPages) * 100} 
+                  className="h-2 w-32"
+                />
+              </div>
+            )}
           </TooltipContent>
         </Tooltip>
+
+        {shouldShowProgress && (
+          <div className="flex items-center gap-2">
+            <Progress 
+              value={(parsingProgress.extractedPages / parsingProgress.totalPages) * 100} 
+              className="h-2 w-16"
+            />
+            <span className="text-xs text-muted-foreground">
+              {Math.round((parsingProgress.extractedPages / parsingProgress.totalPages) * 100)}%
+            </span>
+          </div>
+        )}
 
         {shouldShowUpload && (
           <Button

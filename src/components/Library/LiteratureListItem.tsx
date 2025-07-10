@@ -120,6 +120,7 @@ export function LiteratureListItem({
                       status={item.parsingStatus}
                       onUploadPdf={() => setShowPdfUpload(true)}
                       showUploadButton={item.parsingStatus === 'AWAITING_MANUAL_UPLOAD'}
+                      parsingProgress={item.parsingProgress}
                     />
                   </div>
                 )}

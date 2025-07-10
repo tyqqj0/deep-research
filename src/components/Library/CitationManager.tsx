@@ -159,6 +159,7 @@ function CitationItem({ item, onNavigateToItem, onUploadPdf }: CitationItemProps
               status={item.parsingStatus || 'IDLE'}
               onUploadPdf={onUploadPdf}
               showUploadButton={item.parsingStatus === 'AWAITING_MANUAL_UPLOAD'}
+              parsingProgress={item.parsingProgress}
             />
             <Button
               variant="ghost"
@@ -222,6 +223,7 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
               status={item.parsingStatus || 'IDLE'}
               onUploadPdf={() => setShowPdfUpload(true)}
               showUploadButton={item.parsingStatus === 'AWAITING_MANUAL_UPLOAD'}
+              parsingProgress={item.parsingProgress}
               className="justify-start"
             />
             
