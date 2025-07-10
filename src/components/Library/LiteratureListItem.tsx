@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ParsingStatusIndicator } from "./ParsingStatusIndicator";
+import { PdfUploadDialog } from "./PdfUploadDialog";
 import {
   MoreHorizontal,
   Edit2,
@@ -45,6 +47,7 @@ interface LiteratureListItemProps {
   onEdit: () => void;
   onDelete: () => void;
   onSelectForTree: () => void;
+  onItemClick?: () => void;
   viewMode: 'list' | 'grid';
 }
 
@@ -55,10 +58,12 @@ export function LiteratureListItem({
   onEdit,
   onDelete,
   onSelectForTree,
+  onItemClick,
   viewMode
 }: LiteratureListItemProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showAbstract, setShowAbstract] = useState(false);
+  const [showPdfUpload, setShowPdfUpload] = useState(false);
 
   const sourceMetadata = SOURCE_METADATA[item.source || 'manual'];
 
@@ -88,7 +93,10 @@ export function LiteratureListItem({
                 className="mt-1"
               />
               <div className="flex-1 min-w-0">
-                <CardTitle className="text-base font-semibold leading-tight">
+                <CardTitle 
+                  className="text-base font-semibold leading-tight cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={onItemClick}
+                >
                   {item.title}
                 </CardTitle>
                 <div className="flex items-center gap-2 mt-1">
@@ -105,6 +113,16 @@ export function LiteratureListItem({
                     <span>{item.year}</span>
                   </div>
                 </div>
+                {/* Parsing Status */}
+                {item.parsingStatus && (
+                  <div className="mt-2">
+                    <ParsingStatusIndicator 
+                      status={item.parsingStatus}
+                      onUploadPdf={() => setShowPdfUpload(true)}
+                      showUploadButton={item.parsingStatus === 'AWAITING_MANUAL_UPLOAD'}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -238,6 +256,18 @@ export function LiteratureListItem({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* PDF Upload Dialog */}
+      {showPdfUpload && (
+        <PdfUploadDialog
+          open={showPdfUpload}
+          onClose={() => setShowPdfUpload(false)}
+          itemId={item.id}
+          onUploadSuccess={() => {
+            setShowPdfUpload(false);
+          }}
+        />
+      )}
     </>
   );
 }

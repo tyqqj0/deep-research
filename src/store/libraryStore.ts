@@ -23,6 +23,11 @@ interface LibraryState {
   zoteroConfig: ZoteroConfig | null;
   isZoteroConfigured: boolean;
   zoteroSyncResult: ZoteroSyncResult | null;
+  
+  // PDF upload and processing
+  currentDetailItem: LibraryItem | null;
+  isUploadingPdf: boolean;
+  uploadProgress: Record<string, number>;
 }
 
 // Define Actions interface
@@ -47,6 +52,11 @@ interface LibraryActions {
   configureZotero: (config: ZoteroConfig) => Promise<boolean>;
   syncWithZotero: () => Promise<ZoteroSyncResult>;
   clearZoteroConfig: () => void;
+  
+  // PDF upload and processing
+  setCurrentDetailItem: (item: LibraryItem | null) => void;
+  uploadPdfForItem: (itemId: string, file: File) => Promise<void>;
+  bulkUploadPdfs: (files: File[]) => Promise<void>;
 }
 
 // Use the real library service
@@ -69,6 +79,11 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   zoteroConfig: null,
   isZoteroConfigured: false,
   zoteroSyncResult: null,
+  
+  // PDF upload and processing
+  currentDetailItem: null,
+  isUploadingPdf: false,
+  uploadProgress: {},
 
   // Clear error action
   clearError: () => {
@@ -445,5 +460,68 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       isZoteroConfigured: false,
       zoteroSyncResult: null 
     });
+  },
+
+  // PDF upload and processing actions
+  setCurrentDetailItem: (item: LibraryItem | null) => {
+    set({ currentDetailItem: item });
+  },
+
+  uploadPdfForItem: async (itemId: string, file: File) => {
+    try {
+      set({ isUploadingPdf: true, error: null });
+      
+      await libraryService.uploadPdfForExistingItem(itemId, file);
+      
+      // Refresh the items list
+      const updatedItems = await libraryService.getAllLibraryItems();
+      set({ 
+        items: updatedItems,
+        isUploadingPdf: false 
+      });
+    } catch (error) {
+      set({ 
+        isUploadingPdf: false,
+        error: error instanceof Error ? error.message : 'Failed to upload PDF' 
+      });
+    }
+  },
+
+  bulkUploadPdfs: async (files: File[]) => {
+    try {
+      set({ isUploadingPdf: true, error: null });
+      
+      const totalFiles = files.length;
+      const { uploadProgress } = get();
+      
+      for (let i = 0; i < totalFiles; i++) {
+        const file = files[i];
+        const tempId = `upload_${i}`;
+        
+        // Update progress
+        set({ 
+          uploadProgress: {
+            ...uploadProgress,
+            [tempId]: ((i + 1) / totalFiles) * 100
+          }
+        });
+        
+        await libraryService.createFromPdfUpload(file);
+      }
+      
+      // Refresh the items list
+      const updatedItems = await libraryService.getAllLibraryItems();
+      set({ 
+        items: updatedItems,
+        isUploadingPdf: false,
+        uploadProgress: {}
+      });
+    } catch (error) {
+      set({ 
+        isUploadingPdf: false,
+        error: error instanceof Error ? error.message : 'Failed to upload PDFs',
+        uploadProgress: {}
+      });
+    }
   }
 }));

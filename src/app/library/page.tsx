@@ -17,6 +17,7 @@ import { AddLiteratureForm } from "@/components/Library/AddLiteratureForm";
 import { EditLiteratureForm } from "@/components/Library/EditLiteratureForm";
 import { ZoteroLogin } from "@/components/Library/ZoteroLogin";
 import { ZoteroImportSection } from "@/components/Library/ZoteroImportSection";
+import { PdfUploadDialog } from "@/components/Library/PdfUploadDialog";
 import { toast } from "sonner";
 import type { ZoteroUserInfo, ZoteroCollection, ZoteroGroup, ZoteroLibrary } from "@/libs/zotero/types";
 import { zoteroService } from "@/libs/zotero";
@@ -29,6 +30,7 @@ export default function LibraryPage() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
   const [showZoteroLogin, setShowZoteroLogin] = useState(false);
+  const [showPdfUpload, setShowPdfUpload] = useState(false);
   const [zoteroUserInfo, setZoteroUserInfo] = useState<ZoteroUserInfo | null>(null);
   const [zoteroCollections, setZoteroCollections] = useState<ZoteroCollection[]>([]);
   const [zoteroGroups, setZoteroGroups] = useState<ZoteroGroup[]>([]);
@@ -168,10 +170,18 @@ export default function LibraryPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowZoteroLogin(true)}
+            onClick={() => setShowPdfUpload(true)}
           >
             <Upload className="h-4 w-4 mr-2" />
-            Import from Zotero
+            Import PDFs
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowZoteroLogin(true)}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Zotero Sync
           </Button>
           <Button
             onClick={() => setShowAddForm(true)}
@@ -292,6 +302,9 @@ export default function LibraryPage() {
               // TODO: Implement tree selection
               toast.info(`Add "${item.title}" to tree functionality coming soon!`);
             }}
+            onItemClick={(item) => {
+              router.push(`/library/${item.id}`);
+            }}
           />
         </TabsContent>
         
@@ -361,6 +374,18 @@ export default function LibraryPage() {
             } catch (error) {
               console.error('Failed to get libraries:', error);
             }
+          }}
+        />
+      )}
+
+      {/* PDF Upload Dialog */}
+      {showPdfUpload && (
+        <PdfUploadDialog
+          open={showPdfUpload}
+          onClose={() => setShowPdfUpload(false)}
+          onUploadSuccess={() => {
+            toast.success("PDFs uploaded successfully!");
+            setShowPdfUpload(false);
           }}
         />
       )}

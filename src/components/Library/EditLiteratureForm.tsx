@@ -21,6 +21,7 @@ interface EditLiteratureFormProps {
   open: boolean;
   onClose: () => void;
   item: LibraryItem | null;
+  onSuccess?: () => void;
 }
 
 const formSchema = z.object({
@@ -36,7 +37,7 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-export function EditLiteratureForm({ open, onClose, item }: EditLiteratureFormProps) {
+export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiteratureFormProps) {
   const [authorInput, setAuthorInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { updateLibraryItem } = useLibraryStore();
@@ -118,6 +119,7 @@ export function EditLiteratureForm({ open, onClose, item }: EditLiteratureFormPr
       });
 
       toast.success("Literature updated successfully!");
+      onSuccess?.();
       handleClose();
     } catch (error) {
       toast.error("Failed to update literature. Please try again.");

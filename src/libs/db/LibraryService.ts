@@ -567,6 +567,112 @@ export class LibraryService {
   }
 
   /**
+   * Create library item from PDF upload with immediate processing
+   */
+  async createFromPdfUpload(pdfFile: File): Promise<string> {
+    try {
+      // Create basic item record with PDF file name as title
+      const itemId = await this._createItemRecord({
+        title: pdfFile.name.replace(/\.pdf$/i, ''),
+        authors: ['Unknown'],
+        year: new Date().getFullYear(),
+        parsingStatus: 'PENDING_MINERU_SUBMISSION',
+        source: 'MANUAL'
+      });
+      
+      // Convert File to Blob for processing
+      const pdfBlob = new Blob([await pdfFile.arrayBuffer()], { type: 'application/pdf' });
+      
+      // Save PDF and update path
+      const pdfPath = await this.savePdfToDisk(itemId, pdfBlob);
+      await this.db.library.update(itemId, {
+        pdfPath,
+        updatedAt: new Date()
+      });
+      
+      console.log(`Created item ${itemId} from PDF upload, starting Mineru processing`);
+      
+      // Trigger Mineru processing asynchronously (non-blocking)
+      void this.triggerMineruProcessing(itemId, pdfBlob);
+      
+      return itemId;
+    } catch (error) {
+      console.error('Error creating item from PDF upload:', error);
+      throw new Error('Failed to create item from PDF upload');
+    }
+  }
+
+  /**
+   * Upload PDF for existing item that is awaiting manual upload
+   */
+  async uploadPdfForExistingItem(itemId: string, pdfFile: File): Promise<void> {
+    try {
+      const existingItem = await this.getLibraryItemById(itemId);
+      if (!existingItem) {
+        throw new Error(`Library item with ID ${itemId} not found`);
+      }
+
+      // Convert File to Blob for processing
+      const pdfBlob = new Blob([await pdfFile.arrayBuffer()], { type: 'application/pdf' });
+      
+      // Save PDF and update item
+      const pdfPath = await this.savePdfToDisk(itemId, pdfBlob);
+      await this.db.library.update(itemId, {
+        pdfPath,
+        parsingStatus: 'PENDING_MINERU_SUBMISSION',
+        updatedAt: new Date()
+      });
+      
+      console.log(`Uploaded PDF for existing item ${itemId}, starting Mineru processing`);
+      
+      // Trigger Mineru processing asynchronously (non-blocking)
+      void this.triggerMineruProcessing(itemId, pdfBlob);
+      
+    } catch (error) {
+      console.error('Error uploading PDF for existing item:', error);
+      throw new Error('Failed to upload PDF for existing item');
+    }
+  }
+
+  /**
+   * Get citation relationships for an item
+   */
+  async getCitationRelationships(itemId: string): Promise<{
+    references: LibraryItem[];
+    citedBy: LibraryItem[];
+  }> {
+    try {
+      // Get references (items this item cites)
+      const referenceCitations = await this.db.citations
+        .where('sourceItemId')
+        .equals(itemId)
+        .toArray();
+      
+      const references = await Promise.all(
+        referenceCitations.map(citation => this.db.library.get(citation.targetItemId))
+      );
+      
+      // Get cited by (items that cite this item)
+      const citedByCitations = await this.db.citations
+        .where('targetItemId')
+        .equals(itemId)
+        .toArray();
+      
+      const citedBy = await Promise.all(
+        citedByCitations.map(citation => this.db.library.get(citation.sourceItemId))
+      );
+      
+      return {
+        references: references.filter(Boolean) as LibraryItem[],
+        citedBy: citedBy.filter(Boolean) as LibraryItem[]
+      };
+    } catch (error) {
+      console.error('Error getting citation relationships:', error);
+      throw new Error('Failed to get citation relationships');
+    }
+  }
+
+  /**
    * Link citations to the library item
    * TODO: Implement citation linking logic
    */

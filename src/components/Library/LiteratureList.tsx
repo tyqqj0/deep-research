@@ -28,6 +28,7 @@ interface LiteratureListProps {
   onDelete: (id: string) => void;
   onBulkDelete: (ids: string[]) => void;
   onSelectForTree: (item: LibraryItem) => void;
+  onItemClick?: (item: LibraryItem) => void;
 }
 
 type SortField = 'title' | 'year' | 'createdAt' | 'authors';
@@ -40,7 +41,8 @@ export function LiteratureList({
   onEdit, 
   onDelete, 
   onBulkDelete,
-  onSelectForTree 
+  onSelectForTree,
+  onItemClick
 }: LiteratureListProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [sortField, setSortField] = useState<SortField>('createdAt');
@@ -298,6 +300,7 @@ export function LiteratureList({
             onEdit={() => onEdit(item)}
             onDelete={() => onDelete(item.id)}
             onSelectForTree={() => onSelectForTree(item)}
+            onItemClick={() => onItemClick?.(item)}
             viewMode={viewMode}
           />
         ))}
