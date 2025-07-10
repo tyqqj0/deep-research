@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, Plus, Save, Trash2 } from "lucide-react";
+import { X, Plus, Save, Trash2, FileText, Link } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLibraryStore } from "@/store/libraryStore";
 import { LITERATURE_SOURCES, SOURCE_METADATA } from "@/libs/db/constants";
 import { LibraryItem } from "@/libs/db";
+import { CitationManager } from "./CitationManager";
 import { toast } from "sonner";
 
 interface EditLiteratureFormProps {
@@ -40,6 +42,7 @@ type FormData = z.infer<typeof formSchema>;
 export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiteratureFormProps) {
   const [authorInput, setAuthorInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState("metadata");
   const { updateLibraryItem } = useLibraryStore();
 
   const {
@@ -85,7 +88,16 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
   const handleClose = () => {
     reset();
     setAuthorInput("");
+    setActiveTab("metadata");
     onClose();
+  };
+
+  const handleNavigateToItem = (targetItemId: string) => {
+    // Close current dialog and open the target item's edit dialog
+    // This will be handled by the parent component
+    onClose();
+    // You might want to emit an event or use a callback for navigation
+    // For now, we'll just close this dialog
   };
 
   const addAuthor = () => {
@@ -140,203 +152,229 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Save className="h-5 w-5" />
-            Edit Literature
+            <FileText className="h-5 w-5" />
+            {item.title}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Title */}
-          <div className="space-y-2">
-            <Label htmlFor="title">Title *</Label>
-            <Input
-              id="title"
-              {...register("title")}
-              placeholder="Enter literature title"
-              className={errors.title ? "border-red-500" : ""}
-            />
-            {errors.title && (
-              <p className="text-sm text-red-500">{errors.title.message}</p>
-            )}
-          </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="metadata" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Metadata & Details
+            </TabsTrigger>
+            <TabsTrigger value="citations" className="flex items-center gap-2">
+              <Link className="h-4 w-4" />
+              Citation Management
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Authors */}
-          <div className="space-y-2">
-            <Label>Authors *</Label>
-            <div className="flex gap-2">
-              <Input
-                value={authorInput}
-                onChange={(e) => setAuthorInput(e.target.value)}
-                onKeyPress={handleAuthorKeyPress}
-                placeholder="Enter author name"
-                className="flex-1"
-              />
-              <Button 
-                type="button" 
-                onClick={addAuthor}
-                variant="outline"
-                size="sm"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            
-            {/* Author Tags */}
-            <div className="flex flex-wrap gap-2">
-              {watchedAuthors.map((author, index) => (
-                <Badge
-                  key={index}
-                  variant="secondary"
-                  className="flex items-center gap-1 pr-1"
-                >
-                  {author}
-                  <button
-                    type="button"
-                    onClick={() => removeAuthor(index)}
-                    className="ml-1 hover:bg-red-500 hover:text-white rounded-full p-0.5"
+          {/* Metadata Tab */}
+          <TabsContent value="metadata" className="flex-1 overflow-y-auto mt-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              {/* Title */}
+              <div className="space-y-2">
+                <Label htmlFor="title">Title *</Label>
+                <Input
+                  id="title"
+                  {...register("title")}
+                  placeholder="Enter literature title"
+                  className={errors.title ? "border-red-500" : ""}
+                />
+                {errors.title && (
+                  <p className="text-sm text-red-500">{errors.title.message}</p>
+                )}
+              </div>
+
+              {/* Authors */}
+              <div className="space-y-2">
+                <Label>Authors *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={authorInput}
+                    onChange={(e) => setAuthorInput(e.target.value)}
+                    onKeyPress={handleAuthorKeyPress}
+                    placeholder="Enter author name"
+                    className="flex-1"
+                  />
+                  <Button 
+                    type="button" 
+                    onClick={addAuthor}
+                    variant="outline"
+                    size="sm"
                   >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-            
-            {errors.authors && (
-              <p className="text-sm text-red-500">{errors.authors.message}</p>
-            )}
-          </div>
-
-          {/* Year and Source */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="year">Year *</Label>
-              <Input
-                id="year"
-                type="number"
-                {...register("year", { valueAsNumber: true })}
-                placeholder="2024"
-                className={errors.year ? "border-red-500" : ""}
-              />
-              {errors.year && (
-                <p className="text-sm text-red-500">{errors.year.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Source</Label>
-              <Select
-                value={watchedSource}
-                onValueChange={(value) => setValue("source", value as any)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select source" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(LITERATURE_SOURCES).map(([key, value]) => (
-                    <SelectItem key={key} value={value}>
-                      <div className="flex items-center gap-2">
-                        <span>{SOURCE_METADATA[value]?.icon}</span>
-                        {SOURCE_METADATA[value]?.name}
-                      </div>
-                    </SelectItem>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                {/* Author Tags */}
+                <div className="flex flex-wrap gap-2">
+                  {watchedAuthors.map((author, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="flex items-center gap-1 pr-1"
+                    >
+                      {author}
+                      <button
+                        type="button"
+                        onClick={() => removeAuthor(index)}
+                        className="ml-1 hover:bg-red-500 hover:text-white rounded-full p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+                </div>
+                
+                {errors.authors && (
+                  <p className="text-sm text-red-500">{errors.authors.message}</p>
+                )}
+              </div>
 
-          {/* Publication */}
-          <div className="space-y-2">
-            <Label htmlFor="publication">Publication</Label>
-            <Input
-              id="publication"
-              {...register("publication")}
-              placeholder="Journal, Conference, etc."
-            />
-          </div>
+              {/* Year and Source */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="year">Year *</Label>
+                  <Input
+                    id="year"
+                    type="number"
+                    {...register("year", { valueAsNumber: true })}
+                    placeholder="2024"
+                    className={errors.year ? "border-red-500" : ""}
+                  />
+                  {errors.year && (
+                    <p className="text-sm text-red-500">{errors.year.message}</p>
+                  )}
+                </div>
 
-          {/* Abstract */}
-          <div className="space-y-2">
-            <Label htmlFor="abstract">Abstract</Label>
-            <Textarea
-              id="abstract"
-              {...register("abstract")}
-              placeholder="Enter abstract"
-              rows={4}
-            />
-          </div>
+                <div className="space-y-2">
+                  <Label>Source</Label>
+                  <Select
+                    value={watchedSource}
+                    onValueChange={(value) => setValue("source", value as any)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(LITERATURE_SOURCES).map(([key, value]) => (
+                        <SelectItem key={key} value={value}>
+                          <div className="flex items-center gap-2">
+                            <span>{SOURCE_METADATA[value]?.icon}</span>
+                            {SOURCE_METADATA[value]?.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-          {/* Summary */}
-          <div className="space-y-2">
-            <Label htmlFor="summary">Summary</Label>
-            <Textarea
-              id="summary"
-              {...register("summary")}
-              placeholder="Enter your summary or notes"
-              rows={3}
-            />
-          </div>
+              {/* Publication */}
+              <div className="space-y-2">
+                <Label htmlFor="publication">Publication</Label>
+                <Input
+                  id="publication"
+                  {...register("publication")}
+                  placeholder="Journal, Conference, etc."
+                />
+              </div>
 
-          {/* Zotero Key (only show if source is zotero) */}
-          {watchedSource === 'zotero' && (
-            <div className="space-y-2">
-              <Label htmlFor="zoteroKey">Zotero Key</Label>
-              <Input
-                id="zoteroKey"
-                {...register("zoteroKey")}
-                placeholder="Zotero item key"
-                readOnly
+              {/* Abstract */}
+              <div className="space-y-2">
+                <Label htmlFor="abstract">Abstract</Label>
+                <Textarea
+                  id="abstract"
+                  {...register("abstract")}
+                  placeholder="Enter abstract"
+                  rows={4}
+                />
+              </div>
+
+              {/* Summary */}
+              <div className="space-y-2">
+                <Label htmlFor="summary">Summary</Label>
+                <Textarea
+                  id="summary"
+                  {...register("summary")}
+                  placeholder="Enter your summary or notes"
+                  rows={3}
+                />
+              </div>
+
+              {/* Zotero Key (only show if source is zotero) */}
+              {watchedSource === 'zotero' && (
+                <div className="space-y-2">
+                  <Label htmlFor="zoteroKey">Zotero Key</Label>
+                  <Input
+                    id="zoteroKey"
+                    {...register("zoteroKey")}
+                    placeholder="Zotero item key"
+                    readOnly
+                  />
+                </div>
+              )}
+
+              {/* Metadata Display */}
+              <div className="p-3 bg-muted rounded-lg text-sm text-muted-foreground">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <strong>Created:</strong> {new Date(item.createdAt).toLocaleString()}
+                  </div>
+                  <div>
+                    <strong>Last Modified:</strong> {new Date(item.updatedAt || item.createdAt).toLocaleString()}
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <strong>ID:</strong> {item.id}
+                </div>
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClose}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Save className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </TabsContent>
+
+          {/* Citations Tab */}
+          <TabsContent value="citations" className="flex-1 overflow-hidden mt-4">
+            <div className="h-full">
+              <CitationManager 
+                item={item} 
+                onNavigateToItem={handleNavigateToItem}
               />
             </div>
-          )}
-
-          {/* Metadata Display */}
-          <div className="p-3 bg-muted rounded-lg text-sm text-muted-foreground">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <strong>Created:</strong> {new Date(item.createdAt).toLocaleString()}
-              </div>
-              <div>
-                <strong>Last Modified:</strong> {new Date(item.updatedAt).toLocaleString()}
-              </div>
-            </div>
-            <div className="mt-2">
-              <strong>ID:</strong> {item.id}
-            </div>
-          </div>
-
-          {/* Form Actions */}
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {isSubmitting ? (
-                <>
-                  <Save className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Changes
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

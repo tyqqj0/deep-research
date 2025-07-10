@@ -303,7 +303,7 @@ export default function LibraryPage() {
               toast.info(`Add "${item.title}" to tree functionality coming soon!`);
             }}
             onItemClick={(item) => {
-              router.push(`/library/${item.id}`);
+              handleEditLiterature(item);
             }}
           />
         </TabsContent>

@@ -46,24 +46,24 @@ function CitationList({ title, icon, items, onNavigateToItem, emptyMessage }: Ci
   return (
     <>
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
             {icon}
             {title}
-            <Badge variant="outline" className="ml-auto">
+            <Badge variant="outline" className="ml-auto text-xs">
               {items.length}
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[300px]">
+          <ScrollArea className="h-[250px]">
             {items.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8">
-                <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>{emptyMessage}</p>
+              <div className="text-center text-muted-foreground py-6">
+                <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">{emptyMessage}</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {items.map((citedItem) => (
                   <CitationItem
                     key={citedItem.id}
@@ -183,84 +183,83 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <div className="h-6 w-6 bg-gray-200 rounded animate-pulse" />
-              <div className="h-5 w-32 bg-gray-200 rounded animate-pulse" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[...Array(2)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <div className="h-5 w-5 bg-gray-200 rounded animate-pulse" />
+                  <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, j) => (
+                    <div key={j} className="h-12 bg-gray-100 rounded animate-pulse" />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Current Item Status Card */}
+    <div className="space-y-4">
+      {/* Current Item Status Card - Compact Version */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <FileText className="h-5 w-5" />
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="h-4 w-4" />
             Processing Status
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <div>
-              <h4 className="font-medium text-sm mb-2">{item.title}</h4>
-              <ParsingStatusIndicator 
-                status={item.parsingStatus || 'IDLE'}
-                onUploadPdf={() => setShowPdfUpload(true)}
-                showUploadButton={item.parsingStatus === 'AWAITING_MANUAL_UPLOAD'}
-                className="justify-start"
-              />
-            </div>
+            <ParsingStatusIndicator 
+              status={item.parsingStatus || 'IDLE'}
+              onUploadPdf={() => setShowPdfUpload(true)}
+              showUploadButton={item.parsingStatus === 'AWAITING_MANUAL_UPLOAD'}
+              className="justify-start"
+            />
             
-            {/* Basic metadata */}
-            <div className="grid grid-cols-2 gap-4 pt-3 border-t text-sm">
+            {/* Compact metadata */}
+            <div className="grid grid-cols-3 gap-3 pt-2 border-t text-xs">
               <div>
                 <span className="text-muted-foreground">Authors:</span>
-                <p className="font-medium">{item.authors.join(', ')}</p>
+                <p className="font-medium truncate">{item.authors.slice(0, 2).join(', ')}{item.authors.length > 2 ? '...' : ''}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Year:</span>
                 <p className="font-medium">{item.year}</p>
               </div>
-              {item.publication && (
-                <div className="col-span-2">
-                  <span className="text-muted-foreground">Publication:</span>
-                  <p className="font-medium">{item.publication}</p>
-                </div>
-              )}
+              <div>
+                <span className="text-muted-foreground">DOI:</span>
+                <p className="font-medium truncate">{item.doi || 'N/A'}</p>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Citation Lists */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Citation Lists - Compact Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <CitationList
           title="References"
-          icon={<ArrowRight className="h-5 w-5" />}
+          icon={<ArrowRight className="h-4 w-4" />}
           items={references}
           onNavigateToItem={onNavigateToItem}
-          emptyMessage="No references found for this item"
+          emptyMessage="No references found"
         />
         
         <CitationList
           title="Cited By"
-          icon={<ArrowLeft className="h-5 w-5" />}
+          icon={<ArrowLeft className="h-4 w-4" />}
           items={citedBy}
           onNavigateToItem={onNavigateToItem}
-          emptyMessage="This item is not cited by any other items"
+          emptyMessage="Not cited by any items"
         />
       </div>
 
