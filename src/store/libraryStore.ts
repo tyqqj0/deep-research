@@ -171,41 +171,61 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     }
   },
 
-  // Add multiple library items in batch
+  // Add multiple library items in batch using createFromMetadata
   addLibraryItems: async (itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]) => {
     try {
       set({ isLoading: true, error: null });
       
       const results = [];
+      const totalFiles = itemsData.length;
       
-      for (const itemData of itemsData) {
-        const newItem: LibraryItem = {
-          ...itemData,
-          id: generateLibraryItemId(),
-          source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
+      for (let i = 0; i < totalFiles; i++) {
+        const itemData = itemsData[i];
         
-        const result = await libraryService.addLibraryItem(newItem);
-        results.push({ item: newItem, result });
+        try {
+          // Use createFromMetadata to enable background processing for each item
+          const itemId = await libraryService.createFromMetadata({
+            ...itemData,
+            source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE
+          });
+          
+          results.push({ 
+            success: true, 
+            itemId,
+            title: itemData.title 
+          });
+          
+          console.log(`[LibraryStore] Created item ${i+1}/${totalFiles}: ${itemData.title}`);
+        } catch (error) {
+          console.error(`[LibraryStore] Failed to create item: ${itemData.title}`, error);
+          results.push({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error',
+            title: itemData.title 
+          });
+        }
       }
       
       // Refresh the items list once after all additions
       const updatedItems = await libraryService.getAllLibraryItems();
       
-      console.log('[LibraryStore] addLibraryItems updating state with', updatedItems.length, 'items');
+      console.log('[LibraryStore] addLibraryItems completed, refreshed with', updatedItems.length, 'total items');
       
       set({ 
         items: updatedItems, 
         isLoading: false 
       });
       
+      const successCount = results.filter(r => r.success).length;
+      const errorCount = results.filter(r => !r.success).length;
+      
       return {
         success: true,
         results,
-        totalAdded: results.filter(r => r.result.success).length,
-        totalDuplicates: results.filter(r => !r.result.success).length
+        totalAdded: successCount,
+        totalErrors: errorCount,
+        itemsAdded: successCount, // For Zotero compatibility
+        itemsSkipped: errorCount  // For Zotero compatibility
       };
     } catch (error) {
       console.error('[LibraryStore] addLibraryItems error:', error);
@@ -216,7 +236,9 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Failed to add library items',
-        results: []
+        results: [],
+        totalAdded: 0,
+        totalErrors: itemsData.length
       };
     }
   },
@@ -226,24 +248,11 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     try {
       set({ isLoading: true, error: null });
       
-      const newItem: LibraryItem = {
+      // Use createFromMetadata to enable background processing
+      const itemId = await libraryService.createFromMetadata({
         ...itemData,
-        id: generateLibraryItemId(),
-        source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      const result = await libraryService.addLibraryItem(newItem);
-      
-      if (!result.success) {
-        // Handle duplicate case
-        set({ 
-          isLoading: false, 
-          error: `Literature "${itemData.title}" already exists. Found ${result.duplicate?.length} duplicate(s).` 
-        });
-        return { success: false, duplicate: result.duplicate };
-      }
+        source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE
+      });
       
       // Refresh the items list
       const updatedItems = await libraryService.getAllLibraryItems();
@@ -253,8 +262,17 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         isLoading: false 
       });
       
-      return { success: true };
+      return { success: true, itemId };
     } catch (error) {
+      // Handle duplicate case (thrown by createFromMetadata)
+      if (error instanceof Error && error.message.includes('Duplicate item found')) {
+        set({ 
+          isLoading: false, 
+          error: error.message
+        });
+        return { success: false, duplicate: [] };
+      }
+      
       set({ 
         isLoading: false, 
         error: error instanceof Error ? error.message : 'Failed to add library item' 

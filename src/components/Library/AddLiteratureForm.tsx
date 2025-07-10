@@ -30,6 +30,8 @@ const formSchema = z.object({
   abstract: z.string().optional(),
   summary: z.string().optional(),
   zoteroKey: z.string().optional(),
+  doi: z.string().optional(),
+  url: z.string().url().optional().or(z.literal("")),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -57,6 +59,8 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
       abstract: "",
       summary: "",
       zoteroKey: "",
+      doi: "",
+      url: "",
     },
   });
 
@@ -95,6 +99,8 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
         abstract: data.abstract || undefined,
         summary: data.summary || undefined,
         zoteroKey: data.zoteroKey || undefined,
+        doi: data.doi || undefined,
+        url: data.url || undefined,
       });
 
       if (result && result.success) {
@@ -237,6 +243,36 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
               {...register("publication")}
               placeholder="Journal, Conference, etc."
             />
+          </div>
+
+          {/* DOI and URL */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="doi">DOI</Label>
+              <Input
+                id="doi"
+                {...register("doi")}
+                placeholder="10.1000/123456"
+                className={errors.doi ? "border-red-500" : ""}
+              />
+              {errors.doi && (
+                <p className="text-sm text-red-500">{errors.doi.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="url">URL</Label>
+              <Input
+                id="url"
+                type="url"
+                {...register("url")}
+                placeholder="https://example.com/paper.pdf"
+                className={errors.url ? "border-red-500" : ""}
+              />
+              {errors.url && (
+                <p className="text-sm text-red-500">{errors.url.message}</p>
+              )}
+            </div>
           </div>
 
           {/* Abstract */}
