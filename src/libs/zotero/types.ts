@@ -23,6 +23,18 @@ export interface ZoteroItem {
   abstractNote?: string;
   url?: string;
   DOI?: string;
+  doi?: string;
+  ISBN?: string;
+  isbn?: string;
+  ISSN?: string;
+  issn?: string;
+  volume?: string;
+  issue?: string;
+  pages?: string;
+  publisher?: string;
+  place?: string;
+  series?: string;
+  language?: string;
   tags?: Array<{
     tag: string;
     type?: number;
@@ -31,6 +43,37 @@ export interface ZoteroItem {
   dateAdded?: string;
   dateModified?: string;
   extra?: string;
+  // Support for nested data structure
+  data?: {
+    title?: string;
+    creators?: Array<{
+      creatorType: string;
+      firstName?: string;
+      lastName?: string;
+      name?: string;
+    }>;
+    date?: string;
+    publicationTitle?: string;
+    abstractNote?: string;
+    url?: string;
+    DOI?: string;
+    doi?: string;
+    ISBN?: string;
+    isbn?: string;
+    ISSN?: string;
+    issn?: string;
+    volume?: string;
+    issue?: string;
+    pages?: string;
+    publisher?: string;
+    place?: string;
+    series?: string;
+    language?: string;
+    dateAdded?: string;
+    dateModified?: string;
+    extra?: string;
+    [key: string]: any;
+  };
 }
 
 export interface ZoteroSyncResult {

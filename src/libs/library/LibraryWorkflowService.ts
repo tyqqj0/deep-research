@@ -28,6 +28,7 @@ import { MINERU_EXTRACTION_RULES } from '../parsing/extractionRules';
 import { generateLibraryItemId } from '../utils/uuid';
 import { llmReferenceParser, ParsedReference } from '../parsing/LLMReferenceParser';
 import { llmMetadataParser, LLMParsedMetadata } from '../parsing/LLMMetadataParser';
+import { transformToDirectPdfUrl } from '../fetching/UrlTransformer';
 
 export class LibraryWorkflowService {
     /**
@@ -243,14 +244,23 @@ export class LibraryWorkflowService {
                 throw new Error(`Item ${itemId} not found`);
             }
 
-            // 🚀 策略1: 如果有直接的PDF URL，优先尝试直接上传
-            if (item.url && this.isPdfUrl(item.url)) {
-                console.log(`Attempting direct PDF URL processing for item ${itemId}: ${item.url}`);
+            // 🚀 **新增：在处理前，首先尝试转换URL**
+            const originalUrl = item.url || '';
+            const transformedUrl = transformToDirectPdfUrl(originalUrl);
+
+            // 🚀 策略1: 如果有直接的PDF URL (或转换后的URL)，优先尝试直接上传
+            if (transformedUrl && this.isPdfUrl(transformedUrl)) {
+                console.log(`Attempting direct PDF URL processing for item ${itemId}: ${transformedUrl}`);
 
                 try {
-                    const success = await this.processPdfFromUrl(itemId, item.url);
+                    // 使用转换后的 URL 进行处理
+                    const success = await this.processPdfFromUrl(itemId, transformedUrl);
                     if (success) {
                         console.log(`✅ Successfully processed PDF from direct URL for item ${itemId}`);
+                        // 如果成功，需要将转换后的URL存回数据库，以便将来参考
+                        if (originalUrl !== transformedUrl) {
+                            await libraryService.updateLibraryItem(itemId, { url: transformedUrl });
+                        }
                         return;
                     }
                 } catch (error) {
@@ -440,40 +450,223 @@ export class LibraryWorkflowService {
     }
 
     /**
-     * 📄 从URL直接处理PDF
+     * 📄 从URL直接处理PDF - 智能回退策略
+     * 
+     * 🎯 处理策略:
+     * 1. 优先尝试 Mineru URL 直接处理（避免浏览器下载）
+     * 2. 如果遇到超时错误，回退到本地下载再上传的方式
      */
     private async processPdfFromUrl(itemId: string, pdfUrl: string): Promise<boolean> {
         try {
-            console.log(`Fetching PDF from URL: ${pdfUrl}`);
+            console.log(`Processing PDF from URL: ${pdfUrl}`);
 
-            const response = await fetch(pdfUrl);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const item = await libraryService.getLibraryItemById(itemId);
+            if (!item) {
+                throw new Error(`Item ${itemId} not found`);
             }
 
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/pdf')) {
-                console.warn(`URL does not return PDF content type: ${contentType}`);
-                return false;
+            // 🚀 策略1: 优先使用增强的本地抓取服务
+            try {
+                console.log(`📥 Attempting enhanced local fetch for item ${itemId}`);
+                await this.processPdfWithEnhancedFetch(itemId);
+                return true;
+            } catch (fetchError) {
+                console.log(`❌ Enhanced local fetch failed for item ${itemId}:`, fetchError);
+
+                // 🔄 策略2: 跳过 Mineru URL 直接处理（有问题），直接使用简单本地下载
+                console.log(`🔄 Skipping Mineru URL processing (has issues), using simple local download for item ${itemId}`);
+                try {
+                    await this.processPdfWithLocalDownload(itemId, pdfUrl);
+                    return true;
+                } catch (downloadError) {
+                    console.error(`❌ All strategies failed for item ${itemId}:`, downloadError);
+                    throw downloadError;
+                }
             }
-
-            const pdfArrayBuffer = await response.arrayBuffer();
-            const pdfBlob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
-
-            // 验证PDF大小
-            if (pdfBlob.size === 0) {
-                throw new Error('Downloaded PDF is empty');
-            }
-
-            console.log(`Successfully downloaded PDF (${pdfBlob.size} bytes), starting processing`);
-
-            // 直接使用现有的处理流程
-            await this.processPdfWithMineru(itemId, pdfBlob);
-            return true;
 
         } catch (error) {
             console.error(`Failed to process PDF from URL ${pdfUrl}:`, error);
+            await libraryService.updateLibraryItem(itemId, {
+                parsingStatus: 'PARSING_FAILED'
+            });
             return false;
+        }
+    }
+
+    /**
+     * 📥 使用增强的本地抓取服务处理 PDF
+     */
+    private async processPdfWithEnhancedFetch(itemId: string): Promise<void> {
+        const item = await libraryService.getLibraryItemById(itemId);
+        if (!item) {
+            throw new Error(`Item ${itemId} not found`);
+        }
+
+        console.log(`📥 Using enhanced PDF fetch service for item: ${item.title}`);
+
+        // 更新状态为抓取中
+        await libraryService.updateLibraryItem(itemId, {
+            parsingStatus: 'PENDING_PDF_FETCH'
+        });
+
+        // 使用增强的 PDF 抓取服务
+        const pdfBlob = await pdfFetcherService.fetch(item);
+
+        if (!pdfBlob) {
+            throw new Error('Failed to fetch PDF using enhanced service');
+        }
+
+        console.log(`✅ Successfully fetched PDF (${pdfBlob.size} bytes), processing with Mineru`);
+
+        // 使用现有的 Blob 处理流程
+        await this.processPdfWithMineru(itemId, pdfBlob);
+    }
+
+    /**
+     * 🌐 使用 Mineru URL 直接处理 PDF
+     */
+    private async processPdfWithMineruUrl(itemId: string, pdfUrl: string): Promise<void> {
+        const item = await libraryService.getLibraryItemById(itemId);
+        if (!item) {
+            throw new Error(`Item ${itemId} not found`);
+        }
+
+        // 更新状态为解析中
+        await libraryService.updateLibraryItem(itemId, {
+            parsingStatus: 'PARSING_IN_MINERU'
+        });
+
+        // 提交任务到Mineru（使用URL直接处理）
+        const taskId = await mineruService.submitTaskFromUrl(item, pdfUrl);
+        console.log(`Mineru URL task submitted for item ${itemId}, task_id: ${taskId}`);
+
+        // 轮询解析结果
+        const parsedMdData = await mineruService.pollTaskResultFromUrl(taskId, (progress) => {
+            console.log(`Progress for ${itemId}: ${progress.extractedPages}/${progress.totalPages}`);
+        });
+
+        // 处理解析结果
+        await this.processMineuResults(itemId, parsedMdData);
+    }
+
+    /**
+     * 📥 使用本地下载再上传的方式处理 PDF
+     */
+    private async processPdfWithLocalDownload(itemId: string, pdfUrl: string): Promise<void> {
+        console.log(`📥 Downloading PDF locally from: ${pdfUrl}`);
+
+        const response = await fetch(pdfUrl);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/pdf')) {
+            console.warn(`URL does not return PDF content type: ${contentType}`);
+            throw new Error('URL does not return PDF content');
+        }
+
+        const pdfArrayBuffer = await response.arrayBuffer();
+        const pdfBlob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
+
+        // 验证PDF大小
+        if (pdfBlob.size === 0) {
+            throw new Error('Downloaded PDF is empty');
+        }
+
+        console.log(`✅ Successfully downloaded PDF (${pdfBlob.size} bytes), processing with Mineru file upload`);
+
+        // 使用现有的 Blob 处理流程
+        await this.processPdfWithMineru(itemId, pdfBlob);
+    }
+
+    /**
+     * 🔄 处理 Mineru 解析结果的通用方法
+     */
+    private async processMineuResults(itemId: string, parsedMdData: any): Promise<void> {
+        // 🚀 第一阶段：LLM 智能元数据解析
+        console.log(`Starting LLM metadata extraction for item ${itemId}`);
+        await libraryService.updateLibraryItem(itemId, {
+            parsingStatus: 'PENDING_METADATA_EXTRACTION' as any
+        });
+
+        const llmExtractedMetadata = await llmMetadataParser.parseMetadata(parsedMdData.content || '');
+        console.log('LLM extracted metadata:', llmExtractedMetadata);
+
+        // 🚀 立即更新元数据到数据库，让用户快速看到结果
+        console.log(`Immediately updating metadata for item ${itemId}`);
+        await libraryService.updateLibraryItem(itemId, {
+            ...llmExtractedMetadata,
+            parsingStatus: 'PENDING_REFERENCE_EXTRACTION' as any
+        });
+
+        // 仍然使用ParsingService提取参考文献文本块（作为LLM引文解析的输入）
+        const referenceExtractionMetadata = parsingService.extractMetadata(parsedMdData, MINERU_EXTRACTION_RULES);
+        const parsedContent = parsingService.createParsedContent(parsedMdData, llmExtractedMetadata);
+        console.log('parsedContent', parsedContent);
+
+        // 🚀 第二阶段：LLM 引文解析
+        let finalParsedContent = parsedContent;
+
+        // 检查是否有参考文献需要解析（从extractionRules的额外字段中获取）
+        const rawReferences = (referenceExtractionMetadata as any).references;
+        if (rawReferences && typeof rawReferences === 'string') {
+            console.log(`Found references for item ${itemId}, starting LLM parsing`);
+
+            // 更新状态为引文解析中
+            await libraryService.updateLibraryItem(itemId, {
+                parsingStatus: 'PENDING_REFERENCE_EXTRACTION' as any
+            });
+
+            try {
+                // 使用 LLM 解析引文
+                const parsedReferences = await llmReferenceParser.parseReferences(rawReferences);
+
+                console.log(`Successfully parsed ${parsedReferences.length} references for item ${itemId}`);
+
+                // 更新解析内容，包含结构化的引文
+                finalParsedContent = {
+                    ...parsedContent,
+                    extractedReferences: parsedReferences
+                };
+
+            } catch (error) {
+                console.error(`LLM reference parsing failed for item ${itemId}:`, error);
+
+                // 解析失败，保留原始引文文本
+                finalParsedContent = {
+                    ...parsedContent,
+                    extractedReferences: [{
+                        raw: rawReferences,
+                        title: 'Failed to parse references',
+                        authors: [],
+                        year: new Date().getFullYear(),
+                        parseError: error instanceof Error ? error.message : String(error)
+                    }]
+                };
+            }
+        }
+
+        // 使用LLM解析的元数据，并从引用提取结果中移除非LibraryItem字段
+        const { references, ...validMetadata } = { ...llmExtractedMetadata, ...(referenceExtractionMetadata as any) };
+
+        // 更新数据库
+        console.log(`Updating item ${itemId} to SUCCESS status`);
+        await libraryService.updateLibraryItem(itemId, {
+            ...validMetadata,
+            parsedContent: finalParsedContent,
+            parsingStatus: 'SUCCESS'
+        });
+
+        console.log(`Successfully processed item ${itemId} with Mineru and LLM parsing`);
+
+        // 🔗 **新：自动双向引文链接**
+        console.log(`Starting BI-DIRECTIONAL citation linking for item ${itemId}`);
+        try {
+            const linkingResult = await libraryService.linkNewItemBidirectionally(itemId);
+            console.log(`✅ Bidirectional linking completed for item ${itemId}:`, linkingResult);
+        } catch (linkingError) {
+            console.error(`❌ Bidirectional linking failed for item ${itemId}:`, linkingError);
         }
     }
 

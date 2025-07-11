@@ -110,6 +110,56 @@ export class MineruService {
   }
 
   /**
+   * 🌐 从PDF URL直接提交解析任务 - 使用单个文件解析API
+   * 
+   * @param item - 文献条目信息
+   * @param pdfUrl - PDF文件的直接URL
+   * @returns Promise<string> - 返回task_id用于轮询结果
+   */
+  async submitTaskFromUrl(item: LibraryItem, pdfUrl: string): Promise<string> {
+    try {
+      console.log(`🌐 Submitting PDF URL to Mineru for item: ${item.title}`);
+      console.log(`📄 PDF URL: ${pdfUrl}`);
+
+      const requestBody = {
+        url: pdfUrl,
+        is_ocr: true,
+        enable_formula: false,
+        enable_table: true
+      };
+
+      const response = await this.makeRequest(
+        'https://mineru.net/api/v4/extract/task',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.config.apiToken}`
+          },
+          body: JSON.stringify(requestBody)
+        },
+        'api'
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result: MineruApiResponse<{ task_id: string }> = await response.json();
+
+      if (result.code !== 0) {
+        throw new Error(`API Error: ${result.msg} (code: ${result.code})`);
+      }
+
+      console.log(`✅ PDF URL submitted successfully, task_id: ${result.data.task_id}`);
+      return result.data.task_id;
+    } catch (error) {
+      console.error('❌ Error submitting URL task to Mineru:', error);
+      throw new Error(`Failed to submit URL task to Mineru: ${error}`);
+    }
+  }
+
+  /**
    * 🔄 轮询任务结果 - 使用batch_id查询解析结果
    * 
    * @param batchId - 批量任务ID
@@ -195,6 +245,90 @@ export class MineruService {
   }
 
   /**
+   * 🔄 轮询单个任务结果 - 使用task_id查询解析结果（用于URL提交的任务）
+   * 
+   * @param taskId - 单个任务ID
+   * @param onProgress - 进度回调函数
+   * @returns Promise<MineruParsedData> - 解析结果数据
+   */
+  async pollTaskResultFromUrl(taskId: string, onProgress?: (progress: { extractedPages: number; totalPages: number; startTime: string }) => void): Promise<MineruParsedData> {
+    return new Promise((resolve, reject) => {
+      console.log(`🔄 Starting to poll URL task result for task_id: ${taskId}`);
+
+      const pollInterval = setInterval(async () => {
+        try {
+          const response = await this.getSingleTaskStatus(taskId);
+          const result = response.data;
+
+          // 添加调试信息：显示当前任务状态
+          console.log(`📊 URL Task ${taskId} current state: ${result.state}`);
+          if (result.extract_progress) {
+            console.log(`📊 Progress: ${result.extract_progress.extracted_pages}/${result.extract_progress.total_pages} pages`);
+          }
+
+          // 只记录状态变化，不记录持续的运行状态
+          if (result.state === 'done' || result.state === 'failed') {
+            console.log(`📊 URL Task ${taskId} FINAL state: ${result.state}`);
+          }
+
+          switch (result.state) {
+            case 'done':
+              clearInterval(pollInterval);
+              if (result.full_zip_url) {
+                try {
+                  const parsedMdData = await this.fetchAndUnzipResult(result.full_zip_url);
+                  resolve(parsedMdData);
+                } catch (unzipError) {
+                  console.error('❌ Error processing result:', unzipError);
+                  reject(new Error(`Failed to process result: ${unzipError}`));
+                }
+              } else {
+                reject(new Error('Task completed but no result URL provided'));
+              }
+              break;
+
+            case 'failed':
+              clearInterval(pollInterval);
+              reject(new Error(`Task failed: ${result.err_msg || 'Unknown error'}`));
+              break;
+
+            case 'pending':
+            case 'running':
+              // 继续轮询，更新进度
+              if (result.extract_progress) {
+                const { extracted_pages, total_pages, start_time } = result.extract_progress;
+
+                // 调用进度回调
+                if (onProgress) {
+                  onProgress({
+                    extractedPages: extracted_pages,
+                    totalPages: total_pages,
+                    startTime: start_time
+                  });
+                }
+              }
+              break;
+
+            default:
+              console.warn(`⚠️ Unknown task state: ${result.state}`);
+              break;
+          }
+        } catch (error) {
+          console.error('❌ Error polling URL task status:', error);
+          clearInterval(pollInterval);
+          reject(error);
+        }
+      }, this.config.pollInterval);
+
+      // 设置超时防止无限轮询
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        reject(new Error(`URL task polling timeout after ${this.config.maxPollTimeout / 1000} seconds`));
+      }, this.config.maxPollTimeout);
+    });
+  }
+
+  /**
    * 🌐 通用请求处理 - 智能CORS代理回退
    * 
    * @param url 请求URL
@@ -202,9 +336,9 @@ export class MineruService {
    * @param type 请求类型：'api' | 'download' | 'upload'
    */
   private async makeRequest(url: string, options: RequestInit, type: 'api' | 'download' | 'upload' = 'api'): Promise<Response> {
-    // 对于上传请求，如果是外部URL且在浏览器环境中，直接使用代理
+    // 如果已经标记为强制使用代理，且是外部URL，则直接使用代理
     const isExternalUrl = !url.startsWith('/') && !url.startsWith(window?.location?.origin || '');
-    const shouldSkipDirect = this.forceProxy && isExternalUrl && (type === 'upload' || type === 'download');
+    const shouldSkipDirect = this.forceProxy && isExternalUrl;
 
     if (shouldSkipDirect) {
       console.log(`🔄 Using proxy for ${type} request (avoiding CORS)...`);
@@ -405,6 +539,36 @@ export class MineruService {
     }>;
   }>> {
     const url = `${this.config.baseUrl}/extract-results/batch/${batchId}`;
+    const options = {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.config.apiToken}`,
+        'Content-Type': 'application/json'
+      }
+    };
+
+    const response = await this.makeRequest(url, options);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    // 检查API响应状态
+    if (data.code !== 0) {
+      throw new Error(`API error: ${data.msg} (code: ${data.code})`);
+    }
+
+    return data;
+  }
+
+  /**
+   * 📊 获取单个任务状态
+   */
+  private async getSingleTaskStatus(taskId: string): Promise<MineruApiResponse<MineruTaskResult>> {
+    const url = `${this.config.baseUrl}/extract/task/${taskId}`;
     const options = {
       method: 'GET',
       headers: {

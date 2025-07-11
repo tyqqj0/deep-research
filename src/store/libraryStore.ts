@@ -67,6 +67,13 @@ interface LibraryActions {
 
   // Auto-metadata extraction settings
   setAutoExtractMetadata: (enabled: boolean) => void;
+
+  // ✏️ 引文编辑功能
+  updateExtractedReference: (itemId: string, referenceIndex: number, updatedReference: any) => Promise<void>;
+  addExtractedReference: (itemId: string, newReference: any) => Promise<void>;
+
+  // 🔗 手动链接功能
+  createManualCitationLink: (sourceItemId: string, targetItemId: string) => Promise<boolean>;
 }
 
 // Use the real library service
@@ -613,6 +620,79 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       localStorage.setItem('library.autoExtractMetadata', JSON.stringify(enabled));
     } catch (error) {
       console.warn('Failed to save autoExtractMetadata setting to localStorage:', error);
+    }
+  },
+
+  // ✏️ 更新引文信息
+  updateExtractedReference: async (itemId: string, referenceIndex: number, updatedReference: any) => {
+    try {
+      set({ isLoading: true, error: null });
+
+      await libraryService.updateExtractedReference(itemId, referenceIndex, updatedReference);
+
+      // 刷新文献列表以反映更新
+      const updatedItems = await libraryService.getAllLibraryItems();
+      set({
+        items: updatedItems,
+        isLoading: false
+      });
+
+      console.log(`[LibraryStore] Updated reference ${referenceIndex} for item ${itemId}`);
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to update reference'
+      });
+      throw error;
+    }
+  },
+
+  // ➕ 添加新引文信息
+  addExtractedReference: async (itemId: string, newReference: any) => {
+    try {
+      set({ isLoading: true, error: null });
+
+      await libraryService.addExtractedReference(itemId, newReference);
+
+      // 刷新文献列表以反映更新
+      const updatedItems = await libraryService.getAllLibraryItems();
+      set({
+        items: updatedItems,
+        isLoading: false
+      });
+
+      console.log(`[LibraryStore] Added new reference for item ${itemId}`);
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to add reference'
+      });
+      throw error;
+    }
+  },
+
+  // 🔗 创建手动引文链接
+  createManualCitationLink: async (sourceItemId: string, targetItemId: string) => {
+    try {
+      set({ isLoading: true, error: null });
+
+      const success = await libraryService.createManualCitationLink(sourceItemId, targetItemId);
+
+      set({ isLoading: false });
+
+      if (success) {
+        console.log(`[LibraryStore] Created manual citation link: ${sourceItemId} -> ${targetItemId}`);
+      } else {
+        console.log(`[LibraryStore] Citation link already exists: ${sourceItemId} -> ${targetItemId}`);
+      }
+
+      return success;
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to create citation link'
+      });
+      throw error;
     }
   }
 }));

@@ -16,11 +16,16 @@ interface UnpaywallResponse {
  */
 export class UnpaywallProvider implements IPdfProvider {
   name = 'unpaywall';
-  
+  priority = 4; // 较低优先级
+
   private readonly EMAIL = 'research@example.com'; // TODO: Make configurable
   private readonly BASE_URL = 'https://api.unpaywall.org/v2';
 
-  async fetch(item: LibraryItem): Promise<Blob | null> {
+  canHandle(item: LibraryItem): boolean {
+    return Boolean(item.doi);
+  }
+
+  async fetchPdf(item: LibraryItem): Promise<Blob | null> {
     // Check if DOI is available
     if (!item.doi) {
       return null;
@@ -29,13 +34,13 @@ export class UnpaywallProvider implements IPdfProvider {
     try {
       // Query Unpaywall API
       const response = await fetch(`${this.BASE_URL}/${item.doi}?email=${this.EMAIL}`);
-      
+
       if (!response.ok) {
         return null;
       }
 
       const data: UnpaywallResponse = await response.json();
-      
+
       // Check if there's an available PDF URL
       if (!data.best_oa_location?.url_for_pdf) {
         return null;
@@ -43,7 +48,7 @@ export class UnpaywallProvider implements IPdfProvider {
 
       // Download the PDF
       const pdfResponse = await fetch(data.best_oa_location.url_for_pdf);
-      
+
       if (!pdfResponse.ok) {
         return null;
       }
@@ -55,7 +60,7 @@ export class UnpaywallProvider implements IPdfProvider {
       }
 
       return await pdfResponse.blob();
-      
+
     } catch (error) {
       console.error(`UnpaywallProvider error for DOI ${item.doi}:`, error);
       return null;

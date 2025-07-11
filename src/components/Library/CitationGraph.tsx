@@ -16,12 +16,26 @@ import ReactFlow, {
     Handle,
     useViewport,
     ReactFlowProvider,
-    useReactFlow
+    useReactFlow,
+    Connection,
+    addEdge,
+    ConnectionMode,
+    EdgeMouseHandler
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
     Users,
     Calendar,
@@ -29,12 +43,16 @@ import {
     Network,
     RefreshCw,
     Zap,
-    ZapOff
+    ZapOff,
+    Link2,
+    Check,
+    X
 } from "lucide-react";
 import { LibraryItem } from '@/libs/db';
 import { libraryService } from '@/libs/db/LibraryService';
 import { useLibraryStore } from '@/store/libraryStore';
-import * as d3 from 'd3-force';
+import { toast } from 'sonner';
+import { CitationGraphPhysics, ZOOM_THRESHOLD } from './CitationGraphPhysics';
 
 
 interface LiteratureNodeData {
@@ -83,7 +101,7 @@ const AdaptiveNode = memo(({ data }: { data: LiteratureNodeData }) => {
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <div
-                                className='w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-mono cursor-pointer bg-gradient-to-br from-blue-400 to-indigo-500 shadow-lg'
+                                className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-mono cursor-pointer shadow-lg bg-gradient-to-br from-blue-400 to-indigo-500"
                                 onClick={() => onNodeClick(item.id)}
                             >
                                 {item.title.slice(0, 2)}
@@ -127,9 +145,8 @@ const calculateStaticLayout = (nodes: Node[], edges: Edge[]) => {
 
 const ViewportMonitor = () => {
     const { zoom } = useViewport();
-    const { setNodes, getNodes } = useReactFlow();
+    const { setNodes } = useReactFlow();
     const lastKnownLevel = useRef<'detailed' | 'simplified'>('detailed');
-    const ZOOM_THRESHOLD = 0.7;
 
     useEffect(() => {
         const targetLevel = zoom < ZOOM_THRESHOLD ? 'simplified' : 'detailed';
@@ -148,19 +165,10 @@ const ViewportMonitor = () => {
                 }))
             );
 
-            // Dynamically update physics based on detail level
-            const simulation = (window as any).d3_simulation;
-            if (simulation) {
-                if (targetLevel === 'detailed') {
-                    // Increase forces to prevent overlap of large nodes
-                    simulation.force('charge', d3.forceManyBody().strength(-800));
-                    simulation.force('collision', d3.forceCollide().radius(120));
-                } else {
-                    // Use weaker forces for smaller nodes
-                    simulation.force('charge', d3.forceManyBody().strength(-400));
-                    simulation.force('collision', d3.forceCollide().radius(60));
-                }
-                simulation.alpha(0.3).restart();
+            // Update physics parameters based on detail level
+            const physics = (window as any).citationGraphPhysics as CitationGraphPhysics;
+            if (physics) {
+                physics.updateForDetailLevel(targetLevel);
             }
         }
     }, [zoom, setNodes]);
@@ -177,12 +185,17 @@ interface CitationGraphProps {
 function CitationGraph({ onNodeClick, className }: CitationGraphProps) {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    const { items: allItems, isLoading: isItemsLoading, isInitialized: isStoreInitialized, initialize } = useLibraryStore();
+    const { items: allItems, isLoading: isItemsLoading, isInitialized: isStoreInitialized, initialize, createManualCitationLink } = useLibraryStore();
 
     const [isExpanded, setIsExpanded] = useState(false);
     const [isLayouting, setIsLayouting] = useState(true);
-    const [isPhysicsEnabled, setIsPhysicsEnabled] = useState(false);
-    const simulationRef = useRef<d3.Simulation<any, any> | null>(null);
+    const [isPhysicsEnabled, setIsPhysicsEnabled] = useState(true); // 默认开启物理效果
+
+    // 删除确认对话框状态
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [edgeToDelete, setEdgeToDelete] = useState<{ edge: Edge, sourceItem: LibraryItem, targetItem: LibraryItem } | null>(null);
+
+    const physicsRef = useRef<CitationGraphPhysics | null>(null);
 
     useEffect(() => {
         if (!isStoreInitialized) {
@@ -190,35 +203,41 @@ function CitationGraph({ onNodeClick, className }: CitationGraphProps) {
         }
     }, [isStoreInitialized, initialize]);
 
-    const stopPhysicsSimulation = useCallback(() => {
-        simulationRef.current?.stop();
-        simulationRef.current = null;
-    }, []);
+    // 初始化物理引擎
+    useEffect(() => {
+        const onTick = () => {
+            setNodes(prevNodes => {
+                const physics = physicsRef.current;
+                if (!physics) return prevNodes;
 
-    const runPhysicsSimulation = useCallback((simNodes: Node[], simEdges: Edge[]) => {
-        stopPhysicsSimulation();
-        if (!isPhysicsEnabled || simNodes.length === 0) return;
+                const simulation = physics.getSimulation();
+                if (!simulation) return prevNodes;
 
-        const simulation = d3.forceSimulation(simNodes as any)
-            .force('link', d3.forceLink(JSON.parse(JSON.stringify(simEdges)) as any).id((d) => (d as Node).id).distance(150).strength(0.5)) // Pass a deep copy to prevent mutation
-            .force('charge', d3.forceManyBody().strength(-400))
-            .force('center', d3.forceCenter(400, 300))
-            .force('collision', d3.forceCollide().radius(60))
-            .on('tick', () => {
-                setNodes(prevNodes => prevNodes.map(n => {
+                return prevNodes.map(n => {
                     const simNode = simulation.nodes().find(sn => (sn as Node).id === n.id);
                     return simNode ? { ...n, position: { x: (simNode as any).x, y: (simNode as any).y } } : n;
-                }));
+                });
             });
-        simulationRef.current = simulation;
-        (window as any).d3_simulation = simulation; // Store simulation instance globally for access
-    }, [isPhysicsEnabled, setNodes, stopPhysicsSimulation]);
+        };
+
+        physicsRef.current = new CitationGraphPhysics(onTick);
+        (window as any).citationGraphPhysics = physicsRef.current;
+
+        return () => {
+            if (physicsRef.current) {
+                physicsRef.current.stop();
+                physicsRef.current = null;
+            }
+            delete (window as any).citationGraphPhysics;
+        };
+    }, [setNodes]);
 
     const fetchDataAndLayout = useCallback(async () => {
         if (!isStoreInitialized) return;
         setIsLayouting(true);
 
         try {
+            console.log('[Graph] Fetching latest data...');
             const items = await libraryService.getAllLibraryItems();
             if (items.length === 0) {
                 setNodes([]);
@@ -227,95 +246,171 @@ function CitationGraph({ onNodeClick, className }: CitationGraphProps) {
             }
 
             const citations = await libraryService.getAllCitations();
+            console.log(`[Graph] Found ${citations.length} citations`);
+
             const nodeIds = new Set(items.map(item => item.id));
 
             const graphNodes: Node<LiteratureNodeData>[] = items.map(item => ({
                 id: item.id,
                 type: 'adaptive',
                 position: { x: 0, y: 0 },
-                data: { item, label: item.title, onNodeClick, levelOfDetail: 'detailed' },
+                data: {
+                    item,
+                    label: item.title,
+                    onNodeClick: onNodeClick,
+                    levelOfDetail: 'detailed'
+                },
             }));
 
             const graphEdges: Edge[] = citations
-                .filter(c => nodeIds.has(c.source) && nodeIds.has(c.target) && c.source !== c.target) // Prevent self-loops
+                .filter(c => nodeIds.has(c.source) && nodeIds.has(c.target) && c.source !== c.target)
                 .map(c => ({
                     id: `${c.source}-${c.target}`,
                     source: c.source,
                     target: c.target,
-                    type: 'default', // Use default bezier curve for better routing
+                    type: 'default',
                     animated: true,
                     markerEnd: { type: MarkerType.ArrowClosed, color: '#3b82f6' },
                 }));
 
-            const { nodes: staticNodes } = calculateStaticLayout(graphNodes, graphEdges);
-            setNodes(staticNodes);
-            setEdges(graphEdges);
+            console.log(`[Graph] Created ${graphEdges.length} edges`);
 
-            if (isPhysicsEnabled) {
-                runPhysicsSimulation(staticNodes, graphEdges);
+            if (isPhysicsEnabled && physicsRef.current && graphNodes.length > 0) {
+                // 使用物理引擎布局
+                const { nodes: staticNodes } = calculateStaticLayout(graphNodes, graphEdges);
+                setNodes(staticNodes);
+                setEdges(graphEdges);
+
+                // 启动物理模拟
+                physicsRef.current.start(staticNodes, graphEdges);
+            } else {
+                // 使用静态布局
+                const { nodes: staticNodes } = calculateStaticLayout(graphNodes, graphEdges);
+                setNodes(staticNodes);
+                setEdges(graphEdges);
             }
         } catch (error) {
             console.error("[Graph] Failed to layout data:", error);
         } finally {
             setIsLayouting(false);
         }
-    }, [isStoreInitialized, onNodeClick, setNodes, setEdges, isPhysicsEnabled, runPhysicsSimulation]);
+    }, [isStoreInitialized, setNodes, setEdges, isPhysicsEnabled, onNodeClick]);
 
     useEffect(() => {
         fetchDataAndLayout();
-        return () => {
-            stopPhysicsSimulation();
-            delete (window as any).d3_simulation; // Clean up global instance on unmount
-        }
-    }, [fetchDataAndLayout, stopPhysicsSimulation]);
+    }, [fetchDataAndLayout]);
 
     const togglePhysics = useCallback(() => {
         setIsPhysicsEnabled(enabled => {
             const newIsEnabled = !enabled;
-            if (newIsEnabled) {
-                runPhysicsSimulation(nodes, edges);
-            } else {
-                stopPhysicsSimulation();
-                fetchDataAndLayout(); // Recalculate static layout
+            if (newIsEnabled && physicsRef.current && nodes.length > 0) {
+                physicsRef.current.start(nodes, edges);
+            } else if (physicsRef.current) {
+                physicsRef.current.stop();
+                fetchDataAndLayout(); // 重新计算静态布局
             }
             return newIsEnabled;
         });
-    }, [nodes, edges, runPhysicsSimulation, stopPhysicsSimulation, fetchDataAndLayout]);
+    }, [nodes, edges, fetchDataAndLayout]);
+
+    // 强制重启物理引擎（用于配置更新后立即应用）
+    const forceRestartPhysics = useCallback(() => {
+        if (physicsRef.current && nodes.length > 0 && isPhysicsEnabled) {
+            console.log('[Graph] Force restarting physics with new config...');
+            physicsRef.current.stop();
+            physicsRef.current.start(nodes, edges);
+            toast.success('物理引擎已重启，新配置已应用');
+        }
+    }, [nodes, edges, isPhysicsEnabled]);
 
     const onNodeDragStart = (event: React.MouseEvent, node: Node) => {
-        if (!isPhysicsEnabled || !simulationRef.current) return;
-        const simulation = simulationRef.current;
-
-        const simNode = simulation.nodes().find(n => (n as Node).id === node.id);
-        if (simNode) {
-            (simNode as any).fx = node.position.x;
-            (simNode as any).fy = node.position.y;
-            simulation.alphaTarget(0.3).restart();
-        }
+        if (!isPhysicsEnabled || !physicsRef.current) return;
+        physicsRef.current.fixNode(node.id, node.position.x, node.position.y);
     };
 
     const onNodeDrag = (event: React.MouseEvent, node: Node) => {
-        if (!isPhysicsEnabled || !simulationRef.current) return;
-        const simulation = simulationRef.current;
-
-        const simNode = simulation.nodes().find(n => (n as Node).id === node.id);
-        if (simNode) {
-            (simNode as any).fx = node.position.x;
-            (simNode as any).fy = node.position.y;
-        }
+        if (!isPhysicsEnabled || !physicsRef.current) return;
+        physicsRef.current.fixNode(node.id, node.position.x, node.position.y);
     };
 
     const onNodeDragStop = (event: React.MouseEvent, node: Node) => {
-        if (!isPhysicsEnabled || !simulationRef.current) return;
-        const simulation = simulationRef.current;
-
-        const simNode = simulation.nodes().find(n => (n as Node).id === node.id);
-        if (simNode) {
-            (simNode as any).fx = null;
-            (simNode as any).fy = null;
-        }
-        simulation.alphaTarget(0);
+        if (!isPhysicsEnabled || !physicsRef.current) return;
+        physicsRef.current.releaseNode(node.id);
     };
+
+    // 处理拖拽连接
+    const onConnect = useCallback(async (connection: Connection) => {
+        if (!connection.source || !connection.target) return;
+
+        const sourceItem = allItems.find(item => item.id === connection.source);
+        const targetItem = allItems.find(item => item.id === connection.target);
+
+        if (!sourceItem || !targetItem) return;
+
+        try {
+            console.log(`[Graph] Creating connection via drag: ${connection.source} -> ${connection.target}`);
+            const success = await createManualCitationLink(connection.source, connection.target);
+
+            if (success) {
+                toast.success(`已创建链接：${sourceItem.title} → ${targetItem.title}`);
+                console.log(`[Graph] Connection created successfully, refreshing graph...`);
+                // 刷新图谱
+                await fetchDataAndLayout();
+                console.log(`[Graph] Graph refreshed after connection`);
+            } else {
+                toast.info("链接已存在");
+                console.log(`[Graph] Connection already exists`);
+            }
+        } catch (error) {
+            console.error("Error creating connection:", error);
+            toast.error("创建连接失败");
+        }
+    }, [allItems, createManualCitationLink, fetchDataAndLayout]);
+
+    // 处理边的右键点击删除
+    const onEdgeContextMenu: EdgeMouseHandler = useCallback(async (event, edge) => {
+        event.preventDefault();
+
+        const sourceItem = allItems.find(item => item.id === edge.source);
+        const targetItem = allItems.find(item => item.id === edge.target);
+
+        if (!sourceItem || !targetItem) return;
+
+        // 设置要删除的边信息并打开确认对话框
+        setEdgeToDelete({ edge, sourceItem, targetItem });
+        setDeleteDialogOpen(true);
+    }, [allItems]);
+
+    // 确认删除边
+    const handleConfirmDelete = useCallback(async () => {
+        if (!edgeToDelete) return;
+
+        const { edge, sourceItem, targetItem } = edgeToDelete;
+
+        try {
+            console.log(`[Graph] Deleting edge: ${edge.source} -> ${edge.target}`);
+            await libraryService.deleteCitationLink(edge.source, edge.target);
+
+            toast.success(`已删除引用关系：${sourceItem.title} → ${targetItem.title}`);
+            console.log(`[Graph] Edge deleted successfully, refreshing graph...`);
+
+            // 刷新图谱
+            await fetchDataAndLayout();
+            console.log(`[Graph] Graph refreshed after edge deletion`);
+        } catch (error) {
+            console.error("Error deleting edge:", error);
+            toast.error("删除引用关系失败");
+        } finally {
+            setDeleteDialogOpen(false);
+            setEdgeToDelete(null);
+        }
+    }, [edgeToDelete, fetchDataAndLayout]);
+
+    // 取消删除
+    const handleCancelDelete = useCallback(() => {
+        setDeleteDialogOpen(false);
+        setEdgeToDelete(null);
+    }, []);
 
 
     if (isItemsLoading || !isStoreInitialized) {
@@ -328,56 +423,120 @@ function CitationGraph({ onNodeClick, className }: CitationGraphProps) {
     }
 
     return (
-        <Card className={`${className} flex flex-col`}>
-            <CardHeader>
-                <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-base"><Network className="h-5 w-5" />全局知识图谱</CardTitle>
-                    <div className="flex gap-2">
-                        <Button variant={isPhysicsEnabled ? "default" : "outline"} size="sm" onClick={togglePhysics} className="flex items-center gap-1">
-                            {isPhysicsEnabled ? <Zap className="h-4 w-4" /> : <ZapOff className="h-4 w-4" />}
-                            {isPhysicsEnabled ? '物理引擎' : '静态布局'}
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={fetchDataAndLayout} disabled={isLayouting}>
-                            {isLayouting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setIsExpanded(!isExpanded)}>
-                            <Maximize2 className="h-4 w-4 mr-1" />
-                            {isExpanded ? '收起' : '展开'}
-                        </Button>
+        <>
+            <Card className={`${className} flex flex-col`}>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2 text-base"><Network className="h-5 w-5" />全局知识图谱</CardTitle>
+                        <div className="flex gap-2">
+                            <Button variant={isPhysicsEnabled ? "default" : "outline"} size="sm" onClick={togglePhysics} className="flex items-center gap-1">
+                                {isPhysicsEnabled ? <Zap className="h-4 w-4" /> : <ZapOff className="h-4 w-4" />}
+                                {isPhysicsEnabled ? '物理引擎' : '静态布局'}
+                            </Button>
+                            {isPhysicsEnabled && (
+                                <Button variant="outline" size="sm" onClick={forceRestartPhysics} className="flex items-center gap-1">
+                                    <RefreshCw className="h-4 w-4" />
+                                    重启物理引擎
+                                </Button>
+                            )}
+                            <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                <Link2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                <span className="text-sm text-blue-800 dark:text-blue-200 font-medium">
+                                    拖拽连接已启用
+                                </span>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={fetchDataAndLayout} disabled={isLayouting}>
+                                {isLayouting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setIsExpanded(!isExpanded)}>
+                                <Maximize2 className="h-4 w-4 mr-1" />
+                                {isExpanded ? '收起' : '展开'}
+                            </Button>
+                        </div>
                     </div>
-                </div>
-            </CardHeader>
-            <CardContent className="p-0 flex-1">
-                <div className={`transition-all duration-300 relative ${isExpanded ? 'h-[80vh]' : 'h-full'}`}>
-                    <ReactFlow
-                        nodes={nodes}
-                        edges={edges}
-                        onNodesChange={onNodesChange}
-                        onEdgesChange={onEdgesChange}
-                        nodeTypes={nodeTypes}
-                        fitView
-                        nodesDraggable={true}
-                        onNodeDragStart={onNodeDragStart}
-                        onNodeDrag={onNodeDrag}
-                        onNodeDragStop={onNodeDragStop}
-                        proOptions={{ hideAttribution: true }}
-                    >
-                        <Controls showInteractive={false} />
-                        <MiniMap nodeColor="#3b82f6" maskColor="rgba(0, 0, 0, 0.2)" style={{ width: 120, height: 80 }} />
-                        <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
-                        <ViewportMonitor />
-                    </ReactFlow>
-                    {isLayouting && (
-                        <div className="absolute inset-0 bg-white/50 dark:bg-black/50 flex items-center justify-center z-10">
-                            <div className="text-center">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-                                <p className="text-sm font-medium">正在计算布局...</p>
+                </CardHeader>
+                <CardContent className="p-0 flex-1">
+                    <div className={`transition-all duration-300 relative ${isExpanded ? 'h-[80vh]' : 'h-full'}`}>
+                        <ReactFlow
+                            nodes={nodes}
+                            edges={edges}
+                            onNodesChange={onNodesChange}
+                            onEdgesChange={onEdgesChange}
+                            onConnect={onConnect}
+                            onEdgeContextMenu={onEdgeContextMenu}
+                            nodeTypes={nodeTypes}
+                            fitView
+                            nodesDraggable={true}
+                            onNodeDragStart={onNodeDragStart}
+                            onNodeDrag={onNodeDrag}
+                            onNodeDragStop={onNodeDragStop}
+                            connectionMode={ConnectionMode.Loose}
+                            connectOnClick={false}
+                            proOptions={{ hideAttribution: true }}
+                        >
+                            <Controls showInteractive={false} />
+                            <MiniMap nodeColor="#3b82f6" maskColor="rgba(0, 0, 0, 0.2)" style={{ width: 120, height: 80 }} />
+                            <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
+                            <ViewportMonitor />
+                        </ReactFlow>
+                        {isLayouting && (
+                            <div className="absolute inset-0 bg-white/50 dark:bg-black/50 flex items-center justify-center z-10">
+                                <div className="text-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                                    <p className="text-sm font-medium">正在计算布局...</p>
+                                </div>
+                            </div>
+                        )}
+                        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
+                            <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 text-sm shadow-lg">
+                                <p className="text-gray-800 dark:text-gray-200 font-medium">
+                                    💡 拖拽节点边缘的小圆点到另一个节点创建引用关系 | 右键点击连接线删除关系
+                                </p>
                             </div>
                         </div>
-                    )}
-                </div>
-            </CardContent>
-        </Card>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* 删除确认对话框 */}
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>确认删除引用关系</AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                            <div className="space-y-2">
+                                <p>您确定要删除以下引用关系吗？</p>
+                                {edgeToDelete && (
+                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border">
+                                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                            {edgeToDelete.sourceItem.title}
+                                        </div>
+                                        <div className="flex items-center justify-center my-2">
+                                            <div className="text-gray-500 dark:text-gray-400">↓</div>
+                                        </div>
+                                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                            {edgeToDelete.targetItem.title}
+                                        </div>
+                                    </div>
+                                )}
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    此操作无法撤销。
+                                </p>
+                            </div>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={handleCancelDelete}>取消</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleConfirmDelete}
+                            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                        >
+                            删除
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     );
 }
 

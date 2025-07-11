@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { LibraryItem } from '@/libs/db';
+import { LibraryItem, db } from '@/libs/db';
 import { libraryService } from '@/libs/db/LibraryService';
+import { useLiveQuery } from 'dexie-react-hooks';
 
 export interface CitationData {
   references: LibraryItem[];
@@ -19,6 +20,8 @@ export interface CitationActions {
     linkedCount: number;
     unlinkedCount: number;
   }>;
+  updateReference: (itemId: string, referenceIndex: number, updatedReference: any) => Promise<void>;
+  addReference: (itemId: string, newReference: any) => Promise<void>;
 }
 
 /**
@@ -106,6 +109,28 @@ export function useCitations(itemId: string | null): CitationData & CitationActi
     }
   }, [refresh]);
 
+  // ✏️ 更新引文信息
+  const updateReference = useCallback(async (itemId: string, referenceIndex: number, updatedReference: any) => {
+    try {
+      await libraryService.updateExtractedReference(itemId, referenceIndex, updatedReference);
+      await refresh(); // 刷新数据
+    } catch (error) {
+      console.error('Error updating reference:', error);
+      throw error;
+    }
+  }, [refresh]);
+
+  // ➕ 添加新引文信息
+  const addReference = useCallback(async (itemId: string, newReference: any) => {
+    try {
+      await libraryService.addExtractedReference(itemId, newReference);
+      await refresh(); // 刷新数据
+    } catch (error) {
+      console.error('Error adding reference:', error);
+      throw error;
+    }
+  }, [refresh]);
+
   // 监听 itemId 变化
   useEffect(() => {
     fetchCitationData();
@@ -116,7 +141,9 @@ export function useCitations(itemId: string | null): CitationData & CitationActi
     refresh,
     linkCitation,
     unlinkCitation,
-    autoLinkCitations
+    autoLinkCitations,
+    updateReference,
+    addReference
   };
 }
 

@@ -72,17 +72,17 @@ export class LibraryService {
     try {
       // Validate the item
       const validatedItem = LibraryItemSchema.parse(item);
-      
+
       // Check for duplicates
       const duplicates = await this.checkDuplicateByTitle(validatedItem.title);
-      
+
       if (duplicates.length > 0) {
         return {
           success: false,
           duplicate: duplicates
         };
       }
-      
+
       // Add to database
       await this.db.library.add(validatedItem as LibraryItem);
       return { success: true };
@@ -110,7 +110,7 @@ export class LibraryService {
 
       // Validate the updated item
       const validatedItem = LibraryItemSchema.parse(updatedItem);
-      
+
       // Update in database
       await this.db.library.update(id, validatedItem);
     } catch (error) {
@@ -152,7 +152,7 @@ export class LibraryService {
   async searchLibraryItems(query: string): Promise<LibraryItem[]> {
     try {
       const lowerQuery = query.toLowerCase();
-      
+
       const items = await this.db.library
         .filter(item => {
           const titleMatch = item.title.toLowerCase().includes(lowerQuery);
@@ -163,7 +163,7 @@ export class LibraryService {
           return titleMatch || authorMatch || publicationMatch || abstractMatch;
         })
         .toArray();
-      
+
       return items;
     } catch (error) {
       console.error('Error searching library items:', error);
@@ -271,10 +271,10 @@ export class LibraryService {
    */
   async importLibraryFromJSON(jsonData: string): Promise<{ added: number; errors: string[] }> {
     const result = { added: 0, errors: [] as string[] };
-    
+
     try {
       const items = JSON.parse(jsonData) as LibraryItem[];
-      
+
       if (!Array.isArray(items)) {
         throw new Error('Invalid JSON format: expected array of items');
       }
@@ -323,7 +323,7 @@ export class LibraryService {
       items.forEach(item => {
         const source = item.source || 'unknown';
         itemsBySource[source] = (itemsBySource[source] || 0) + 1;
-        
+
         itemsByYear[item.year] = (itemsByYear[item.year] || 0) + 1;
       });
 
@@ -712,6 +712,145 @@ export class LibraryService {
     } catch (error) {
       console.error('Error getting all citations:', error);
       throw new Error('Failed to get all citations');
+    }
+  }
+
+  /**
+   * ➕ 为指定文献添加新的引文信息
+   * @param itemId - 文献ID
+   * @param newReference - 新的引文数据
+   * @returns Promise<boolean> - 是否添加成功
+   */
+  async addExtractedReference(itemId: string, newReference: any): Promise<boolean> {
+    try {
+      const item = await this.getLibraryItemById(itemId);
+      if (!item) {
+        throw new Error('Item not found');
+      }
+
+      // 确保 parsedContent 和 extractedReferences 存在
+      const currentParsedContent = item.parsedContent || {};
+      const currentReferences = currentParsedContent.extractedReferences || [];
+
+      // 添加新引文到数组末尾
+      const updatedReferences = [
+        ...currentReferences,
+        {
+          ...newReference,
+          addedAt: new Date()
+        }
+      ];
+
+      // 更新文献项
+      const updatedParsedContent = {
+        ...currentParsedContent,
+        extractedReferences: updatedReferences
+      };
+
+      await this.updateLibraryItem(itemId, {
+        parsedContent: updatedParsedContent
+      });
+
+      console.log(`[LibraryService] Added new reference to item ${itemId}`);
+      return true;
+    } catch (error) {
+      console.error('Error adding extracted reference:', error);
+      throw new Error('Failed to add extracted reference');
+    }
+  }
+
+  /**
+   * ✏️ 更新指定文献的某一条引文信息
+   * @param itemId - 文献ID
+   * @param referenceIndex - 引文在数组中的索引
+   * @param updatedReference - 更新后的引文数据
+   * @returns Promise<boolean> - 是否更新成功
+   */
+  async updateExtractedReference(itemId: string, referenceIndex: number, updatedReference: any): Promise<boolean> {
+    try {
+      const item = await this.getLibraryItemById(itemId);
+      if (!item || !item.parsedContent?.extractedReferences) {
+        throw new Error('Item not found or has no extracted references');
+      }
+
+      const references = item.parsedContent.extractedReferences;
+      if (referenceIndex < 0 || referenceIndex >= references.length) {
+        throw new Error('Reference index out of bounds');
+      }
+
+      // 创建新的引文数组，替换指定索引的引文
+      const updatedReferences = [...references];
+      updatedReferences[referenceIndex] = {
+        ...references[referenceIndex],
+        ...updatedReference,
+        // 添加编辑时间戳
+        lastEditedAt: new Date()
+      };
+
+      // 更新文献项 - 确保正确更新 parsedContent
+      const updatedParsedContent = {
+        ...item.parsedContent,
+        extractedReferences: updatedReferences
+      };
+
+      await this.updateLibraryItem(itemId, {
+        parsedContent: updatedParsedContent
+      });
+
+      console.log(`[LibraryService] Updated reference ${referenceIndex} for item ${itemId}`);
+      return true;
+    } catch (error) {
+      console.error('Error updating extracted reference:', error);
+      throw new Error('Failed to update extracted reference');
+    }
+  }
+
+  /**
+   * 🔗 手动创建引文链接 - 支持图谱交互
+   * @param sourceItemId - 源文献ID
+   * @param targetItemId - 目标文献ID
+   * @returns Promise<boolean> - 是否创建成功
+   */
+  async createManualCitationLink(sourceItemId: string, targetItemId: string): Promise<boolean> {
+    try {
+      // 验证两个文献都存在
+      const [sourceItem, targetItem] = await Promise.all([
+        this.getLibraryItemById(sourceItemId),
+        this.getLibraryItemById(targetItemId)
+      ]);
+
+      if (!sourceItem || !targetItem) {
+        throw new Error('One or both items not found');
+      }
+
+      // 防止自引用
+      if (sourceItemId === targetItemId) {
+        throw new Error('Cannot create citation link from item to itself');
+      }
+
+      // 检查是否已存在链接
+      const existingLink = await this.db.citations
+        .where(['sourceItemId', 'targetItemId'])
+        .equals([sourceItemId, targetItemId])
+        .first();
+
+      if (existingLink) {
+        console.log(`[LibraryService] Citation link already exists: ${sourceItemId} -> ${targetItemId}`);
+        return false; // 已存在，不重复创建
+      }
+
+      // 创建新的引文链接
+      await this.db.citations.add({
+        sourceItemId,
+        targetItemId,
+        createdAt: new Date()
+      });
+
+      console.log(`[LibraryService] Created manual citation link: ${sourceItem.title} -> ${targetItem.title}`);
+      return true; // 成功创建
+    } catch (error) {
+      console.error('Error creating manual citation link:', error);
+      throw new Error('Failed to create manual citation link');
     }
   }
 }

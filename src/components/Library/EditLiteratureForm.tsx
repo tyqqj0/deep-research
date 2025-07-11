@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, Plus, Save, Trash2, FileText, Link, Eye, ChevronDown, ChevronRight, BookOpen } from "lucide-react";
+import { X, Plus, Save, Trash2, FileText, Link, Eye, ChevronDown, ChevronRight, BookOpen, Edit } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import { LITERATURE_SOURCES, SOURCE_METADATA } from "@/libs/db/constants";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LibraryItem } from "@/libs/db";
 import { CitationManager } from "./CitationManager";
+import { EditReferenceForm } from "./EditReferenceForm";
 import { toast } from "sonner";
 import {
   Collapsible,
@@ -50,6 +51,7 @@ type FormData = z.infer<typeof formSchema>;
 interface ReferenceItemProps {
   reference: any;
   index: number;
+  onEdit: (index: number, reference: any) => void;
 }
 
 // 优化的authors字段格式化函数
@@ -86,11 +88,21 @@ const formatAuthors = (authors: any): string => {
   return String(authors);
 };
 
-const ReferenceItem = ({ reference, index }: ReferenceItemProps) => {
+const ReferenceItem = ({ reference, index, onEdit }: ReferenceItemProps) => {
   if (typeof reference === 'string') {
     return (
-      <div className="text-sm p-2 bg-white dark:bg-gray-700 rounded border">
-        {reference}
+      <div className="text-sm p-2 bg-white dark:bg-gray-700 rounded border group relative">
+        <div className="pr-8">
+          {reference}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => onEdit(index, reference)}
+        >
+          <Edit className="h-3 w-3" />
+        </Button>
       </div>
     );
   }
@@ -99,16 +111,26 @@ const ReferenceItem = ({ reference, index }: ReferenceItemProps) => {
   const { title, authors, year, journal, doi } = reference;
 
   return (
-    <div className="text-sm p-2 bg-white dark:bg-gray-700 rounded border">
-      <p className="font-semibold">{index + 1}. {title}</p>
-      {authors && (
-        <p className="text-xs text-gray-600 dark:text-gray-300">
-          Authors: {formatAuthors(authors)}
-        </p>
-      )}
-      {year && <p className="text-xs text-gray-600 dark:text-gray-300">Year: {year}</p>}
-      {journal && <p className="text-xs text-gray-600 dark:text-gray-300">Journal: {journal}</p>}
-      {doi && <p className="text-xs text-gray-600 dark:text-gray-300">DOI: {doi}</p>}
+    <div className="text-sm p-2 bg-white dark:bg-gray-700 rounded border group relative">
+      <div className="pr-8">
+        <p className="font-semibold">{index + 1}. {title}</p>
+        {authors && (
+          <p className="text-xs text-gray-600 dark:text-gray-300">
+            Authors: {formatAuthors(authors)}
+          </p>
+        )}
+        {year && <p className="text-xs text-gray-600 dark:text-gray-300">Year: {year}</p>}
+        {journal && <p className="text-xs text-gray-600 dark:text-gray-300">Journal: {journal}</p>}
+        {doi && <p className="text-xs text-gray-600 dark:text-gray-300">DOI: {doi}</p>}
+      </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={() => onEdit(index, reference)}
+      >
+        <Edit className="h-3 w-3" />
+      </Button>
     </div>
   );
 };
@@ -119,7 +141,12 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("metadata");
   const [isTextExpanded, setIsTextExpanded] = useState(true);
-  const { updateLibraryItem, autoExtractMetadata, setAutoExtractMetadata } = useLibraryStore();
+
+  // 引文编辑状态
+  const [editingReference, setEditingReference] = useState<{ index: number; reference: any } | null>(null);
+  const [isAddingReference, setIsAddingReference] = useState(false);
+
+  const { updateLibraryItem, updateExtractedReference, addExtractedReference, autoExtractMetadata, setAutoExtractMetadata } = useLibraryStore();
 
   const {
     register,
@@ -176,6 +203,53 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
     onClose();
     // You might want to emit an event or use a callback for navigation
     // For now, we'll just close this dialog
+  };
+
+  // 处理引文编辑
+  const handleEditReference = (index: number, reference: any) => {
+    setEditingReference({ index, reference });
+  };
+
+  const handleSaveReference = async (referenceIndex: number, updatedReference: any) => {
+    if (!item) return;
+
+    try {
+      await updateExtractedReference(item.id, referenceIndex, updatedReference);
+      setEditingReference(null);
+
+      // 可选：重新运行自动链接
+      toast.success("引文已更新，可以重新运行自动链接");
+    } catch (error) {
+      console.error("Error updating reference:", error);
+      throw error;
+    }
+  };
+
+  const handleCloseEditReference = () => {
+    setEditingReference(null);
+  };
+
+  // 处理添加新引文
+  const handleAddReference = () => {
+    setIsAddingReference(true);
+  };
+
+  const handleSaveNewReference = async (referenceIndex: number, newReference: any) => {
+    if (!item) return;
+
+    try {
+      await addExtractedReference(item.id, newReference);
+      setIsAddingReference(false);
+
+      toast.success("新引文已添加");
+    } catch (error) {
+      console.error("Error adding reference:", error);
+      throw error;
+    }
+  };
+
+  const handleCloseAddReference = () => {
+    setIsAddingReference(false);
   };
 
   const addAuthor = () => {
@@ -563,28 +637,55 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                   )}
 
                   {/* 提取的引用 */}
-                  {item.parsedContent.extractedReferences && item.parsedContent.extractedReferences.length > 0 && (
-                    <Collapsible>
-                      <CollapsibleTrigger asChild>
-                        <div className="flex justify-between items-center cursor-pointer">
-                          <h3 className="text-lg font-semibold flex items-center gap-2">
-                            <BookOpen className="h-5 w-5" />
-                            Extracted References ({item.parsedContent.extractedReferences.length})
-                          </h3>
-                          <ChevronDown className="h-4 w-4" />
+                  {/* 引文部分 - 始终显示，即使没有引文也可以添加新的 */}
+                  <Collapsible>
+                    <CollapsibleTrigger asChild>
+                      <div className="flex justify-between items-center cursor-pointer">
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                          <BookOpen className="h-5 w-5" />
+                          Extracted References ({item.parsedContent?.extractedReferences?.length || 0})
+                        </h3>
+                        <ChevronDown className="h-4 w-4" />
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-4 max-h-64 overflow-y-auto mt-2">
+                        {/* 添加新引文按钮 */}
+                        <div className="mb-4">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleAddReference}
+                            className="flex items-center gap-2"
+                          >
+                            <Plus className="h-4 w-4" />
+                            添加新引文
+                          </Button>
                         </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-4 max-h-64 overflow-y-auto mt-2">
-                          <div className="space-y-2">
-                            {item.parsedContent.extractedReferences.map((ref: any, index: number) => (
-                              <ReferenceItem key={index} reference={ref} index={index} />
-                            ))}
-                          </div>
+
+                        {/* 引文列表 */}
+                        <div className="space-y-2">
+                          {item.parsedContent?.extractedReferences?.length > 0 ? (
+                            item.parsedContent.extractedReferences.map((ref: any, index: number) => (
+                              <ReferenceItem
+                                key={index}
+                                reference={ref}
+                                index={index}
+                                onEdit={handleEditReference}
+                              />
+                            ))
+                          ) : (
+                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                              <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                              <p className="text-sm">暂无引文信息</p>
+                              <p className="text-xs mt-1">点击上方按钮添加新引文</p>
+                            </div>
+                          )}
                         </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
 
                   {/* 下载完整结果 */}
                   {item.parsedContent.fullZipUrl && (
@@ -626,6 +727,28 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
           </TabsContent>
         </Tabs>
       </DialogContent>
+
+      {/* 引文编辑对话框 */}
+      {editingReference && (
+        <EditReferenceForm
+          open={!!editingReference}
+          onClose={handleCloseEditReference}
+          reference={editingReference.reference}
+          referenceIndex={editingReference.index}
+          onSave={handleSaveReference}
+        />
+      )}
+
+      {/* 添加新引文对话框 */}
+      {isAddingReference && (
+        <EditReferenceForm
+          open={isAddingReference}
+          onClose={handleCloseAddReference}
+          reference={{}} // 空的引文对象
+          referenceIndex={-1} // 表示这是新增
+          onSave={handleSaveNewReference}
+        />
+      )}
     </Dialog>
   );
 }
