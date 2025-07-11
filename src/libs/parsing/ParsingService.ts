@@ -86,13 +86,17 @@ export class ParsingService {
      * 📄 创建解析内容对象
      * 
      * @param parsedMdData - Mineru 等服务返回的原始数据
+     * @param extractedMetadata - 从规则提取的元数据（可选）
      * @returns 标准化的解析内容对象
      */
-    createParsedContent(parsedMdData: any): ParsedContent {
+    createParsedContent(parsedMdData: any, extractedMetadata?: Partial<LibraryItem> & { references?: any }): ParsedContent {
+        // 如果有提取的元数据，优先使用其中的 references
+        const references = extractedMetadata?.references || parsedMdData.references || [];
+
         return {
             extractedText: parsedMdData.content || '',
             extractedMetadata: parsedMdData.metadata || {},
-            extractedReferences: parsedMdData.references || [],
+            extractedReferences: Array.isArray(references) ? references : (references ? [references] : []),
             parsedAt: new Date(),
             fullZipUrl: parsedMdData.fullZipUrl || ''
         };

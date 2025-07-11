@@ -26,7 +26,7 @@ import { mineruService } from '../parsing/MineruService';
 import { pdfFetcherService } from '../fetching';
 import { MINERU_EXTRACTION_RULES } from '../parsing/extractionRules';
 import { generateLibraryItemId } from '../utils/uuid';
-import { createLLMReferenceParser, ParsedReference } from '../parsing/LLMReferenceParser';
+import { llmReferenceParser, ParsedReference } from '../parsing/LLMReferenceParser';
 
 export class LibraryWorkflowService {
     /**
@@ -324,7 +324,8 @@ export class LibraryWorkflowService {
             // 使用ParsingService进行结构化映射
             const extractedMetadata = parsingService.extractMetadata(parsedMdData, MINERU_EXTRACTION_RULES);
             console.log('extractedMetadata', extractedMetadata);
-            const parsedContent = parsingService.createParsedContent(parsedMdData);
+            const parsedContent = parsingService.createParsedContent(parsedMdData, extractedMetadata);
+            console.log('parsedContent', parsedContent);
 
             // 🚀 第二阶段：LLM 引文解析
             let finalParsedContent = parsedContent;
@@ -341,8 +342,7 @@ export class LibraryWorkflowService {
 
                 try {
                     // 使用 LLM 解析引文
-                    const llmParser = createLLMReferenceParser();
-                    const parsedReferences = await llmParser.parseReferences(rawReferences);
+                    const parsedReferences = await llmReferenceParser.parseReferences(rawReferences);
 
                     console.log(`Successfully parsed ${parsedReferences.length} references for item ${itemId}`);
 

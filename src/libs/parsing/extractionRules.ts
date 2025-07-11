@@ -36,6 +36,33 @@ export interface ExtractionRules {
 }
 
 /**
+ * 🔨 暴力提取引文部分 - 使用字符串分割而不是复杂正则表达式
+ */
+function extractReferencesSection(text: string): string | null {
+    // 预处理：压缩连续换行
+    const cleanText = text.replace(/\n\s*\n\s*\n+/g, '\n\n');
+
+    // 找到 REFERENCES 的位置
+    const refPattern = /##?\s*REFERENCES\s*\n/i;
+    const refMatch = cleanText.match(refPattern);
+    if (!refMatch) return null;
+
+    const refStartIndex = refMatch.index! + refMatch[0].length;
+
+    // 找到下一个章节的位置
+    const nextSectionPattern = /\n##?\s+[A-Z]/i;
+    const nextSectionMatch = cleanText.substring(refStartIndex).match(nextSectionPattern);
+
+    if (nextSectionMatch) {
+        const refEndIndex = refStartIndex + nextSectionMatch.index!;
+        return cleanText.substring(refStartIndex, refEndIndex).trim();
+    } else {
+        // 如果没有下一个章节，取到文档结尾
+        return cleanText.substring(refStartIndex).trim();
+    }
+}
+
+/**
  * 🧪 适用于 Mineru 服务返回的科学论文 Markdown 数据的提取规则
  * 
  * 📋 支持的格式示例:
@@ -179,19 +206,18 @@ export const MINERU_EXTRACTION_RULES: ExtractionRules = {
 
     // 📖 参考文献提取 - 从 REFERENCES 部分提取原始文本
     references: {
-        regex: {
-            // 匹配 "# REFERENCES" 或 "## REFERENCES" 后的所有内容
-            pattern: /##?\s*REFERENCES\s*\n([\s\S]*?)(?=\n##?\s|$)/im,
-            source: 'content',
-            group: 1
-        },
-        paths: ['metadata.references', 'metadata.References', 'metadata.bibliography'],
+        paths: ['metadata.references', 'metadata.References', 'metadata.bibliography', 'content'],
         postProcess: (value: string) => {
-            if (typeof value === 'string') {
-                // 🚀 新策略：只返回原始文本，让 LLM 来处理解析
-                // 这里我们保持原始文本的完整性，所有复杂的解析逻辑都移到 LLMReferenceParser
+            if (typeof value === 'string' && value.trim()) {
+                // 如果路径提取成功，先尝试暴力提取（以防这是完整的content）
+                const bruteForceResult = extractReferencesSection(value);
+                if (bruteForceResult) {
+                    return bruteForceResult;
+                }
+                // 如果暴力提取失败，返回原始值
                 return value.trim();
             }
+
             return value;
         }
     }

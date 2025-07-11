@@ -1,175 +1,385 @@
 /**
- * 🤖 LLM 引文解析服务
+ * 🤖 LLMReferenceParser - LLM 驱动的引文解析器
  * 
  * 🎯 核心职责:
- * - 使用 LLM 模型智能解析参考文献文本
- * - 将混杂的引文文本转换为结构化的数据
- * - 支持各种引文格式（APA、IEEE、带编号等）
+ * - 使用大语言模型来智能解析复杂、混乱的引文文本
+ * - 将非结构化的引文文本转换为结构化的 JSON 数据
+ * - 支持各种引文格式：APA、IEEE、MLA、混合格式等
+ * - 比传统正则表达式方法更准确、更智能
  * 
- * 💡 优势:
- * - 比正则表达式更准确、更智能
- * - 能处理复杂的混合格式
- * - 自动适应新的引文格式
+ * 🚀 优势:
+ * - 高准确率：LLM 在理解上下文和处理模糊格式方面远超正则表达式
+ * - 高适应性：能处理各种引文格式，包括不规范的引文
+ * - 易维护：无需编写复杂的正则表达式
+ * - JSON修复：自动修复LLM返回的损坏JSON
  */
 
-import { streamText } from 'ai';
 import useModelProvider from '@/hooks/useAiProvider';
+import { generateText } from 'ai';
+import { jsonrepair } from 'jsonrepair';
 
+// 引文解析结果的类型定义 - 简化版
 export interface ParsedReference {
-    title: string;
-    authors: string[];
-    year: number;
+    title?: string;
+    authors?: string[];
+    year?: number;
     journal?: string;
     doi?: string;
     url?: string;
-    arxivId?: string;
-    raw: string; // 原始文本
+    confidence?: number; // 解析置信度 (0-1)
 }
 
 export class LLMReferenceParser {
-    constructor() {
-        // 类构造函数保持简单
-    }
+    private modelProvider: any = null;
+    private readonly MAX_CHUNK_SIZE = 2000; // 每个块的最大字符数
+    private readonly MIN_REFERENCES_PER_CHUNK = 3; // 每个块的最小引文数
 
     /**
-     * 🚀 使用 LLM 解析参考文献
-     * @param referencesText 原始参考文献文本
+     * 🧠 使用 LLM 解析引文文本
+     * 
+     * @param rawReferencesText - 原始引文文本
      * @returns 解析后的结构化引文数组
      */
-    async parseReferences(referencesText: string): Promise<ParsedReference[]> {
+    async parseReferences(rawReferencesText: string): Promise<ParsedReference[]> {
+        if (!rawReferencesText || rawReferencesText.trim().length === 0) {
+            return [];
+        }
+
         try {
-            // 使用 useModelProvider hook 的功能
-            const modelProviderHook = useModelProvider();
-            const { networkingModel } = modelProviderHook.getModel();
-            const modelProvider = await modelProviderHook.createModelProvider(networkingModel);
+            // 初始化模型提供者
+            await this.initializeModelProvider();
 
-            const systemPrompt = this.createSystemPrompt();
-            const userPrompt = this.createUserPrompt(referencesText);
+            console.log('🤖 LLM 开始解析引文...');
+            console.log('输入文本长度:', rawReferencesText.length);
 
-            const result = await streamText({
-                model: modelProvider,
-                system: systemPrompt,
-                prompt: userPrompt,
-            });
-
-            // 收集完整的响应
-            let fullResponse = '';
-            for await (const chunk of result.textStream) {
-                fullResponse += chunk;
+            // 判断是否需要拆分处理
+            if (rawReferencesText.length > this.MAX_CHUNK_SIZE) {
+                console.log('📦 文本过长，启用拆分并行处理...');
+                return await this.parseReferencesInChunks(rawReferencesText);
+            } else {
+                console.log('📄 文本长度适中，使用单次处理...');
+                return await this.parseSingleChunk(rawReferencesText);
             }
 
-            // 解析 JSON 响应
-            const parsedReferences = this.parseJsonResponse(fullResponse);
-            return parsedReferences;
-
         } catch (error) {
-            console.error('LLM 引文解析失败:', error);
-            throw new Error(`引文解析失败: ${error instanceof Error ? error.message : String(error)}`);
+            console.error('❌ LLM 引文解析失败:', error);
+            // 如果 LLM 解析失败，返回原始文本作为备选
+            return [{
+                title: '解析失败 - 原始文本',
+                authors: ['Unknown'],
+                year: new Date().getFullYear(),
+                journal: rawReferencesText.substring(0, 200) + '...',
+                confidence: 0
+            }];
         }
     }
 
     /**
-     * 🎯 创建系统提示词 - 定义 LLM 的角色和任务
+     * 🔧 初始化模型提供者
      */
-    private createSystemPrompt(): string {
-        return `你是一个专业的学术文献引文解析专家。你的任务是将混杂的参考文献文本解析成结构化的数据。
+    private async initializeModelProvider(): Promise<void> {
+        if (!this.modelProvider) {
+            const { createModelProvider, getModel } = useModelProvider();
+            const { thinkingModel } = getModel();
+            this.modelProvider = await createModelProvider(thinkingModel);
+        }
+    }
 
-**你的能力:**
-- 识别各种引文格式（APA、IEEE、MLA、编号格式等）
-- 处理黏连在一起的多条引文
-- 提取关键信息（标题、作者、年份、期刊等）
-- 处理不规范的引文格式
+    /**
+     * 📝 构造系统提示词 - 让 LLM 扮演学术文献专家（简化版）
+     */
+    private buildSystemPrompt(): string {
+        return `你是一位专业的学术文献分析专家，专门负责从混乱的参考文献文本中提取结构化信息。
 
-**输出要求:**
-1. 必须返回有效的 JSON 数组格式
-2. 每个引文对象包含以下字段：
-   - title: 论文标题（必需）
-   - authors: 作者数组（必需）
-   - year: 发表年份（必需，数字格式）
-   - journal: 期刊/会议名称（可选）
-   - doi: DOI 标识符（可选）
-   - url: 链接地址（可选）
-   - arxivId: arXiv ID（可选）
-   - raw: 原始引文文本（必需）
+**你的任务：**
+1. 仔细分析用户提供的参考文献文本
+2. 识别出每一条独立的参考文献
+3. 从每条引文中提取关键信息
+4. 以严格的 JSON 格式返回结果
 
-**处理原则:**
-- 如果某个字段无法确定，设为 null 或省略
-- 确保年份是数字格式
-- 作者数组中每个元素是完整的姓名
-- 保持原始文本的完整性
+**提取的字段（按重要性排序）：**
+- title: 论文标题（最重要）
+- year: 发表年份（最重要）
+- authors: 作者列表（数组格式）
+- journal: 期刊或会议名称
+- doi: DOI 标识符
+- url: 任何可访问的链接
 
-**示例输出:**
+**输出格式要求：**
+- 必须返回有效的 JSON 数组
+- 每个对象代表一条引文
+- 如果某个字段无法确定，则省略该字段
+- 不要添加任何解释文字，只返回 JSON
+
+**示例输出：**
 [
   {
-    "title": "Large language models can learn temporal reasoning",
-    "authors": ["Siheng Xiong", "Ali Payani", "Ramana Kompella", "Faramarz Fekri"],
+    "title": "Large language models for scientific text processing",
+    "authors": ["Brown, A.", "Smith, J."],
     "year": 2024,
-    "journal": "arXiv preprint",
-    "arxivId": "2401.06853",
-    "raw": "Siheng Xiong, Ali Payani, Ramana Kompella, and Faramarz Fekri. Large language models can learn temporal reasoning. arXiv preprint arXiv:2401.06853, 2024."
+    "journal": "Nature Machine Intelligence",
+    "doi": "10.1038/s42256-024-00789-1"
   }
 ]`;
     }
 
     /**
-     * 📝 创建用户提示词 - 包含待解析的引文文本
+     * 👤 构造用户提示词
      */
-    private createUserPrompt(referencesText: string): string {
-        return `请解析以下参考文献文本，将其转换为结构化的 JSON 数组：
+    private buildUserPrompt(rawText: string): string {
+        return `请解析以下参考文献文本，提取出所有独立的引文并转换为结构化的 JSON 格式：
 
-${referencesText}
+\`\`\`
+${rawText}
+\`\`\`
 
-请严格按照系统提示中的格式返回 JSON 数组。`;
+请返回 JSON 数组，每个对象包含一条引文的结构化信息。重点关注标题和年份的准确提取。`;
     }
 
     /**
-     * 🔧 解析 LLM 返回的 JSON 响应
+     * 🔀 拆分并行处理长引文文本
+     */
+    private async parseReferencesInChunks(rawReferencesText: string): Promise<ParsedReference[]> {
+        // 智能拆分引文文本
+        const chunks = this.splitReferencesText(rawReferencesText);
+
+        console.log(`📦 拆分为 ${chunks.length} 个块进行并行处理`);
+
+        // 并行处理所有块
+        const chunkPromises = chunks.map((chunk, index) =>
+            this.parseSingleChunk(chunk, `块${index + 1}`)
+        );
+
+        // 等待所有并行任务完成
+        const chunkResults = await Promise.all(chunkPromises);
+
+        // 合并所有结果
+        const allReferences = chunkResults.flat();
+
+        console.log(`✅ 并行处理完成，总共解析到 ${allReferences.length} 条引文`);
+
+        return allReferences;
+    }
+
+    /**
+     * ✂️ 智能拆分引文文本
+     */
+    private splitReferencesText(text: string): string[] {
+        const chunks: string[] = [];
+        const lines = text.split('\n');
+
+        let currentChunk = '';
+        let referenceCount = 0;
+
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+
+            // 跳过空行
+            if (!trimmedLine) {
+                currentChunk += line + '\n';
+                continue;
+            }
+
+            // 检测是否是新的引文开始（简单启发式）
+            const isNewReference = this.isLikelyNewReference(trimmedLine);
+
+            if (isNewReference) {
+                referenceCount++;
+            }
+
+            // 检查是否需要开始新块
+            if (currentChunk.length > 0 &&
+                (currentChunk.length + line.length > this.MAX_CHUNK_SIZE) &&
+                referenceCount >= this.MIN_REFERENCES_PER_CHUNK) {
+
+                // 保存当前块
+                chunks.push(currentChunk.trim());
+                currentChunk = '';
+                referenceCount = isNewReference ? 1 : 0;
+            }
+
+            currentChunk += line + '\n';
+        }
+
+        // 添加最后一个块
+        if (currentChunk.trim()) {
+            chunks.push(currentChunk.trim());
+        }
+
+        return chunks.filter(chunk => chunk.length > 0);
+    }
+
+    /**
+     * 🔍 判断是否可能是新引文的开始
+     */
+    private isLikelyNewReference(line: string): boolean {
+        // 启发式规则：检测常见的引文开始模式
+        const patterns = [
+            /^\d+\.\s+/, // 数字编号：1. 2. 3.
+            /^\[\d+\]/, // 方括号编号：[1] [2] [3]
+            /^[A-Z][a-z]+,\s+[A-Z]\./, // 作者格式：Smith, J.
+            /^\w+\s+et\s+al\./, // et al. 格式
+            /^\w+\s+\(\d{4}\)/, // 作者(年份)格式
+        ];
+
+        return patterns.some(pattern => pattern.test(line));
+    }
+
+    /**
+     * 📄 处理单个文本块
+     */
+    private async parseSingleChunk(rawText: string, chunkLabel: string = ''): Promise<ParsedReference[]> {
+        const label = chunkLabel ? `[${chunkLabel}] ` : '';
+
+        try {
+            // 构造专家级 Prompt
+            const systemPrompt = this.buildSystemPrompt();
+            const userPrompt = this.buildUserPrompt(rawText);
+
+            console.log(`${label}🤖 开始解析引文块...`);
+            console.log(`${label}📝 输入文本长度:`, rawText.length);
+
+            // 使用 generateText 而不是 streamText 来获取完整响应
+            const result = await generateText({
+                model: this.modelProvider,
+                system: systemPrompt,
+                prompt: userPrompt,
+                temperature: 0.1, // 低温度，确保输出稳定
+                maxTokens: 4000
+            });
+
+            const fullResponse = result.text;
+            console.log(`${label}🤖 LLM 响应长度:`, fullResponse.length);
+            console.log(`${label}🤖 LLM 响应:`, fullResponse);
+
+            // 解析 JSON 响应（带修复功能）
+            const parsedReferences = this.parseJsonResponse(fullResponse);
+
+            console.log(`${label}✅ 解析完成，提取到`, parsedReferences.length, '条引文');
+
+            return parsedReferences;
+
+        } catch (error) {
+            console.error(`${label}❌ 引文解析失败:`, error);
+            return [];
+        }
+    }
+
+    /**
+     * 🔍 解析 LLM 的 JSON 响应（带修复功能）
      */
     private parseJsonResponse(response: string): ParsedReference[] {
         try {
-            // 尝试提取 JSON 部分
-            const jsonMatch = response.match(/\[[\s\S]*\]/);
-            if (!jsonMatch) {
-                throw new Error('响应中未找到有效的 JSON 数组');
+            // 清理响应文本，提取 JSON 部分
+            let jsonText = response.trim();
+
+            // 移除可能的 markdown 代码块标记
+            jsonText = jsonText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+
+            // 查找 JSON 数组的开始和结束
+            const startIndex = jsonText.indexOf('[');
+            const endIndex = jsonText.lastIndexOf(']');
+
+            if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+                jsonText = jsonText.substring(startIndex, endIndex + 1);
             }
 
-            const jsonStr = jsonMatch[0];
-            const parsed = JSON.parse(jsonStr);
+            // 首先尝试直接解析 JSON
+            let parsed;
+            try {
+                parsed = JSON.parse(jsonText);
+            } catch (firstError) {
+                console.log('🔧 JSON 解析失败，尝试修复...');
 
-            if (!Array.isArray(parsed)) {
-                throw new Error('响应不是有效的数组格式');
-            }
-
-            // 验证和清理数据
-            return parsed.map((item: any, index: number) => {
-                if (!item.title || !item.authors || !item.year) {
-                    console.warn(`引文 ${index + 1} 缺少必需字段，跳过`);
-                    return null;
+                // 使用 jsonrepair 修复损坏的 JSON
+                try {
+                    const repairedJson = jsonrepair(jsonText);
+                    console.log('✅ JSON 修复成功');
+                    parsed = JSON.parse(repairedJson);
+                } catch (repairError) {
+                    console.error('❌ JSON 修复也失败:', repairError);
+                    throw firstError; // 抛出原始错误
                 }
+            }
 
-                return {
-                    title: String(item.title).trim(),
-                    authors: Array.isArray(item.authors) ? item.authors.map((a: any) => String(a).trim()) : [String(item.authors).trim()],
-                    year: parseInt(String(item.year)),
-                    journal: item.journal ? String(item.journal).trim() : undefined,
-                    doi: item.doi ? String(item.doi).trim() : undefined,
-                    url: item.url ? String(item.url).trim() : undefined,
-                    arxivId: item.arxivId ? String(item.arxivId).trim() : undefined,
-                    raw: item.raw ? String(item.raw).trim() : ''
-                };
-            }).filter(Boolean) as ParsedReference[];
+            if (Array.isArray(parsed)) {
+                return parsed.map(item => this.validateAndCleanReference(item));
+            } else {
+                console.warn('LLM 返回的不是数组格式');
+                return [];
+            }
 
         } catch (error) {
-            console.error('解析 JSON 响应失败:', error);
-            console.error('原始响应:', response);
-            throw new Error(`解析响应失败: ${error instanceof Error ? error.message : String(error)}`);
+            console.error('JSON 解析失败:', error);
+            console.log('原始响应:', response);
+
+            // 尝试从响应中提取部分信息作为备选
+            return this.extractFallbackReferences(response);
         }
+    }
+
+    /**
+     * ✅ 验证和清理单个引文对象（简化版）
+     */
+    private validateAndCleanReference(item: any): ParsedReference {
+        const reference: ParsedReference = {};
+
+        // 清理和验证各个字段
+        if (item.title && typeof item.title === 'string') {
+            reference.title = item.title.trim();
+        }
+
+        if (item.authors) {
+            if (Array.isArray(item.authors)) {
+                reference.authors = item.authors
+                    .filter((author: any) => typeof author === 'string')
+                    .map((author: any) => author.trim())
+                    .filter((author: any) => author.length > 0);
+            } else if (typeof item.authors === 'string') {
+                reference.authors = [item.authors.trim()];
+            }
+        }
+
+        if (item.year) {
+            const year = parseInt(item.year);
+            if (year >= 1900 && year <= new Date().getFullYear() + 5) {
+                reference.year = year;
+            }
+        }
+
+        if (item.journal && typeof item.journal === 'string') {
+            reference.journal = item.journal.trim();
+        }
+
+        if (item.doi && typeof item.doi === 'string') {
+            reference.doi = item.doi.trim();
+        }
+
+        if (item.url && typeof item.url === 'string') {
+            reference.url = item.url.trim();
+        }
+
+        // 设置置信度
+        reference.confidence = (reference.title && reference.year) ? 0.9 : 0.5;
+
+        return reference;
+    }
+
+    /**
+     * 🆘 备选方案：从响应中提取部分信息
+     */
+    private extractFallbackReferences(response: string): ParsedReference[] {
+        // 如果 JSON 解析失败，尝试从文本中提取一些基本信息
+        const lines = response.split('\n').filter(line => line.trim().length > 10);
+
+        return lines.slice(0, 5).map(line => ({
+            title: line.substring(0, 100) + '...',
+            authors: ['Unknown'],
+            year: new Date().getFullYear(),
+            confidence: 0.1
+        }));
     }
 }
 
-/**
- * 🏭 工厂函数 - 创建 LLM 引文解析器实例
- */
-export function createLLMReferenceParser(): LLMReferenceParser {
-    return new LLMReferenceParser();
-} 
+// 导出单例实例
+export const llmReferenceParser = new LLMReferenceParser(); 
