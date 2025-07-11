@@ -4,30 +4,34 @@ const MINERU_BASE_URL = 'https://mineru.net/api/v4';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return handleMineruRequest(request, params.path, 'GET');
+  const { path } = await params;
+  return handleMineruRequest(request, path, 'GET');
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return handleMineruRequest(request, params.path, 'POST');
+  const { path } = await params;
+  return handleMineruRequest(request, path, 'POST');
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return handleMineruRequest(request, params.path, 'PUT');
+  const { path } = await params;
+  return handleMineruRequest(request, path, 'PUT');
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return handleMineruRequest(request, params.path, 'DELETE');
+  const { path } = await params;
+  return handleMineruRequest(request, path, 'DELETE');
 }
 
 async function handleMineruRequest(
@@ -38,7 +42,7 @@ async function handleMineruRequest(
   try {
     const path = pathSegments.join('/');
     const url = `${MINERU_BASE_URL}/${path}`;
-    
+
     // Get search params from the original request
     const { searchParams } = new URL(request.url);
     const queryString = searchParams.toString();
@@ -48,7 +52,7 @@ async function handleMineruRequest(
 
     // Prepare headers
     const headers: Record<string, string> = {};
-    
+
     // Copy authorization header
     const authHeader = request.headers.get('authorization');
     if (authHeader) {
@@ -82,10 +86,10 @@ async function handleMineruRequest(
 
     // Handle different response types
     const responseContentType = response.headers.get('content-type') || '';
-    
+
     if (responseContentType.includes('application/json')) {
       const data = await response.json();
-      return NextResponse.json(data, { 
+      return NextResponse.json(data, {
         status: response.status,
         headers: {
           'Access-Control-Allow-Origin': '*',
@@ -109,11 +113,11 @@ async function handleMineruRequest(
   } catch (error) {
     console.error('[Mineru Proxy] Error:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Proxy request failed',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
-      { 
+      {
         status: 500,
         headers: {
           'Access-Control-Allow-Origin': '*',
