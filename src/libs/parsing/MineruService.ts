@@ -64,6 +64,8 @@ interface MineruParsedData {
 export class MineruService {
   private readonly config: MineruConfig;
   private useProxy: boolean = false;
+  // 添加一个标志来跟踪是否已经检测到需要使用代理
+  private forceProxy: boolean = false;
 
   constructor() {
     const { config, warnings } = getMineruConfig();
@@ -71,6 +73,11 @@ export class MineruService {
 
     if (warnings.length > 0) {
       console.warn('⚠️  MineruService configuration warnings:', warnings);
+    }
+
+    // 在浏览器环境中，对于跨域请求，我们通常需要使用代理
+    if (typeof window !== 'undefined') {
+      this.forceProxy = true;
     }
   }
 
@@ -195,6 +202,22 @@ export class MineruService {
    * @param type 请求类型：'api' | 'download' | 'upload'
    */
   private async makeRequest(url: string, options: RequestInit, type: 'api' | 'download' | 'upload' = 'api'): Promise<Response> {
+    // 对于上传请求，如果是外部URL且在浏览器环境中，直接使用代理
+    const isExternalUrl = !url.startsWith('/') && !url.startsWith(window?.location?.origin || '');
+    const shouldSkipDirect = this.forceProxy && isExternalUrl && (type === 'upload' || type === 'download');
+
+    if (shouldSkipDirect) {
+      console.log(`🔄 Using proxy for ${type} request (avoiding CORS)...`);
+      try {
+        const proxyResponse = await this.makeProxyRequest(url, options, type);
+        console.log(`✅ Proxy ${type} request successful`);
+        return proxyResponse;
+      } catch (proxyError) {
+        console.log(`❌ Proxy ${type} request failed:`, proxyError);
+        throw proxyError;
+      }
+    }
+
     console.log(`[MineruService] Making ${type} request to: ${url}`);
 
     // 首先尝试直接请求
@@ -207,8 +230,9 @@ export class MineruService {
     } catch (error) {
       // 检查是否应该使用代理
       if (this.shouldUseProxy(undefined, error as Error)) {
-        // 不记录预期的CORS错误，直接尝试代理
-        console.log(`🔄 Trying ${type} request via proxy...`);
+        // 标记需要使用代理，避免后续的直连尝试
+        this.forceProxy = true;
+        console.log(`🔄 Switching to proxy mode for future requests...`);
 
         try {
           const proxyResponse = await this.makeProxyRequest(url, options, type);
@@ -274,19 +298,23 @@ export class MineruService {
    * 🚫 检查是否应该使用代理
    */
   private shouldUseProxy(response?: Response, error?: Error): boolean {
-    return (
-      // CORS错误
-      (response && response.status === 0) ||
-      // 网络错误
-      (error && (
+    // 修复 TypeScript 错误：确保返回值始终是 boolean
+    if (response && response.status === 0) {
+      return true;
+    }
+
+    if (error) {
+      return (
         error.message.includes('fetch') ||
         error.message.includes('CORS') ||
         error.message.includes('Network') ||
         error.message.includes('Failed to fetch') ||
         error.message.includes('ERR_FAILED') ||
         error.name === 'TypeError'
-      ))
-    );
+      );
+    }
+
+    return false;
   }
 
   /**

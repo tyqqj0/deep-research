@@ -177,7 +177,7 @@ export const MINERU_EXTRACTION_RULES: ExtractionRules = {
         paths: ['metadata.publication', 'metadata.journal', 'metadata.conference']
     },
 
-    // 📖 参考文献提取 - 从 REFERENCES 部分提取
+    // 📖 参考文献提取 - 从 REFERENCES 部分提取原始文本
     references: {
         regex: {
             // 匹配 "# REFERENCES" 或 "## REFERENCES" 后的所有内容
@@ -188,96 +188,20 @@ export const MINERU_EXTRACTION_RULES: ExtractionRules = {
         paths: ['metadata.references', 'metadata.References', 'metadata.bibliography'],
         postProcess: (value: string) => {
             if (typeof value === 'string') {
-                // 智能分割参考文献 - 处理在一行上的多个参考文献
-                let references = value
-                    .split(/\n/)
-                    .map(ref => ref.trim())
-                    .filter(ref => ref.length > 0);
-
-                // 如果只有一行，说明所有参考文献都在一行上，需要智能分割
-                if (references.length === 1) {
-                    const singleLine = references[0];
-
-                    // 使用年份后跟句号和大写字母的模式来分割
-                    const yearEndPattern = /(\b(?:19|20)\d{2}\b\.)\s+([A-Z][a-z]+)/g;
-
-                    // 在年份后插入换行符来分割
-                    let splitText = singleLine.replace(yearEndPattern, '$1\n$2');
-
-                    // 再次按行分割
-                    references = splitText
-                        .split(/\n/)
-                        .map(ref => ref.trim())
-                        .filter(ref => ref.length > 0);
-                }
-
-                // 进一步解析每个参考文献条目
-                return references.map(ref => {
-                    // 尝试提取基本信息：作者、标题、期刊/会议、年份、DOI/URL
-                    const parsed = parseReference(ref);
-                    return {
-                        raw: ref,
-                        ...parsed
-                    };
-                });
+                // 🚀 新策略：只返回原始文本，让 LLM 来处理解析
+                // 这里我们保持原始文本的完整性，所有复杂的解析逻辑都移到 LLMReferenceParser
+                return value.trim();
             }
             return value;
         }
     }
 };
 
-/**
- * 解析单个参考文献条目
- * @param reference 原始参考文献字符串
- * @returns 解析后的参考文献对象
- */
-function parseReference(reference: string): any {
-    const result: any = {};
+// 🗑️ 旧的智能拆分函数已被移除
+// 现在使用 LLMReferenceParser 来处理所有引文解析任务
 
-    // 提取 DOI
-    const doiMatch = reference.match(/(?:doi[:\s]*|DOI[:\s]*)(10\.\d+\/[^\s,]+)/i);
-    if (doiMatch) {
-        result.doi = doiMatch[1];
-    }
+// 🗑️ 旧的单条引文解析函数已被移除
+// 现在使用 LLMReferenceParser 来处理所有引文解析任务
 
-    // 提取 URL
-    const urlMatch = reference.match(/(?:URL\s+)?(https?:\/\/[^\s,]+)/i);
-    if (urlMatch) {
-        result.url = urlMatch[1];
-    }
-
-    // 提取年份
-    const yearMatch = reference.match(/\b(19|20)\d{2}\b/);
-    if (yearMatch) {
-        result.year = parseInt(yearMatch[0]);
-    }
-
-    // 提取 arXiv ID
-    const arxivMatch = reference.match(/arXiv[:\s]*([0-9]{4}\.[0-9]{4,5})/i);
-    if (arxivMatch) {
-        result.arxivId = arxivMatch[1];
-    }
-
-    // 尝试提取标题（通常是第一个句号前的部分，或者是引号中的内容）
-    const titleMatch = reference.match(/^([^.]+\.)|"([^"]+)"/);
-    if (titleMatch) {
-        result.title = (titleMatch[1] || titleMatch[2])?.replace(/\.$/, '').trim();
-    }
-
-    // 尝试提取作者（通常在标题前）
-    const authorMatch = reference.match(/^([^.]+?)(?:\.|,)/);
-    if (authorMatch && authorMatch[1]) {
-        const authorText = authorMatch[1].trim();
-        // 简单的作者分割（按逗号和 "and" 分割）
-        const authors = authorText
-            .split(/,|\sand\s/)
-            .map(author => author.trim())
-            .filter(author => author.length > 0);
-
-        if (authors.length > 0) {
-            result.authors = authors;
-        }
-    }
-
-    return result;
-} 
+// 🗑️ 所有旧的引文解析辅助函数已被移除
+// 现在使用 LLMReferenceParser 来处理所有引文解析任务 

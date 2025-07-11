@@ -9,7 +9,9 @@ import {
   AlertCircle,
   XCircle,
   FileText,
-  Zap
+  Zap,
+  BookOpen,
+  Brain
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,8 @@ type ParsingStatus =
   | 'AWAITING_MANUAL_UPLOAD'
   | 'PENDING_MINERU_SUBMISSION'
   | 'PARSING_IN_MINERU'
+  | 'PENDING_REFERENCE_EXTRACTION'
+  | 'EXTRACTING_REFERENCES'
   | 'SUCCESS'
   | 'PARTIAL_SUCCESS'
   | 'FAILED'
@@ -101,6 +105,24 @@ const statusConfigs: Record<ParsingStatus, StatusConfig> = {
     label: 'Parsing',
     description: 'PDF is being processed by Mineru',
     color: 'bg-purple-100 text-purple-800 border-purple-300',
+    variant: 'outline',
+    showUpload: false,
+    animated: true
+  },
+  'PENDING_REFERENCE_EXTRACTION': {
+    icon: <BookOpen className="h-3 w-3 animate-pulse" />,
+    label: 'Extracting Refs',
+    description: 'Preparing to extract references using AI',
+    color: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+    variant: 'outline',
+    showUpload: false,
+    animated: true
+  },
+  'EXTRACTING_REFERENCES': {
+    icon: <Brain className="h-3 w-3 animate-pulse" />,
+    label: 'AI Processing',
+    description: 'AI is analyzing and extracting references',
+    color: 'bg-indigo-100 text-indigo-800 border-indigo-300',
     variant: 'outline',
     showUpload: false,
     animated: true

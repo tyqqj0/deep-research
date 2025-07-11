@@ -9,6 +9,8 @@ export const ParsingStatusEnum = [
   'AWAITING_MANUAL_UPLOAD',
   'PENDING_MINERU_SUBMISSION',
   'PARSING_IN_MINERU',
+  'PENDING_REFERENCE_EXTRACTION', // 🚀 新增：等待引文提取
+  'EXTRACTING_REFERENCES', // 🚀 新增：正在提取引文
   'SUCCESS',
   'PARTIAL_SUCCESS',
   'FAILED',

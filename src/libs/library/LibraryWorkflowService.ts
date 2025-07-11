@@ -26,6 +26,7 @@ import { mineruService } from '../parsing/MineruService';
 import { pdfFetcherService } from '../fetching';
 import { MINERU_EXTRACTION_RULES } from '../parsing/extractionRules';
 import { generateLibraryItemId } from '../utils/uuid';
+import { createLLMReferenceParser, ParsedReference } from '../parsing/LLMReferenceParser';
 
 export class LibraryWorkflowService {
     /**
@@ -325,14 +326,60 @@ export class LibraryWorkflowService {
             console.log('extractedMetadata', extractedMetadata);
             const parsedContent = parsingService.createParsedContent(parsedMdData);
 
+            // 🚀 第二阶段：LLM 引文解析
+            let finalParsedContent = parsedContent;
+
+            // 检查是否有参考文献需要解析（从extractionRules的额外字段中获取）
+            const rawReferences = (extractedMetadata as any).references;
+            if (rawReferences && typeof rawReferences === 'string') {
+                console.log(`Found references for item ${itemId}, starting LLM parsing`);
+
+                // 更新状态为引文解析中
+                await libraryService.updateLibraryItem(itemId, {
+                    parsingStatus: 'PENDING_REFERENCE_EXTRACTION' as any
+                });
+
+                try {
+                    // 使用 LLM 解析引文
+                    const llmParser = createLLMReferenceParser();
+                    const parsedReferences = await llmParser.parseReferences(rawReferences);
+
+                    console.log(`Successfully parsed ${parsedReferences.length} references for item ${itemId}`);
+
+                    // 更新解析内容，包含结构化的引文
+                    finalParsedContent = {
+                        ...parsedContent,
+                        extractedReferences: parsedReferences
+                    };
+
+                } catch (error) {
+                    console.error(`LLM reference parsing failed for item ${itemId}:`, error);
+
+                    // 解析失败，保留原始引文文本
+                    finalParsedContent = {
+                        ...parsedContent,
+                        extractedReferences: [{
+                            raw: rawReferences,
+                            title: 'Failed to parse references',
+                            authors: [],
+                            year: new Date().getFullYear(),
+                            parseError: error instanceof Error ? error.message : String(error)
+                        }]
+                    };
+                }
+            }
+
+            // 从extractedMetadata中移除非LibraryItem字段
+            const { references, ...validMetadata } = extractedMetadata as any;
+
             // 更新数据库
             await libraryService.updateLibraryItem(itemId, {
-                ...extractedMetadata,
-                parsedContent: parsedContent,
+                ...validMetadata,
+                parsedContent: finalParsedContent,
                 parsingStatus: 'SUCCESS'
             });
 
-            console.log(`Successfully processed item ${itemId} with Mineru`);
+            console.log(`Successfully processed item ${itemId} with Mineru and LLM reference parsing`);
 
         } catch (error) {
             console.error(`Mineru processing failed for item ${itemId}:`, error);
