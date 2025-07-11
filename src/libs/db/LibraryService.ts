@@ -1,6 +1,6 @@
 /**
  * 📚 LibraryService - 文献数据库服务 (数据访问层)
- *
+ * 
  * 🎯 核心职责 (Data Access Layer):
  * - 提供一个纯粹的、无业务逻辑的接口，用于操作 IndexedDB 中的 `library` 和 `literatureTrees` 表。
  * - 执行原子性的 CRUD (Create, Read, Update, Delete) 操作。
@@ -72,17 +72,17 @@ export class LibraryService {
     try {
       // Validate the item
       const validatedItem = LibraryItemSchema.parse(item);
-
+      
       // Check for duplicates
       const duplicates = await this.checkDuplicateByTitle(validatedItem.title);
-
+      
       if (duplicates.length > 0) {
         return {
           success: false,
           duplicate: duplicates
         };
       }
-
+      
       // Add to database
       await this.db.library.add(validatedItem as LibraryItem);
       return { success: true };
@@ -110,7 +110,7 @@ export class LibraryService {
 
       // Validate the updated item
       const validatedItem = LibraryItemSchema.parse(updatedItem);
-
+      
       // Update in database
       await this.db.library.update(id, validatedItem);
     } catch (error) {
@@ -152,7 +152,7 @@ export class LibraryService {
   async searchLibraryItems(query: string): Promise<LibraryItem[]> {
     try {
       const lowerQuery = query.toLowerCase();
-
+      
       const items = await this.db.library
         .filter(item => {
           const titleMatch = item.title.toLowerCase().includes(lowerQuery);
@@ -163,7 +163,7 @@ export class LibraryService {
           return titleMatch || authorMatch || publicationMatch || abstractMatch;
         })
         .toArray();
-
+      
       return items;
     } catch (error) {
       console.error('Error searching library items:', error);
@@ -271,10 +271,10 @@ export class LibraryService {
    */
   async importLibraryFromJSON(jsonData: string): Promise<{ added: number; errors: string[] }> {
     const result = { added: 0, errors: [] as string[] };
-
+    
     try {
       const items = JSON.parse(jsonData) as LibraryItem[];
-
+      
       if (!Array.isArray(items)) {
         throw new Error('Invalid JSON format: expected array of items');
       }
@@ -323,7 +323,7 @@ export class LibraryService {
       items.forEach(item => {
         const source = item.source || 'unknown';
         itemsBySource[source] = (itemsBySource[source] || 0) + 1;
-
+        
         itemsByYear[item.year] = (itemsByYear[item.year] || 0) + 1;
       });
 
@@ -389,6 +389,329 @@ export class LibraryService {
     } catch (error) {
       console.error('Error getting citation relationships:', error);
       throw new Error('Failed to get citation relationships');
+    }
+  }
+
+  /**
+   * 🔗 自动化引文链接：为指定文献条目自动链接其参考文献
+   * 触发时机：在文献解析流程成功之后调用
+   */
+  async linkCitationsForItem(itemId: string): Promise<{
+    totalReferences: number;
+    linkedCount: number;
+    unlinkedCount: number;
+    linkedItems: Array<{ reference: any; linkedItem: LibraryItem }>;
+  }> {
+    try {
+      const item = await this.getLibraryItemById(itemId);
+      if (!item || !item.parsedContent?.extractedReferences) {
+        return { totalReferences: 0, linkedCount: 0, unlinkedCount: 0, linkedItems: [] };
+      }
+
+      const references = item.parsedContent.extractedReferences;
+      const linkedItems: Array<{ reference: any; linkedItem: LibraryItem }> = [];
+      let linkedCount = 0;
+
+      for (const reference of references) {
+        const matchedItem = await this.findMatchingLiterature(reference);
+        if (matchedItem) {
+          // 检查是否已存在链接，避免重复
+          const existingLink = await this.db.citations
+            .where(['sourceItemId', 'targetItemId'])
+            .equals([itemId, matchedItem.id])
+            .first();
+
+          if (!existingLink) {
+            await this.db.citations.add({
+              sourceItemId: itemId,
+              targetItemId: matchedItem.id,
+              createdAt: new Date()
+            });
+            linkedItems.push({ reference, linkedItem: matchedItem });
+            linkedCount++;
+          }
+        }
+      }
+
+      return {
+        totalReferences: references.length,
+        linkedCount,
+        unlinkedCount: references.length - linkedCount,
+        linkedItems
+      };
+    } catch (error) {
+      console.error('Error linking citations for item:', error);
+      throw new Error('Failed to link citations');
+    }
+  }
+
+  /**
+   * 🔍 智能匹配：在文献库中查找与给定引文匹配的条目
+   * 匹配策略：
+   * 1. DOI 精确匹配（优先级最高）
+   * 2. 标题 + 作者 + 年份模糊匹配
+   */
+  async findMatchingLiterature(reference: any): Promise<LibraryItem | null> {
+    try {
+      // 策略一：DOI 精确匹配
+      if (reference.doi) {
+        const doiMatch = await this.db.library
+          .where('doi')
+          .equals(reference.doi.trim())
+          .first();
+        if (doiMatch) {
+          return doiMatch;
+        }
+      }
+
+      // 策略二：模糊匹配
+      if (reference.title) {
+        const allItems = await this.db.library.toArray();
+        const scoredMatches = allItems
+          .map(item => ({
+            item,
+            score: this.calculateMatchScore(reference, item)
+          }))
+          .filter(match => match.score > 0.7) // 只考虑相似度超过70%的匹配
+          .sort((a, b) => b.score - a.score);
+
+        if (scoredMatches.length > 0) {
+          return scoredMatches[0].item;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error finding matching literature:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 📊 计算引文与文献条目的匹配分数
+   * 综合考虑标题、作者和年份的相似度
+   */
+  private calculateMatchScore(reference: any, item: LibraryItem): number {
+    let score = 0;
+    let factors = 0;
+
+    // 标题相似度（权重：0.5）
+    if (reference.title && item.title) {
+      const titleSimilarity = this.calculateStringSimilarity(
+        reference.title.toLowerCase().trim(),
+        item.title.toLowerCase().trim()
+      );
+      score += titleSimilarity * 0.5;
+      factors += 0.5;
+    }
+
+    // 作者相似度（权重：0.3）
+    if (reference.authors && item.authors && reference.authors.length > 0) {
+      const authorSimilarity = this.calculateAuthorSimilarity(reference.authors, item.authors);
+      score += authorSimilarity * 0.3;
+      factors += 0.3;
+    }
+
+    // 年份匹配（权重：0.2）
+    if (reference.year && item.year) {
+      const yearMatch = Math.abs(reference.year - item.year) <= 1 ? 1 : 0;
+      score += yearMatch * 0.2;
+      factors += 0.2;
+    }
+
+    return factors > 0 ? score / factors : 0;
+  }
+
+  /**
+   * 📝 计算两个字符串的相似度（简化版 Jaro-Winkler）
+   */
+  private calculateStringSimilarity(str1: string, str2: string): number {
+    if (str1 === str2) return 1;
+    if (str1.length === 0 || str2.length === 0) return 0;
+
+    // 移除标点符号和多余空格，进行标准化
+    const normalize = (s: string) => s.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+    const s1 = normalize(str1);
+    const s2 = normalize(str2);
+
+    if (s1 === s2) return 1;
+
+    // 计算最长公共子序列的长度比例
+    const lcs = this.longestCommonSubsequence(s1, s2);
+    const maxLength = Math.max(s1.length, s2.length);
+    return lcs / maxLength;
+  }
+
+  /**
+   * 👥 计算作者列表的相似度
+   */
+  private calculateAuthorSimilarity(authors1: string[], authors2: string[]): number {
+    if (authors1.length === 0 && authors2.length === 0) return 1;
+    if (authors1.length === 0 || authors2.length === 0) return 0;
+
+    let matchCount = 0;
+    for (const author1 of authors1) {
+      for (const author2 of authors2) {
+        if (this.calculateStringSimilarity(author1, author2) > 0.8) {
+          matchCount++;
+          break;
+        }
+      }
+    }
+
+    return matchCount / Math.max(authors1.length, authors2.length);
+  }
+
+  /**
+   * 🔤 计算最长公共子序列长度（用于字符串相似度计算）
+   */
+  private longestCommonSubsequence(str1: string, str2: string): number {
+    const m = str1.length;
+    const n = str2.length;
+    const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (str1[i - 1] === str2[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1] + 1;
+        } else {
+          dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+        }
+      }
+    }
+
+    return dp[m][n];
+  }
+
+  /**
+   * 📋 获取指定文献的未链接引文列表
+   */
+  async getUnlinkedReferences(itemId: string): Promise<any[]> {
+    try {
+      const item = await this.getLibraryItemById(itemId);
+      if (!item || !item.parsedContent?.extractedReferences) {
+        return [];
+      }
+
+      const { references: linkedReferences } = await this.getCitationRelationships(itemId);
+      const linkedTitles = new Set(linkedReferences.map(ref => ref.title.toLowerCase().trim()));
+
+      // 返回尚未链接的引文
+      return item.parsedContent.extractedReferences.filter(ref => {
+        if (!ref.title) return true;
+        return !linkedTitles.has(ref.title.toLowerCase().trim());
+      });
+    } catch (error) {
+      console.error('Error getting unlinked references:', error);
+      throw new Error('Failed to get unlinked references');
+    }
+  }
+
+  /**
+   * 🔗 手动创建引文链接
+   */
+  async createCitationLink(sourceItemId: string, targetItemId: string): Promise<boolean> {
+    try {
+      // 检查是否已存在链接
+      const existingLink = await this.db.citations
+        .where(['sourceItemId', 'targetItemId'])
+        .equals([sourceItemId, targetItemId])
+        .first();
+
+      if (existingLink) {
+        return false; // 已存在，不重复创建
+      }
+
+      await this.db.citations.add({
+        sourceItemId,
+        targetItemId,
+        createdAt: new Date()
+      });
+      return true; // 成功创建
+    } catch (error) {
+      console.error('Error creating citation link:', error);
+      throw new Error('Failed to create citation link');
+    }
+  }
+
+  /**
+   * 🗑️ 删除引文链接
+   */
+  async deleteCitationLink(sourceItemId: string, targetItemId: string): Promise<void> {
+    try {
+      const count = await this.db.citations
+        .where(['sourceItemId', 'targetItemId'])
+        .equals([sourceItemId, targetItemId])
+        .delete();
+
+      if (count === 0) {
+        throw new Error('Citation link not found');
+      }
+    } catch (error) {
+      console.error('Error deleting citation link:', error);
+      throw new Error('Failed to delete citation link');
+    }
+  }
+
+  /**
+   * 🔄 核心双向链接逻辑: 当新文献添加时，自动与整个库进行双向关联
+   * @param newItemId - 新添加的文献ID
+   */
+  async linkNewItemBidirectionally(newItemId: string): Promise<{ forwardLinks: number; backwardLinks: number }> {
+    console.log(`[Linker] Starting bidirectional linking for new item: ${newItemId}`);
+    const newItem = await this.getLibraryItemById(newItemId);
+    if (!newItem) {
+      console.error(`[Linker] New item ${newItemId} not found.`);
+      return { forwardLinks: 0, backwardLinks: 0 };
+    }
+
+    let forwardLinks = 0;
+    let backwardLinks = 0;
+
+    // 1. 正向链接 (新文献 -> 引用 -> 旧文献)
+    if (newItem.parsedContent?.extractedReferences) {
+      for (const reference of newItem.parsedContent.extractedReferences) {
+        const matchedItem = await this.findMatchingLiterature(reference);
+        if (matchedItem) {
+          const created = await this.createCitationLink(newItem.id, matchedItem.id);
+          if (created) forwardLinks++;
+        }
+      }
+    }
+    console.log(`[Linker] Forward links created: ${forwardLinks}`);
+
+    // 2. 反向链接 (旧文献 -> 引用 -> 新文献)
+    const allOtherItems = await this.db.library.where('id').notEqual(newItemId).toArray();
+    for (const existingItem of allOtherItems) {
+      if (existingItem.parsedContent?.extractedReferences) {
+        for (const reference of existingItem.parsedContent.extractedReferences) {
+          // 使用我们强大的匹配算法，检查旧文献的引文是否与新文献匹配
+          const score = this.calculateMatchScore(reference, newItem);
+          if (score > 0.7) { // 使用和 findMatchingLiterature 相同的阈值
+            const created = await this.createCitationLink(existingItem.id, newItem.id);
+            if (created) backwardLinks++;
+          }
+        }
+      }
+    }
+    console.log(`[Linker] Backward links created: ${backwardLinks}`);
+
+    return { forwardLinks, backwardLinks };
+  }
+
+  /**
+   * 🌐 获取所有引文链接 - 用于全局图谱
+   */
+  async getAllCitations(): Promise<Array<{ source: string; target: string }>> {
+    try {
+      const allLinks = await this.db.citations.toArray();
+      return allLinks.map(link => ({
+        source: link.sourceItemId,
+        target: link.targetItemId
+      }));
+    } catch (error) {
+      console.error('Error getting all citations:', error);
+      throw new Error('Failed to get all citations');
     }
   }
 }

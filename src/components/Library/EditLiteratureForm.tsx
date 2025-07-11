@@ -503,7 +503,8 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
 
           {/* Citations Tab */}
           <TabsContent value="citations" className="flex-1 overflow-hidden mt-4 max-h-[70vh]">
-            <div className="h-full">
+            <div className="h-full space-y-4">
+              {/* 引文管理面板 */}
               <CitationManager
                 item={item}
                 onNavigateToItem={handleNavigateToItem}

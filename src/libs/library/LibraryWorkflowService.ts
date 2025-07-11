@@ -414,6 +414,15 @@ export class LibraryWorkflowService {
 
             console.log(`Successfully processed item ${itemId} with Mineru and LLM reference parsing`);
 
+            // 🔗 **新：自动双向引文链接**
+            console.log(`Starting BI-DIRECTIONAL citation linking for item ${itemId}`);
+            try {
+                const linkingResult = await libraryService.linkNewItemBidirectionally(itemId);
+                console.log(`✅ Bidirectional linking completed for item ${itemId}:`, linkingResult);
+            } catch (linkingError) {
+                console.error(`❌ Bidirectional linking failed for item ${itemId}:`, linkingError);
+            }
+
         } catch (error) {
             console.error(`Mineru processing failed for item ${itemId}:`, error);
             await libraryService.updateLibraryItem(itemId, {

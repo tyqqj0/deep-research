@@ -169,12 +169,12 @@ export function LiteratureListItem({
         <CardContent className="pt-0">
           <div className="space-y-3">
             {/* Publication Info */}
-            {item.publication && (
+            {/* {item.publication && (
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <BookOpen className="h-3 w-3" />
                 <span>{item.publication}</span>
               </div>
-            )}
+            )} */}
 
             {/* Abstract */}
             {item.abstract && (

@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import type { ZoteroUserInfo, ZoteroCollection, ZoteroGroup, ZoteroLibrary } from "@/libs/zotero/types";
 import { zoteroService } from "@/libs/zotero";
 import type { LibraryItem } from "@/libs/db";
+import { GlobalCitationGraph } from "@/components/Library/CitationGraph";
 
 export default function LibraryPage() {
   const { t } = useTranslation();
@@ -37,7 +38,7 @@ export default function LibraryPage() {
   const [zoteroLibraries, setZoteroLibraries] = useState<ZoteroLibrary[]>([]);
   const [currentZoteroLibrary, setCurrentZoteroLibrary] = useState<ZoteroLibrary | null>(null);
   const [isZoteroConnected, setIsZoteroConnected] = useState(false);
-  
+
   const {
     items,
     isLoading,
@@ -61,7 +62,7 @@ export default function LibraryPage() {
     const initializeAsync = async () => {
       try {
         await initialize();
-        
+
         // Check if Zotero is already configured
         const storedConfig = zoteroService.getStoredConfig();
         if (storedConfig) {
@@ -101,7 +102,7 @@ export default function LibraryPage() {
       acc[source] = items.filter(item => item.source === source).length;
       return acc;
     }, {} as Record<string, number>);
-    
+
     return stats;
   }, [items]);
 
@@ -135,6 +136,13 @@ export default function LibraryPage() {
     }
   };
 
+  const handleNodeClick = (itemId: string) => {
+    const item = items.find(i => i.id === itemId);
+    if (item) {
+      handleEditLiterature(item);
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 max-w-7xl">
       {/* Page Header */}
@@ -162,7 +170,7 @@ export default function LibraryPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {alert('TODO: Export functionality' /* TODO: Export functionality */)}}
+            onClick={() => { alert('TODO: Export functionality' /* TODO: Export functionality */) }}
           >
             <Download className="h-4 w-4 mr-2" />
             Export
@@ -191,6 +199,11 @@ export default function LibraryPage() {
             Add Literature
           </Button>
         </div>
+      </div>
+
+      {/* Global Knowledge Graph */}
+      <div className="mb-8">
+        <GlobalCitationGraph onNodeClick={handleNodeClick} />
       </div>
 
       {/* Error Display */}
@@ -230,7 +243,7 @@ export default function LibraryPage() {
             </p>
           </CardContent>
         </Card>
-        
+
         {Object.entries(sourceStats).map(([source, count]) => (
           <Card key={source}>
             <CardHeader className="pb-2">
@@ -282,7 +295,7 @@ export default function LibraryPage() {
           <TabsTrigger value="trees">Literature Trees</TabsTrigger>
           <TabsTrigger value="sync">Zotero Sync</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="list" className="space-y-4">
           <LiteratureList
             items={filteredItems}
@@ -307,7 +320,7 @@ export default function LibraryPage() {
             }}
           />
         </TabsContent>
-        
+
         <TabsContent value="trees" className="space-y-4">
           <Card>
             <CardHeader>
@@ -323,7 +336,7 @@ export default function LibraryPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         <TabsContent value="sync" className="space-y-4">
           <ZoteroImportSection
             isConnected={isZoteroConnected}
@@ -365,7 +378,7 @@ export default function LibraryPage() {
             setZoteroCollections(collections);
             setZoteroGroups(groups);
             setIsZoteroConnected(true);
-            
+
             // Get libraries after successful login
             try {
               const libraries = await zoteroService.getAvailableLibraries();
