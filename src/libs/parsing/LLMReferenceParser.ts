@@ -189,8 +189,7 @@ ${rawText}
 
             // 检查是否需要开始新块
             if (currentChunk.length > 0 &&
-                (currentChunk.length + line.length > this.MAX_CHUNK_SIZE) &&
-                referenceCount >= this.MIN_REFERENCES_PER_CHUNK) {
+                (currentChunk.length + line.length > this.MAX_CHUNK_SIZE)) {
 
                 // 保存当前块
                 chunks.push(currentChunk.trim());
@@ -230,39 +229,74 @@ ${rawText}
      */
     private async parseSingleChunk(rawText: string, chunkLabel: string = ''): Promise<ParsedReference[]> {
         const label = chunkLabel ? `[${chunkLabel}] ` : '';
+        const maxRetries = 3;
 
-        try {
-            // 构造专家级 Prompt
-            const systemPrompt = this.buildSystemPrompt();
-            const userPrompt = this.buildUserPrompt(rawText);
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                // 构造专家级 Prompt
+                const systemPrompt = this.buildSystemPrompt();
+                const userPrompt = this.buildUserPrompt(rawText);
 
-            console.log(`${label}🤖 开始解析引文块...`);
-            console.log(`${label}📝 输入文本长度:`, rawText.length);
+                console.log(`${label}🤖 开始解析引文块... (尝试 ${attempt}/${maxRetries})`);
+                console.log(`${label}📝 输入文本长度:`, rawText.length);
 
-            // 使用 generateText 而不是 streamText 来获取完整响应
-            const result = await generateText({
-                model: this.modelProvider,
-                system: systemPrompt,
-                prompt: userPrompt,
-                temperature: 0.1, // 低温度，确保输出稳定
-                maxTokens: 4000
-            });
+                // 使用 generateText 而不是 streamText 来获取完整响应
+                const result = await generateText({
+                    model: this.modelProvider,
+                    system: systemPrompt,
+                    prompt: userPrompt,
+                    temperature: 0.1, // 低温度，确保输出稳定
+                    maxTokens: 8000
+                });
 
-            const fullResponse = result.text;
-            console.log(`${label}🤖 LLM 响应长度:`, fullResponse.length);
-            console.log(`${label}🤖 LLM 响应:`, fullResponse);
+                const fullResponse = result.text;
+                // console.log(`${label}🤖 LLM 响应长度:`, fullResponse.length);
+                // console.log(`${label}🤖 LLM 响应:`, fullResponse);
 
-            // 解析 JSON 响应（带修复功能）
-            const parsedReferences = this.parseJsonResponse(fullResponse);
+                // 检查响应是否为空
+                if (!fullResponse || fullResponse.trim().length === 0) {
+                    console.warn(`${label}⚠️ LLM 返回空响应 (尝试 ${attempt}/${maxRetries})`);
+                    if (attempt < maxRetries) {
+                        continue;
+                    } else {
+                        console.error(`${label}❌ 经过 ${maxRetries} 次尝试，LLM 仍返回空响应`);
+                        return [];
+                    }
+                }
 
-            console.log(`${label}✅ 解析完成，提取到`, parsedReferences.length, '条引文');
+                // 解析 JSON 响应（带修复功能）
+                const parsedReferences = this.parseJsonResponse(fullResponse);
 
-            return parsedReferences;
+                // 检查解析结果是否为空
+                if (parsedReferences.length === 0) {
+                    console.warn(`${label}⚠️ 解析结果为空 (尝试 ${attempt}/${maxRetries})`);
+                    if (attempt < maxRetries) {
+                        continue;
+                    } else {
+                        console.error(`${label}❌ 经过 ${maxRetries} 次尝试，仍无法获得有效的解析结果`);
+                        return [];
+                    }
+                }
+                // console.log(`原始文本：${rawText}`);
+                // console.log(`解析结果：${parsedReferences}`);
+                console.log(`${label}✅ 解析完成，提取到`, parsedReferences.length, '条引文');
+                return parsedReferences;
 
-        } catch (error) {
-            console.error(`${label}❌ 引文解析失败:`, error);
-            return [];
+            } catch (error) {
+                console.error(`${label}❌ 引文解析失败 (尝试 ${attempt}/${maxRetries}):`, error);
+                
+                if (attempt < maxRetries) {
+                    console.log(`${label}🔄 准备重试...`);
+                    // 等待一小段时间再重试
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                } else {
+                    console.error(`${label}❌ 经过 ${maxRetries} 次尝试，解析仍然失败`);
+                    return [];
+                }
+            }
         }
+
+        return [];
     }
 
     /**

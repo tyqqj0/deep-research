@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { liveQuery } from 'dexie';
 import { LibraryItem, LiteratureTree, db } from '../libs/db';
 import { LITERATURE_SOURCES, DEFAULT_LIBRARY_ITEM_SOURCE, LiteratureSource } from '../libs/db/constants';
 import { libraryService } from '../libs/db/LibraryService';
@@ -142,45 +143,32 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
   // 启动实时数据更新监听
   startRealTimeUpdates: () => {
-    let intervalId: NodeJS.Timeout | null = null;
+    console.log('📡 Subscribing to real-time library updates with liveQuery...');
 
-    try {
-      // 定期刷新数据，特别关注正在处理的项目
-      intervalId = setInterval(async () => {
-        try {
-          const currentItems = get().items;
+    const observable = liveQuery(() => libraryService.getAllLibraryItems());
 
-          // 检查是否有正在处理的项目
-          const processingItems = currentItems.filter(item =>
-            item.parsingStatus === 'PARSING_IN_MINERU' ||
-            item.parsingStatus === 'PENDING_MINERU_SUBMISSION' ||
-            item.parsingStatus === 'PENDING_PDF_FETCH' ||
-            item.parsingStatus === 'PENDING_REFERENCE_EXTRACTION' ||
-            item.parsingStatus === 'EXTRACTING_REFERENCES'
-          );
-
-          if (processingItems.length > 0) {
-            // 只有在有处理中的项目时才刷新
-            const updatedItems = await libraryService.getAllLibraryItems();
-            set({ items: updatedItems });
-            console.log(`🔄 Refreshed ${processingItems.length} processing items`);
-          }
-        } catch (error) {
-          console.error('Error in real-time update:', error);
-        }
-      }, 2000); // 每2秒检查一次
-
-      console.log('📡 Real-time updates started with polling mechanism');
-
-    } catch (error) {
-      console.error('Failed to start real-time updates:', error);
-    }
-
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-        console.log('📡 Real-time updates stopped');
+    const subscription = observable.subscribe({
+      next: (updatedItems) => {
+        // liveQuery is efficient and only triggers on actual data changes in Dexie.
+        // It's better than polling as it avoids unnecessary checks and provides
+        // instant updates. We no longer need to check for "processing items"
+        // because any relevant change (like status update) will be caught.
+        console.log(`🔄 Library updated via liveQuery. Total items: ${updatedItems.length}`);
+        set({ items: updatedItems });
+      },
+      error: (error) => {
+        console.error('Error in real-time library subscription:', error);
+        set({ error: error instanceof Error ? error.message : 'Live subscription failed' });
       }
+    });
+
+    console.log('✅ Real-time updates subscription successful.');
+
+    // The returned function should be called by a component's cleanup logic (e.g., useEffect)
+    // to prevent memory leaks.
+    return () => {
+      subscription.unsubscribe();
+      console.log('📡 Real-time updates subscription stopped.');
     };
   },
 
