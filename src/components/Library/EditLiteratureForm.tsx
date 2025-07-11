@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, Plus, Save, Trash2, FileText, Link, Eye, ChevronDown, ChevronRight } from "lucide-react";
+import { X, Plus, Save, Trash2, FileText, Link, Eye, ChevronDown, ChevronRight, BookOpen } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -491,28 +491,24 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
 
                   {/* 提取的文本内容 */}
                   {item.parsedContent.extractedText && (
-                    <div className="space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => setIsTextExpanded(!isTextExpanded)}
-                        className="flex items-center gap-2 text-lg font-semibold hover:text-blue-600 transition-colors"
-                      >
-                        {isTextExpanded ? (
-                          <ChevronDown className="h-5 w-5" />
-                        ) : (
-                          <ChevronRight className="h-5 w-5" />
-                        )}
-                        <FileText className="h-5 w-5" />
-                        Extracted Text Content
-                      </button>
-                      {isTextExpanded && (
-                        <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-4 max-h-96 overflow-y-auto">
+                    <Collapsible>
+                      <CollapsibleTrigger asChild>
+                        <div className="flex justify-between items-center cursor-pointer">
+                          <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <FileText className="h-5 w-5" />
+                            Extracted Text Content
+                          </h3>
+                          <ChevronDown className="h-4 w-4" />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-4 max-h-96 overflow-y-auto mt-2">
                           <pre className="whitespace-pre-wrap text-sm font-mono">
                             {item.parsedContent.extractedText}
                           </pre>
                         </div>
-                      )}
-                    </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   )}
 
                   {/* 提取的元数据 */}
@@ -532,7 +528,10 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                     <Collapsible>
                       <CollapsibleTrigger asChild>
                         <div className="flex justify-between items-center cursor-pointer">
-                          <h3 className="text-lg font-semibold">Extracted References ({item.parsedContent.extractedReferences.length})</h3>
+                          <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <BookOpen className="h-5 w-5" />
+                            Extracted References ({item.parsedContent.extractedReferences.length})
+                          </h3>
                           <ChevronDown className="h-4 w-4" />
                         </div>
                       </CollapsibleTrigger>
