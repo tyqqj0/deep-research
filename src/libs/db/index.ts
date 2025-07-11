@@ -17,6 +17,19 @@ export interface LibraryItem {
   pdfPath?: string;
   mineruTaskId?: string;
   parsingStatus?: 'IDLE' | 'PENDING_PDF_FETCH' | 'PENDING_PARSE' | 'AWAITING_MANUAL_UPLOAD' | 'PENDING_MINERU_SUBMISSION' | 'PARSING_IN_MINERU' | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED' | 'PARSING_FAILED';
+  parsingProgress?: {
+    extractedPages?: number;
+    totalPages?: number;
+    startTime?: string;
+  };
+  // 解析结果内容
+  parsedContent?: {
+    extractedText?: string; // 提取的文本内容（Markdown格式）
+    extractedMetadata?: Record<string, any>; // 提取的元数据
+    extractedReferences?: any[]; // 提取的引用
+    parsedAt?: Date; // 解析时间
+    fullZipUrl?: string; // 完整ZIP文件的URL（用于下载）
+  };
   createdAt: Date;
   updatedAt?: Date; // 添加更新时间
 }
@@ -53,13 +66,13 @@ export class MyDatabase extends Dexie {
 
   constructor() {
     super('literatureDB');
-    
+
     // Define schemas - Version 1
     this.version(1).stores({
       library: '++id, title, *authors, year, source, publication, zoteroKey, createdAt', // Multi-index for search
       literatureTrees: '++id, name, createdAt' // id auto-increment, name indexed
     });
-    
+
     // Version 2 - Add new fields and citations table
     this.version(2).stores({
       library: '++id, title, *authors, year, source, publication, zoteroKey, doi, url, pdfPath, parsingStatus, createdAt', // Added new fields
@@ -73,7 +86,7 @@ export class MyDatabase extends Dexie {
         }
       });
     });
-    
+
     // Version 3 - Add mineruTaskId field
     this.version(3).stores({
       library: '++id, title, *authors, year, source, publication, zoteroKey, doi, url, pdfPath, mineruTaskId, parsingStatus, createdAt', // Added mineruTaskId

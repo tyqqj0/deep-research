@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { LibraryItem, LiteratureTree } from '../libs/db';
+import { LibraryItem, LiteratureTree, db } from '../libs/db';
 import { LITERATURE_SOURCES, DEFAULT_LIBRARY_ITEM_SOURCE, LiteratureSource } from '../libs/db/constants';
 import { libraryService } from '../libs/db/LibraryService';
+import { libraryWorkflowService } from '../libs/library/LibraryWorkflowService';
 import { TreeController } from '../libs/tree/TreeController';
 import { zoteroService, ZoteroConfig, ZoteroSyncResult } from '../libs/zotero';
 import { generateLibraryItemId } from '../libs/utils/uuid';
@@ -14,49 +15,56 @@ interface LibraryState {
   isLoading: boolean;
   error: string | null;
   treeVersion: number; // Version number to trigger UI updates
-  
+
   // Filtering and search
   sourceFilter: LiteratureSource | 'all';
   searchTerm: string;
-  
+
   // Zotero integration
   zoteroConfig: ZoteroConfig | null;
   isZoteroConfigured: boolean;
   zoteroSyncResult: ZoteroSyncResult | null;
-  
+
   // PDF upload and processing
   currentDetailItem: LibraryItem | null;
   isUploadingPdf: boolean;
   uploadProgress: Record<string, number>;
+
+  // Auto-metadata extraction settings
+  autoExtractMetadata: boolean;
 }
 
 // Define Actions interface
 interface LibraryActions {
   // Core actions
   initialize: () => Promise<void>;
+  startRealTimeUpdates: () => () => void; // 返回cleanup函数
   selectTree: (treeId: string) => Promise<void>;
   runMCTS: () => Promise<void>;
-  addLibraryItem: (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  addLibraryItem: (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<{ success: boolean; itemId?: string; duplicate?: LibraryItem[]; error?: string }>;
   addLibraryItems: (itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]) => Promise<any>;
   updateLibraryItem: (id: string, itemData: Partial<LibraryItem>) => Promise<void>;
   deleteLibraryItem: (id: string) => Promise<void>;
   deleteLibraryItems: (ids: string[]) => Promise<void>;
   clearError: () => void;
-  
+
   // Search and filtering
   setSourceFilter: (source: LiteratureSource | 'all') => void;
   setSearchTerm: (term: string) => void;
   getFilteredItems: () => LibraryItem[];
-  
+
   // Zotero integration
   configureZotero: (config: ZoteroConfig) => Promise<boolean>;
   syncWithZotero: () => Promise<ZoteroSyncResult>;
   clearZoteroConfig: () => void;
-  
+
   // PDF upload and processing
   setCurrentDetailItem: (item: LibraryItem | null) => void;
   uploadPdfForItem: (itemId: string, file: File) => Promise<void>;
   bulkUploadPdfs: (files: File[]) => Promise<void>;
+
+  // Auto-metadata extraction settings
+  setAutoExtractMetadata: (enabled: boolean) => void;
 }
 
 // Use the real library service
@@ -70,20 +78,23 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   isLoading: false,
   error: null,
   treeVersion: 0,
-  
+
   // Filtering and search
   sourceFilter: 'all',
   searchTerm: '',
-  
+
   // Zotero integration
   zoteroConfig: null,
   isZoteroConfigured: false,
   zoteroSyncResult: null,
-  
+
   // PDF upload and processing
   currentDetailItem: null,
   isUploadingPdf: false,
   uploadProgress: {},
+
+  // Auto-metadata extraction settings
+  autoExtractMetadata: true, // 默认启用
 
   // Clear error action
   clearError: () => {
@@ -94,49 +105,105 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   initialize: async () => {
     try {
       set({ isLoading: true, error: null });
-      
+
+      // TODO: 从全局设置系统加载配置
+      // 临时从localStorage加载autoExtractMetadata设置
+      try {
+        const savedSetting = localStorage.getItem('library.autoExtractMetadata');
+        if (savedSetting !== null) {
+          set({ autoExtractMetadata: JSON.parse(savedSetting) });
+        }
+      } catch (error) {
+        console.warn('Failed to load autoExtractMetadata setting from localStorage:', error);
+      }
+
       const [items, trees] = await Promise.all([
         libraryService.getAllLibraryItems(),
         libraryService.getAllTrees()
       ]);
-      
-      set({ 
-        items, 
-        trees, 
-        isLoading: false 
+
+      set({
+        items,
+        trees,
+        isLoading: false
       });
-      
+
+      // 自动启动实时更新
+      get().startRealTimeUpdates();
+
     } catch (error) {
       console.error('LibraryStore: Initialization failed:', error);
-      set({ 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to initialize library' 
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to initialize library'
       });
     }
+  },
+
+  // 启动实时数据更新监听
+  startRealTimeUpdates: () => {
+    let intervalId: NodeJS.Timeout | null = null;
+
+    try {
+      // 定期刷新数据，特别关注正在处理的项目
+      intervalId = setInterval(async () => {
+        try {
+          const currentItems = get().items;
+
+          // 检查是否有正在处理的项目
+          const processingItems = currentItems.filter(item =>
+            item.parsingStatus === 'PARSING_IN_MINERU' ||
+            item.parsingStatus === 'PENDING_MINERU_SUBMISSION' ||
+            item.parsingStatus === 'PENDING_PDF_FETCH'
+          );
+
+          if (processingItems.length > 0) {
+            // 只有在有处理中的项目时才刷新
+            const updatedItems = await libraryService.getAllLibraryItems();
+            set({ items: updatedItems });
+            console.log(`🔄 Refreshed ${processingItems.length} processing items`);
+          }
+        } catch (error) {
+          console.error('Error in real-time update:', error);
+        }
+      }, 2000); // 每2秒检查一次
+
+      console.log('📡 Real-time updates started with polling mechanism');
+
+    } catch (error) {
+      console.error('Failed to start real-time updates:', error);
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        console.log('📡 Real-time updates stopped');
+      }
+    };
   },
 
   // Select tree action
   selectTree: async (treeId: string) => {
     try {
       set({ isLoading: true, error: null });
-      
+
       const treeData = await libraryService.getTreeById(treeId);
-      
+
       if (!treeData) {
         throw new Error(`Tree with id ${treeId} not found`);
       }
-      
+
       const newController = new TreeController(treeData, libraryService);
-      
-      set({ 
-        activeTreeController: newController, 
+
+      set({
+        activeTreeController: newController,
         isLoading: false,
         treeVersion: get().treeVersion + 1
       });
     } catch (error) {
-      set({ 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to select tree' 
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to select tree'
       });
     }
   },
@@ -145,28 +212,28 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   runMCTS: async () => {
     try {
       const { activeTreeController } = get();
-      
+
       if (!activeTreeController) {
         throw new Error('No active tree controller. Please select a tree first.');
       }
-      
+
       set({ isLoading: true, error: null });
-      
+
       // Run MCTS simulation
       activeTreeController.runSimulation();
-      
+
       // Save the updated tree
       await activeTreeController.save();
-      
+
       // Update the tree version to trigger UI updates
-      set({ 
+      set({
         isLoading: false,
         treeVersion: get().treeVersion + 1
       });
     } catch (error) {
-      set({ 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to run MCTS simulation' 
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to run MCTS simulation'
       });
     }
   },
@@ -175,50 +242,50 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   addLibraryItems: async (itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]) => {
     try {
       set({ isLoading: true, error: null });
-      
+
       const results = [];
       const totalFiles = itemsData.length;
-      
+
       for (let i = 0; i < totalFiles; i++) {
         const itemData = itemsData[i];
-        
+
         try {
           // Use createFromMetadata to enable background processing for each item
-          const itemId = await libraryService.createFromMetadata({
+          const itemId = await libraryWorkflowService.createFromMetadata({
             ...itemData,
             source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE
           });
-          
-          results.push({ 
-            success: true, 
+
+          results.push({
+            success: true,
             itemId,
-            title: itemData.title 
+            title: itemData.title
           });
-          
-          console.log(`[LibraryStore] Created item ${i+1}/${totalFiles}: ${itemData.title}`);
+
+          console.log(`[LibraryStore] Created item ${i + 1}/${totalFiles}: ${itemData.title}`);
         } catch (error) {
           console.error(`[LibraryStore] Failed to create item: ${itemData.title}`, error);
-          results.push({ 
-            success: false, 
+          results.push({
+            success: false,
             error: error instanceof Error ? error.message : 'Unknown error',
-            title: itemData.title 
+            title: itemData.title
           });
         }
       }
-      
+
       // Refresh the items list once after all additions
       const updatedItems = await libraryService.getAllLibraryItems();
-      
+
       console.log('[LibraryStore] addLibraryItems completed, refreshed with', updatedItems.length, 'total items');
-      
-      set({ 
-        items: updatedItems, 
-        isLoading: false 
+
+      set({
+        items: updatedItems,
+        isLoading: false
       });
-      
+
       const successCount = results.filter(r => r.success).length;
       const errorCount = results.filter(r => !r.success).length;
-      
+
       return {
         success: true,
         results,
@@ -229,12 +296,12 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       };
     } catch (error) {
       console.error('[LibraryStore] addLibraryItems error:', error);
-      set({ 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to add library items' 
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to add library items'
       });
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: error instanceof Error ? error.message : 'Failed to add library items',
         results: [],
         totalAdded: 0,
@@ -247,35 +314,35 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   addLibraryItem: async (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       set({ isLoading: true, error: null });
-      
+
       // Use createFromMetadata to enable background processing
-      const itemId = await libraryService.createFromMetadata({
+      const itemId = await libraryWorkflowService.createFromMetadata({
         ...itemData,
         source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE
       });
-      
+
       // Refresh the items list
       const updatedItems = await libraryService.getAllLibraryItems();
-      
-      set({ 
-        items: updatedItems, 
-        isLoading: false 
+
+      set({
+        items: updatedItems,
+        isLoading: false
       });
-      
+
       return { success: true, itemId };
     } catch (error) {
       // Handle duplicate case (thrown by createFromMetadata)
       if (error instanceof Error && error.message.includes('Duplicate item found')) {
-        set({ 
-          isLoading: false, 
+        set({
+          isLoading: false,
           error: error.message
         });
         return { success: false, duplicate: [] };
       }
-      
-      set({ 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to add library item' 
+
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to add library item'
       });
       return { success: false, error: error instanceof Error ? error.message : 'Failed to add library item' };
     }
@@ -285,35 +352,35 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   updateLibraryItem: async (id: string, itemData: Partial<LibraryItem>) => {
     try {
       set({ isLoading: true, error: null });
-      
+
       const { items } = get();
       const existingItem = items.find(item => item.id === id);
-      
+
       if (!existingItem) {
         throw new Error(`Library item with id ${id} not found`);
       }
-      
+
       const updatedItem: LibraryItem = {
         ...existingItem,
         ...itemData,
         updatedAt: new Date()
       };
-      
+
       await libraryService.updateLibraryItem(id, itemData);
-      
+
       // Update items list
-      const updatedItems = items.map(item => 
+      const updatedItems = items.map(item =>
         item.id === id ? updatedItem : item
       );
-      
-      set({ 
-        items: updatedItems, 
-        isLoading: false 
+
+      set({
+        items: updatedItems,
+        isLoading: false
       });
     } catch (error) {
-      set({ 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to update library item' 
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to update library item'
       });
     }
   },
@@ -322,21 +389,21 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   deleteLibraryItem: async (id: string) => {
     try {
       set({ isLoading: true, error: null });
-      
+
       await libraryService.deleteLibraryItem(id);
-      
+
       // Update local state
       const { items } = get();
       const updatedItems = items.filter(item => item.id !== id);
-      
-      set({ 
-        items: updatedItems, 
-        isLoading: false 
+
+      set({
+        items: updatedItems,
+        isLoading: false
       });
     } catch (error) {
-      set({ 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to delete library item' 
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to delete library item'
       });
     }
   },
@@ -345,28 +412,28 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   deleteLibraryItems: async (ids: string[]) => {
     try {
       set({ isLoading: true, error: null });
-      
+
       console.log(`[LibraryStore] Batch deleting ${ids.length} items`);
-      
+
       // Delete all items in parallel for better performance
       const deletePromises = ids.map(id => libraryService.deleteLibraryItem(id));
       await Promise.all(deletePromises);
-      
+
       // Update local state in one operation
       const { items } = get();
       const updatedItems = items.filter(item => !ids.includes(item.id));
-      
+
       console.log(`[LibraryStore] Batch delete completed. ${updatedItems.length} items remaining`);
-      
-      set({ 
-        items: updatedItems, 
-        isLoading: false 
+
+      set({
+        items: updatedItems,
+        isLoading: false
       });
     } catch (error) {
       console.error('[LibraryStore] Batch delete error:', error);
-      set({ 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to delete library items' 
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to delete library items'
       });
     }
   },
@@ -382,25 +449,25 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
   getFilteredItems: () => {
     const { items, sourceFilter, searchTerm } = get();
-    
+
     let filtered = items;
-    
+
     // Filter by source
     if (sourceFilter !== 'all') {
       filtered = filtered.filter(item => item.source === sourceFilter);
     }
-    
+
     // Filter by search term
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(item => 
+      filtered = filtered.filter(item =>
         item.title.toLowerCase().includes(term) ||
         item.authors.some(author => author.toLowerCase().includes(term)) ||
         item.publication?.toLowerCase().includes(term) ||
         item.abstract?.toLowerCase().includes(term)
       );
     }
-    
+
     return filtered;
   },
 
@@ -408,24 +475,24 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   configureZotero: async (config: ZoteroConfig) => {
     try {
       set({ isLoading: true, error: null });
-      
+
       zoteroService.setConfig(config);
       const isConnected = await zoteroService.testConnection();
-      
+
       if (isConnected) {
-        set({ 
+        set({
           zoteroConfig: config,
           isZoteroConfigured: true,
-          isLoading: false 
+          isLoading: false
         });
         return true;
       } else {
         throw new Error('Failed to connect to Zotero');
       }
     } catch (error) {
-      set({ 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to configure Zotero' 
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to configure Zotero'
       });
       return false;
     }
@@ -434,31 +501,31 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   syncWithZotero: async () => {
     try {
       set({ isLoading: true, error: null });
-      
+
       if (!get().isZoteroConfigured) {
         throw new Error('Zotero not configured');
       }
-      
+
       const { items } = get();
       const syncResult = await zoteroService.syncItems(items);
-      
+
       if (syncResult.success) {
         // Refresh items list after sync
         const updatedItems = await libraryService.getAllLibraryItems();
-        set({ 
+        set({
           items: updatedItems,
           zoteroSyncResult: syncResult,
-          isLoading: false 
+          isLoading: false
         });
       } else {
         throw new Error(syncResult.errors.join('; '));
       }
-      
+
       return syncResult;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to sync with Zotero';
-      set({ 
-        isLoading: false, 
+      set({
+        isLoading: false,
         error: errorMessage,
         zoteroSyncResult: {
           success: false,
@@ -473,10 +540,10 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   },
 
   clearZoteroConfig: () => {
-    set({ 
+    set({
       zoteroConfig: null,
       isZoteroConfigured: false,
-      zoteroSyncResult: null 
+      zoteroSyncResult: null
     });
   },
 
@@ -488,19 +555,19 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   uploadPdfForItem: async (itemId: string, file: File) => {
     try {
       set({ isUploadingPdf: true, error: null });
-      
-      await libraryService.uploadPdfForExistingItem(itemId, file);
-      
+
+      await libraryWorkflowService.uploadPdfForExistingItem(itemId, file);
+
       // Refresh the items list
       const updatedItems = await libraryService.getAllLibraryItems();
-      set({ 
+      set({
         items: updatedItems,
-        isUploadingPdf: false 
+        isUploadingPdf: false
       });
     } catch (error) {
-      set({ 
+      set({
         isUploadingPdf: false,
-        error: error instanceof Error ? error.message : 'Failed to upload PDF' 
+        error: error instanceof Error ? error.message : 'Failed to upload PDF'
       });
     }
   },
@@ -508,38 +575,50 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   bulkUploadPdfs: async (files: File[]) => {
     try {
       set({ isUploadingPdf: true, error: null });
-      
+
       const totalFiles = files.length;
       const { uploadProgress } = get();
-      
+
       for (let i = 0; i < totalFiles; i++) {
         const file = files[i];
         const tempId = `upload_${i}`;
-        
+
         // Update progress
-        set({ 
+        set({
           uploadProgress: {
             ...uploadProgress,
             [tempId]: ((i + 1) / totalFiles) * 100
           }
         });
-        
-        await libraryService.createFromPdfUpload(file);
+
+        await libraryWorkflowService.createFromPdfUpload(file);
       }
-      
+
       // Refresh the items list
       const updatedItems = await libraryService.getAllLibraryItems();
-      set({ 
+      set({
         items: updatedItems,
         isUploadingPdf: false,
         uploadProgress: {}
       });
     } catch (error) {
-      set({ 
+      set({
         isUploadingPdf: false,
         error: error instanceof Error ? error.message : 'Failed to upload PDFs',
         uploadProgress: {}
       });
+    }
+  },
+
+  // Auto-metadata extraction settings
+  setAutoExtractMetadata: (enabled: boolean) => {
+    set({ autoExtractMetadata: enabled });
+    // TODO: 将此设置移动到全局设置系统中
+    // 应该持久化到localStorage或设置数据库中
+    try {
+      localStorage.setItem('library.autoExtractMetadata', JSON.stringify(enabled));
+    } catch (error) {
+      console.warn('Failed to save autoExtractMetadata setting to localStorage:', error);
     }
   }
 }));

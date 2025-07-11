@@ -85,7 +85,7 @@ export default function LibraryPage() {
       }
     };
     initializeAsync();
-  }, []);
+  }, [initialize]);
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);

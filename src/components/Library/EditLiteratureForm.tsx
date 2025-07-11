@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, Plus, Save, Trash2, FileText, Link } from "lucide-react";
+import { X, Plus, Save, Trash2, FileText, Link, Eye, ChevronDown, ChevronRight } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLibraryStore } from "@/store/libraryStore";
 import { LITERATURE_SOURCES, SOURCE_METADATA } from "@/libs/db/constants";
+import { Checkbox } from "@/components/ui/checkbox";
 import { LibraryItem } from "@/libs/db";
 import { CitationManager } from "./CitationManager";
 import { toast } from "sonner";
@@ -45,7 +46,8 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
   const [authorInput, setAuthorInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("metadata");
-  const { updateLibraryItem } = useLibraryStore();
+  const [isTextExpanded, setIsTextExpanded] = useState(true);
+  const { updateLibraryItem, autoExtractMetadata, setAutoExtractMetadata } = useLibraryStore();
 
   const {
     register,
@@ -167,7 +169,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="metadata" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Metadata & Details
@@ -176,10 +178,14 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
               <Link className="h-4 w-4" />
               Citation Management
             </TabsTrigger>
+            <TabsTrigger value="content" className="flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Parsed Content
+            </TabsTrigger>
           </TabsList>
 
           {/* Metadata Tab */}
-          <TabsContent value="metadata" className="flex-1 overflow-y-auto mt-4">
+          <TabsContent value="metadata" className="flex-1 overflow-y-auto mt-4 max-h-[70vh]">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Title */}
               <div className="space-y-2">
@@ -355,6 +361,28 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                 </div>
               )}
 
+              {/* Auto-Extract Metadata Setting - TODO: Move to global settings */}
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    id="auto-extract"
+                    checked={autoExtractMetadata}
+                    onCheckedChange={setAutoExtractMetadata}
+                  />
+                  <div>
+                    <Label htmlFor="auto-extract" className="text-sm font-medium cursor-pointer">
+                      Auto-Extract Metadata
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Automatically update title, authors, year, and abstract from parsed PDF content
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                  TODO: This setting will be moved to global settings panel
+                </p>
+              </div>
+
               {/* Metadata Display */}
               <div className="p-3 bg-muted rounded-lg text-sm text-muted-foreground">
                 <div className="grid grid-cols-2 gap-4">
@@ -402,12 +430,121 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
           </TabsContent>
 
           {/* Citations Tab */}
-          <TabsContent value="citations" className="flex-1 overflow-hidden mt-4">
+          <TabsContent value="citations" className="flex-1 overflow-hidden mt-4 max-h-[70vh]">
             <div className="h-full">
               <CitationManager 
                 item={item} 
                 onNavigateToItem={handleNavigateToItem}
               />
+            </div>
+          </TabsContent>
+
+          {/* Parsed Content Tab */}
+          <TabsContent value="content" className="flex-1 overflow-y-auto mt-4 max-h-[70vh]">
+            <div className="h-full space-y-4">
+              {item.parsedContent ? (
+                <div className="space-y-6">
+                  {/* 解析状态和时间 */}
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-green-800 dark:text-green-200">
+                      <Eye className="h-4 w-4" />
+                      <span className="font-medium">Content Successfully Parsed</span>
+                    </div>
+                    <p className="text-sm text-green-600 dark:text-green-300 mt-1">
+                      Parsed on: {new Date(item.parsedContent.parsedAt || '').toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* 提取的文本内容 */}
+                  {item.parsedContent.extractedText && (
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsTextExpanded(!isTextExpanded)}
+                        className="flex items-center gap-2 text-lg font-semibold hover:text-blue-600 transition-colors"
+                      >
+                        {isTextExpanded ? (
+                          <ChevronDown className="h-5 w-5" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5" />
+                        )}
+                        <FileText className="h-5 w-5" />
+                        Extracted Text Content
+                      </button>
+                      {isTextExpanded && (
+                        <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-4 max-h-96 overflow-y-auto">
+                          <pre className="whitespace-pre-wrap text-sm font-mono">
+                            {item.parsedContent.extractedText}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 提取的元数据 */}
+                  {item.parsedContent.extractedMetadata && Object.keys(item.parsedContent.extractedMetadata).length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold">Extracted Metadata</h3>
+                      <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-4">1
+                        <pre className="text-sm overflow-x-auto">
+                          {JSON.stringify(item.parsedContent.extractedMetadata, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 提取的引用 */}
+                  {item.parsedContent.extractedReferences && item.parsedContent.extractedReferences.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold">Extracted References ({item.parsedContent.extractedReferences.length})</h3>
+                      <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <div className="space-y-2">
+                          {item.parsedContent.extractedReferences.map((ref: any, index: number) => (
+                            <div key={index} className="text-sm p-2 bg-white dark:bg-gray-700 rounded border">
+                              {typeof ref === 'string' ? ref : JSON.stringify(ref, null, 2)}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 下载完整结果 */}
+                  {item.parsedContent.fullZipUrl && (
+                    <div className="pt-4 border-t">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => window.open(item.parsedContent?.fullZipUrl, '_blank')}
+                        className="flex items-center gap-2"
+                      >
+                        <FileText className="h-4 w-4" />
+                        Download Full Results (ZIP)
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Eye className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                    No Parsed Content Available
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400 mb-6">
+                    This document hasn't been processed yet or processing failed.
+                  </p>
+                  {(item.parsingStatus === 'AWAITING_MANUAL_UPLOAD' || item.parsingStatus === 'FAILED') && (
+                    <p className="text-sm text-blue-600 dark:text-blue-400">
+                      Upload a PDF file to start content extraction.
+                    </p>
+                  )}
+                  {(item.parsingStatus === 'PENDING_MINERU_SUBMISSION' || item.parsingStatus === 'PARSING_IN_MINERU') && (
+                    <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                      Processing in progress... Content will appear here when ready.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>

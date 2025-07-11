@@ -4,12 +4,12 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { 
-  Cloud, 
-  Download, 
-  Settings, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Cloud,
+  Download,
+  Settings,
+  CheckCircle,
+  XCircle,
   AlertCircle,
   Loader2,
   ExternalLink,
@@ -60,8 +60,8 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
   const [selectedCollection, setSelectedCollection] = useState<string>("");
   const [selectedGroup, setSelectedGroup] = useState<string>("");
   const [isLoadingCollections, setIsLoadingCollections] = useState(false);
-  
-  const { libraryItems, addLibraryItem, updateLibraryItem } = useLibraryStore();
+
+  const { items: libraryItems, addLibraryItem, updateLibraryItem } = useLibraryStore();
 
   const {
     register,
@@ -89,7 +89,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
         setValue("apiKey", storedConfig.apiKey);
         setValue("userId", storedConfig.userId || "");
         setValue("groupId", storedConfig.groupId || "");
-        
+
         // Auto-test connection if we have stored config
         testStoredConnection(storedConfig);
       }
@@ -98,22 +98,22 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
 
   const testStoredConnection = async (config: ZoteroConfig) => {
     setIsTesting(true);
-    
+
     try {
       zoteroService.setConfig(config);
       const testResult = await zoteroService.testConnection();
-      
+
       if (testResult.success) {
         setIsConnected(true);
-        
+
         // Get user info and collections
         const userInfo = await zoteroService.getUserInfo();
         if (!userInfo.error) {
           setUserInfo(userInfo);
         }
-        
+
         loadCollectionsAndGroups();
-        
+
         // If we have stored config, go directly to import tab
         setActiveTab("import");
         toast.success("Auto-connected to Zotero!");
@@ -132,11 +132,11 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
         zoteroService.fetchCollections(),
         zoteroService.fetchGroups()
       ]);
-      
+
       if (collectionsResult.status === 'fulfilled') {
         setCollections(collectionsResult.value);
       }
-      
+
       if (groupsResult.status === 'fulfilled') {
         setGroups(groupsResult.value);
       }
@@ -176,7 +176,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
 
   const testConnection = async (data: ConfigFormData) => {
     setIsTesting(true);
-    
+
     try {
       const config: ZoteroConfig = {
         apiKey: data.apiKey,
@@ -186,18 +186,18 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
 
       zoteroService.setConfig(config);
       const result = await zoteroService.testConnection();
-      
+
       if (result.success) {
         setIsConnected(true);
-        
+
         // Get user info and collections
         const userInfo = await zoteroService.getUserInfo();
         if (!userInfo.error) {
           setUserInfo(userInfo);
         }
-        
+
         loadCollectionsAndGroups();
-        
+
         setActiveTab("import");
         toast.success("Zotero connection successful!");
       } else {
@@ -219,7 +219,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
 
     setIsImporting(true);
     setImportProgress(0);
-    
+
     try {
       // Simulate progress updates
       const progressInterval = setInterval(() => {
@@ -228,7 +228,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
 
       const collectionKey = selectedCollection && selectedCollection !== "__all__" ? selectedCollection : undefined;
       const result = await zoteroService.syncItems(libraryItems, collectionKey);
-      
+
       // Add new items to the library
       if (result.newItems) {
         for (const item of result.newItems) {
@@ -236,14 +236,14 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
           await addLibraryItem(itemData);
         }
       }
-      
+
       // Update existing items
       if (result.updatedItems) {
         for (const item of result.updatedItems) {
           await updateLibraryItem(item.id, item);
         }
       }
-      
+
       clearInterval(progressInterval);
       setImportProgress(100);
       setImportResult(result);
@@ -258,7 +258,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
         if (result.itemsSkipped > 0) {
           toast.info(`Skipped ${result.itemsSkipped} items (already up to date)`);
         }
-        
+
         setActiveTab("result");
       } else {
         toast.error("Import failed. Please check the error details.");
@@ -352,9 +352,9 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                     )}
                     <p className="text-xs text-muted-foreground">
                       Get your API key from{" "}
-                      <a 
-                        href="https://www.zotero.org/settings/keys" 
-                        target="_blank" 
+                      <a
+                        href="https://www.zotero.org/settings/keys"
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline inline-flex items-center gap-1"
                       >
@@ -414,7 +414,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                <strong>Privacy Notice:</strong> Your API key is stored locally and never sent to our servers. 
+                <strong>Privacy Notice:</strong> Your API key is stored locally and never sent to our servers.
                 All communication is direct between your browser and Zotero's API.
               </AlertDescription>
             </Alert>
@@ -587,7 +587,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    <strong>Import Process:</strong> We'll check for duplicates based on title matching. 
+                    <strong>Import Process:</strong> We'll check for duplicates based on title matching.
                     Existing items will be updated if they have newer modification dates in Zotero.
                     {selectedCollection && selectedCollection !== "__all__" && (
                       <div className="mt-2 text-sm">
@@ -653,8 +653,8 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                     <Button onClick={handleClose} className="flex-1">
                       Close
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => setActiveTab("import")}
                       disabled={!isConnected}
                     >

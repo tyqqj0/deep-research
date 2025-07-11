@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { 
-  Download, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Download,
+  CheckCircle,
+  XCircle,
   AlertCircle,
   Loader2,
   User,
@@ -33,20 +33,20 @@ interface ZoteroImportSectionProps {
   onLoginClick: () => void;
 }
 
-export function ZoteroImportSection({ 
-  isConnected, 
-  userInfo, 
-  collections, 
-  groups, 
-  onLoginClick 
+export function ZoteroImportSection({
+  isConnected,
+  userInfo,
+  collections,
+  groups,
+  onLoginClick
 }: ZoteroImportSectionProps) {
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<ZoteroSyncResult | null>(null);
   const [importProgress, setImportProgress] = useState(0);
   const [selectedCollection, setSelectedCollection] = useState<string>("__all__");
   const [selectedGroup, setSelectedGroup] = useState<string>("");
-  
-  const { libraryItems, addLibraryItem, updateLibraryItem } = useLibraryStore();
+
+  const { items: libraryItems, addLibraryItem, updateLibraryItem } = useLibraryStore();
 
   const startImport = async () => {
     if (!isConnected) {
@@ -57,7 +57,7 @@ export function ZoteroImportSection({
     setIsImporting(true);
     setImportProgress(0);
     setImportResult(null);
-    
+
     try {
       // Simulate progress updates
       const progressInterval = setInterval(() => {
@@ -66,7 +66,7 @@ export function ZoteroImportSection({
 
       const collectionKey = selectedCollection && selectedCollection !== "__all__" ? selectedCollection : undefined;
       const result = await zoteroService.syncItems(libraryItems, collectionKey);
-      
+
       // Add new items to the library
       if (result.newItems) {
         for (const item of result.newItems) {
@@ -74,14 +74,14 @@ export function ZoteroImportSection({
           await addLibraryItem(itemData);
         }
       }
-      
+
       // Update existing items
       if (result.updatedItems) {
         for (const item of result.updatedItems) {
           await updateLibraryItem(item.id, item);
         }
       }
-      
+
       clearInterval(progressInterval);
       setImportProgress(100);
       setImportResult(result);
@@ -119,7 +119,7 @@ export function ZoteroImportSection({
         zoteroService.fetchCollections(),
         zoteroService.fetchGroups()
       ]);
-      
+
       if (collectionsResult.status === 'fulfilled' || groupsResult.status === 'fulfilled') {
         toast.success("Collections and groups refreshed!");
         // Force a re-render by updating the parent component
@@ -195,17 +195,17 @@ export function ZoteroImportSection({
                 )}
               </div>
             )}
-            
+
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={onLoginClick}
                 size="sm"
               >
                 Manage Connection
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={refreshCollections}
                 size="sm"
               >
@@ -326,7 +326,7 @@ export function ZoteroImportSection({
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              <strong>Import Process:</strong> We'll check for duplicates based on title matching. 
+              <strong>Import Process:</strong> We'll check for duplicates based on title matching.
               Existing items will be updated if they have newer modification dates in Zotero.
               {selectedCollection && selectedCollection !== "__all__" && (
                 <div className="mt-2 text-sm">
@@ -387,8 +387,8 @@ export function ZoteroImportSection({
               </Alert>
             )}
 
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setImportResult(null)}
               className="w-full"
             >

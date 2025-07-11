@@ -1,12 +1,12 @@
 "use client";
 
-import { 
-  Clock, 
-  Download, 
-  Upload, 
-  Loader2, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Clock,
+  Download,
+  Upload,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
   XCircle,
   FileText,
   Zap
@@ -17,7 +17,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
-type ParsingStatus = 
+type ParsingStatus =
   | 'IDLE'
   | 'PENDING_PDF_FETCH'
   | 'PENDING_PARSE'
@@ -35,9 +35,9 @@ interface ParsingStatusIndicatorProps {
   showUploadButton?: boolean;
   className?: string;
   parsingProgress?: {
-    extractedPages: number;
-    totalPages: number;
-    startTime: string;
+    extractedPages?: number;
+    totalPages?: number;
+    startTime?: string;
   };
 }
 
@@ -97,7 +97,7 @@ const statusConfigs: Record<ParsingStatus, StatusConfig> = {
   },
   'PARSING_IN_MINERU': {
     icon: <Zap className="h-3 w-3 animate-pulse" />,
-    label: 'Processing',
+    label: 'Parsing',
     description: 'PDF is being processed by Mineru',
     color: 'bg-purple-100 text-purple-800 border-purple-300',
     variant: 'outline',
@@ -138,22 +138,22 @@ const statusConfigs: Record<ParsingStatus, StatusConfig> = {
   }
 };
 
-export function ParsingStatusIndicator({ 
-  status, 
-  onUploadPdf, 
-  showUploadButton = true, 
+export function ParsingStatusIndicator({
+  status,
+  onUploadPdf,
+  showUploadButton = true,
   className,
   parsingProgress
 }: ParsingStatusIndicatorProps) {
   const config = statusConfigs[status];
-  
+
   if (!config) {
     console.warn(`Unknown parsing status: ${status}`);
     return null;
   }
 
   const shouldShowUpload = config.showUpload && showUploadButton && onUploadPdf;
-  const shouldShowProgress = status === 'PARSING_IN_MINERU' && parsingProgress && parsingProgress.totalPages > 0;
+  const shouldShowProgress = status === 'PARSING_IN_MINERU' && parsingProgress && parsingProgress.totalPages && parsingProgress.totalPages > 0;
 
   return (
     <TooltipProvider>
@@ -171,7 +171,7 @@ export function ParsingStatusIndicator({
               <span>{config.label}</span>
               {shouldShowProgress && (
                 <span className="ml-1 text-xs opacity-80">
-                  {parsingProgress.extractedPages}/{parsingProgress.totalPages}
+                  {parsingProgress?.extractedPages || 0}/{parsingProgress?.totalPages || 0}
                 </span>
               )}
             </Badge>
@@ -182,10 +182,10 @@ export function ParsingStatusIndicator({
               <div className="mt-2 space-y-1">
                 <div className="flex justify-between text-xs">
                   <span>Progress:</span>
-                  <span>{parsingProgress.extractedPages}/{parsingProgress.totalPages} pages</span>
+                  <span>{parsingProgress?.extractedPages || 0}/{parsingProgress?.totalPages || 0} pages</span>
                 </div>
-                <Progress 
-                  value={(parsingProgress.extractedPages / parsingProgress.totalPages) * 100} 
+                <Progress
+                  value={((parsingProgress?.extractedPages || 0) / (parsingProgress?.totalPages || 1)) * 100}
                   className="h-2 w-32"
                 />
               </div>
@@ -195,12 +195,12 @@ export function ParsingStatusIndicator({
 
         {shouldShowProgress && (
           <div className="flex items-center gap-2">
-            <Progress 
-              value={(parsingProgress.extractedPages / parsingProgress.totalPages) * 100} 
+            <Progress
+              value={((parsingProgress?.extractedPages || 0) / (parsingProgress?.totalPages || 1)) * 100}
               className="h-2 w-16"
             />
             <span className="text-xs text-muted-foreground">
-              {Math.round((parsingProgress.extractedPages / parsingProgress.totalPages) * 100)}%
+              {Math.round(((parsingProgress?.extractedPages || 0) / (parsingProgress?.totalPages || 1)) * 100)}%
             </span>
           </div>
         )}

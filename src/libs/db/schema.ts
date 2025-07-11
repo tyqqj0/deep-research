@@ -42,6 +42,14 @@ export const LibraryItemSchema = z.object({
     totalPages: z.number().int().min(0).optional(),
     startTime: z.string().optional()
   }).optional(),
+  // 解析结果内容
+  parsedContent: z.object({
+    extractedText: z.string().optional(), // 提取的文本内容（Markdown格式）
+    extractedMetadata: z.record(z.any()).optional(), // 提取的元数据
+    extractedReferences: z.array(z.any()).optional(), // 提取的引用
+    parsedAt: z.date().optional(), // 解析时间
+    fullZipUrl: z.string().optional() // 完整ZIP文件的URL（用于下载）
+  }).optional(),
   createdAt: z.date(),
   updatedAt: z.date().optional()
 });

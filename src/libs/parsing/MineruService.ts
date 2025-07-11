@@ -1,3 +1,15 @@
+/**
+ * 🔬 MineruService - 基于Mineru API的PDF解析服务
+ * 
+ * 🎯 核心职责:
+ * - 负责与Mineru API进行通信，并返回解析结果。
+ * 
+ * ❌ 不负责:
+ * - 结构化映射的具体实现 (委托给 `parsing.ParsingService`)。
+ * - 编排完整的业务工作流 (这由 `../library/LibraryWorkflowService.ts` 负责)。
+ * 
+ * ➡️ 这是一个中阶服务，专注于 "如何将A格式的PDF数据映射为B的Markdown数据"。
+ */
 import { LibraryItem } from '../db';
 import * as zip from '@zip.js/zip.js';
 import { getMineruConfig, type MineruConfig } from './config';
@@ -56,7 +68,7 @@ export class MineruService {
   constructor() {
     const { config, warnings } = getMineruConfig();
     this.config = config;
-    
+
     if (warnings.length > 0) {
       console.warn('⚠️  MineruService configuration warnings:', warnings);
     }
@@ -72,17 +84,17 @@ export class MineruService {
   async submitTaskFromFile(item: LibraryItem, pdfBlob: Blob): Promise<string> {
     try {
       console.log(`📄 Submitting PDF to Mineru for item: ${item.title}`);
-      
+
       // Step 1: 申请文件上传URL
       const uploadResponse = await this.requestFileUploadUrl(item);
       const { batch_id, file_urls } = uploadResponse.data;
-      
+
       // Step 2: 上传PDF文件
       console.log(`📤 Uploading PDF to URL: ${file_urls[0]}`);
       console.log(`📤 Upload response data:`, uploadResponse.data);
       await this.uploadFileToUrl(file_urls[0], pdfBlob);
       console.log(`✅ PDF uploaded successfully, batch_id: ${batch_id}`);
-      
+
       return batch_id;
     } catch (error) {
       console.error('❌ Error submitting task to Mineru:', error);
@@ -100,30 +112,30 @@ export class MineruService {
   async pollTaskResult(batchId: string, onProgress?: (progress: { extractedPages: number; totalPages: number; startTime: string }) => void): Promise<MineruParsedData> {
     return new Promise((resolve, reject) => {
       console.log(`🔄 Starting to poll task result for batch_id: ${batchId}`);
-      
+
       const pollInterval = setInterval(async () => {
         try {
           const response = await this.getBatchTaskStatus(batchId);
           const results = response.data.extract_result;
-          
+
           if (!results || results.length === 0) {
             return; // 不记录"等待中"状态，减少日志噪音
           }
-          
+
           const result = results[0]; // 我们只处理单个文件
-          
+
           // 只记录状态变化，不记录持续的运行状态
           if (result.state === 'done' || result.state === 'failed') {
             console.log(`📊 Task ${batchId} state: ${result.state}`);
           }
-          
+
           switch (result.state) {
             case 'done':
               clearInterval(pollInterval);
               if (result.full_zip_url) {
                 try {
-                  const parsedData = await this.fetchAndUnzipResult(result.full_zip_url);
-                  resolve(parsedData);
+                  const parsedMdData = await this.fetchAndUnzipResult(result.full_zip_url);
+                  resolve(parsedMdData);
                 } catch (unzipError) {
                   console.error('❌ Error processing result:', unzipError);
                   reject(new Error(`Failed to process result: ${unzipError}`));
@@ -132,19 +144,19 @@ export class MineruService {
                 reject(new Error('Task completed but no result URL provided'));
               }
               break;
-              
+
             case 'failed':
               clearInterval(pollInterval);
               reject(new Error(`Task failed: ${result.err_msg || 'Unknown error'}`));
               break;
-              
+
             case 'waiting-file':
             case 'pending':
             case 'running':
               // 继续轮询，更新进度
               if (result.extract_progress) {
                 const { extracted_pages, total_pages, start_time } = result.extract_progress;
-                
+
                 // 调用进度回调
                 if (onProgress) {
                   onProgress({
@@ -155,7 +167,7 @@ export class MineruService {
                 }
               }
               break;
-              
+
             default:
               console.warn(`⚠️ Unknown task state: ${result.state}`);
               break;
@@ -166,7 +178,7 @@ export class MineruService {
           reject(error);
         }
       }, this.config.pollInterval);
-      
+
       // 设置超时防止无限轮询
       setTimeout(() => {
         clearInterval(pollInterval);
@@ -197,7 +209,7 @@ export class MineruService {
       if (this.shouldUseProxy(undefined, error as Error)) {
         // 不记录预期的CORS错误，直接尝试代理
         console.log(`🔄 Trying ${type} request via proxy...`);
-        
+
         try {
           const proxyResponse = await this.makeProxyRequest(url, options, type);
           console.log(`✅ Proxy ${type} request successful`);
@@ -207,12 +219,12 @@ export class MineruService {
           throw proxyError;
         }
       }
-      
+
       // 只记录非预期的错误
       console.log(`❌ Direct ${type} request failed:`, error);
       throw error;
     }
-    
+
     // 直接请求返回错误状态但没有异常，仍然尝试代理
     console.log(`🔄 Direct request failed, trying proxy...`);
     return this.makeProxyRequest(url, options, type);
@@ -228,12 +240,12 @@ export class MineruService {
         const apiPath = originalUrl.replace(this.config.baseUrl, '');
         const proxyApiUrl = `/api/mineru${apiPath}`;
         return fetch(proxyApiUrl, options);
-        
+
       case 'download':
         // 文件下载通过 /api/mineru-download 代理
         const downloadProxyUrl = `/api/mineru-download?url=${encodeURIComponent(originalUrl)}`;
         return fetch(downloadProxyUrl);
-        
+
       case 'upload':
         // 文件上传需要特殊处理，先获取代理URL
         const uploadProxyInitUrl = `/api/mineru-upload`;
@@ -245,14 +257,14 @@ export class MineruService {
             fileSize: (options.body as Blob)?.size || 0
           })
         });
-        
+
         if (!uploadResponse.ok) {
           throw new Error(`Upload proxy init failed: ${uploadResponse.status}`);
         }
-        
+
         const { proxyUploadUrl } = await uploadResponse.json();
         return fetch(proxyUploadUrl, { method: 'PUT', body: options.body });
-        
+
       default:
         throw new Error(`Unknown proxy type: ${type}`);
     }
@@ -310,7 +322,7 @@ export class MineruService {
     }
 
     const data = await response.json();
-    
+
     // 检查API响应状态
     if (data.code !== 0) {
       throw new Error(`API error: ${data.msg} (code: ${data.code})`);
@@ -325,12 +337,12 @@ export class MineruService {
   private async uploadFileToUrl(uploadUrl: string, pdfBlob: Blob): Promise<void> {
     try {
       console.log(`📤 Uploading ${pdfBlob.size} bytes to OSS...`);
-      
+
       // 使用统一的代理请求方法上传文件
       await this.makeRequest(uploadUrl, { method: 'PUT', body: pdfBlob }, 'upload');
-      
+
       console.log(`✅ File uploaded successfully`);
-      
+
     } catch (error) {
       console.error(`❌ Upload failed:`, error);
       // 提供用户友好的错误信息
@@ -381,7 +393,7 @@ export class MineruService {
     }
 
     const data = await response.json();
-    
+
     // 检查API响应状态
     if (data.code !== 0) {
       throw new Error(`API error: ${data.msg} (code: ${data.code})`);
@@ -396,18 +408,18 @@ export class MineruService {
   private async fetchAndUnzipResult(zipUrl: string): Promise<MineruParsedData> {
     try {
       console.log(`📥 Downloading result from: ${zipUrl}`);
-      
+
       // 使用统一的代理请求方法下载文件
       const response = await this.makeRequest(zipUrl, {}, 'download');
-      
+
       const zipBlob = await response.blob();
-      
+
       // 解压并处理内容
       const zipReader = new zip.ZipReader(new zip.BlobReader(zipBlob));
       const entries = await zipReader.getEntries();
-      
-      let parsedData: MineruParsedData = {};
-      
+
+      let parsedMdData: MineruParsedData = {};
+
       // 处理ZIP中的每个文件
       for (const entry of entries) {
         if (entry.filename.endsWith('.json')) {
@@ -415,22 +427,22 @@ export class MineruService {
           const jsonBlob = await entry.getData!(new zip.BlobWriter());
           const jsonText = await jsonBlob.text();
           const jsonData = JSON.parse(jsonText);
-          
+
           // 合并JSON数据
-          parsedData = { ...parsedData, ...jsonData };
+          parsedMdData = { ...parsedMdData, ...jsonData };
         } else if (entry.filename.endsWith('.md')) {
           // 提取Markdown文件（主要内容）
           const mdBlob = await entry.getData!(new zip.BlobWriter());
           const mdText = await mdBlob.text();
-          parsedData.content = mdText;
+          parsedMdData.content = mdText;
         }
       }
-      
+
       await zipReader.close();
-      
+
       console.log('✅ Successfully processed Mineru result');
-      return parsedData;
-      
+      return parsedMdData;
+
     } catch (error) {
       console.error('❌ Error processing Mineru result:', error);
       throw new Error(`Failed to process Mineru result: ${error}`);

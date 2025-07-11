@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { libraryService } from "@/libs/db/LibraryService";
+import { libraryWorkflowService } from "@/libs/library/LibraryWorkflowService";
 import { useLibraryStore } from "@/store/libraryStore";
 import { toast } from "sonner";
 
@@ -17,11 +17,11 @@ interface PdfUploadDialogProps {
   onUploadSuccess?: () => void;
 }
 
-export function PdfUploadDialog({ 
-  open, 
-  onClose, 
-  itemId, 
-  onUploadSuccess 
+export function PdfUploadDialog({
+  open,
+  onClose,
+  itemId,
+  onUploadSuccess
 }: PdfUploadDialogProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -33,17 +33,17 @@ export function PdfUploadDialog({
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     const pdfFiles = files.filter(file => file.type === 'application/pdf');
-    
+
     if (pdfFiles.length !== files.length) {
       setError("Only PDF files are allowed");
       return;
     }
-    
+
     if (itemId && pdfFiles.length > 1) {
       setError("Only one PDF file can be uploaded for a specific item");
       return;
     }
-    
+
     setSelectedFiles(pdfFiles);
     setError(null);
   };
@@ -56,20 +56,20 @@ export function PdfUploadDialog({
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    
+
     const files = Array.from(event.dataTransfer.files);
     const pdfFiles = files.filter(file => file.type === 'application/pdf');
-    
+
     if (pdfFiles.length !== files.length) {
       setError("Only PDF files are allowed");
       return;
     }
-    
+
     if (itemId && pdfFiles.length > 1) {
       setError("Only one PDF file can be uploaded for a specific item");
       return;
     }
-    
+
     setSelectedFiles(pdfFiles);
     setError(null);
   };
@@ -91,14 +91,14 @@ export function PdfUploadDialog({
     try {
       if (itemId) {
         // Upload for specific item
-        await libraryService.uploadPdfForExistingItem(itemId, selectedFiles[0]);
+        await libraryWorkflowService.uploadPdfForExistingItem(itemId, selectedFiles[0]);
         toast.success("PDF uploaded and saved to library! Automatic processing will begin shortly.");
       } else {
         // Bulk upload - create new items
         const totalFiles = selectedFiles.length;
         for (let i = 0; i < totalFiles; i++) {
           const file = selectedFiles[i];
-          await libraryService.createFromPdfUpload(file);
+          await libraryWorkflowService.createFromPdfUpload(file);
           setUploadProgress(((i + 1) / totalFiles) * 100);
         }
         toast.success(`${totalFiles} PDF${totalFiles > 1 ? 's' : ''} uploaded and saved to library! Automatic processing will begin shortly.`);
@@ -106,15 +106,15 @@ export function PdfUploadDialog({
 
       // Refresh the library store
       await initialize();
-      
+
       // Call success callback
       onUploadSuccess?.();
-      
+
       // Close dialog and reset state
       onClose();
       setSelectedFiles([]);
       setUploadProgress(0);
-      
+
     } catch (error) {
       console.error('Error uploading PDF:', error);
       setError(error instanceof Error ? error.message : 'Failed to upload PDF');
@@ -141,7 +141,7 @@ export function PdfUploadDialog({
             {itemId ? 'Upload PDF' : 'Import PDF Files'}
           </DialogTitle>
           <DialogDescription>
-            {itemId 
+            {itemId
               ? 'Upload a PDF file for this literature item'
               : 'Select one or more PDF files to import as new literature items'
             }
