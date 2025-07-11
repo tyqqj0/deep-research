@@ -8,12 +8,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { ParsingStatusIndicator } from "./ParsingStatusIndicator";
 import { PdfUploadDialog } from "./PdfUploadDialog";
-import { 
-  BookOpen, 
-  Users, 
-  Calendar, 
-  ExternalLink, 
-  ArrowRight, 
+import {
+  BookOpen,
+  Users,
+  Calendar,
+  ExternalLink,
+  ArrowRight,
   ArrowLeft,
   FileText,
   Upload
@@ -111,12 +111,11 @@ function CitationItem({ item, onNavigateToItem, onUploadPdf }: CitationItemProps
       <div className="space-y-2">
         {/* Title and Status */}
         <div className="flex items-start justify-between gap-2">
-          <h4 
-            className={`font-medium text-sm leading-tight ${
-              isInLibrary 
-                ? 'text-blue-600 cursor-pointer hover:underline' 
-                : 'text-gray-900 dark:text-gray-100'
-            }`}
+          <h4
+            className={`font-medium text-sm leading-tight ${isInLibrary
+              ? 'text-blue-600 cursor-pointer hover:underline'
+              : 'text-gray-900 dark:text-gray-100'
+              }`}
             onClick={() => isInLibrary && onNavigateToItem(item.id)}
           >
             {item.title}
@@ -155,10 +154,11 @@ function CitationItem({ item, onNavigateToItem, onUploadPdf }: CitationItemProps
         {/* Status and Actions for Library Items */}
         {isInLibrary && (
           <div className="flex items-center justify-between">
-            <ParsingStatusIndicator 
+            <ParsingStatusIndicator
               status={item.parsingStatus || 'IDLE'}
               onUploadPdf={onUploadPdf}
               showUploadButton={item.parsingStatus === 'AWAITING_MANUAL_UPLOAD'}
+              viewMode="grid"
               parsingProgress={item.parsingProgress}
             />
             <Button
@@ -219,14 +219,15 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <ParsingStatusIndicator 
+            <ParsingStatusIndicator
               status={item.parsingStatus || 'IDLE'}
               onUploadPdf={() => setShowPdfUpload(true)}
               showUploadButton={item.parsingStatus === 'AWAITING_MANUAL_UPLOAD'}
+              viewMode="list"
               parsingProgress={item.parsingProgress}
               className="justify-start"
             />
-            
+
             {/* Compact metadata */}
             <div className="grid grid-cols-3 gap-3 pt-2 border-t text-xs">
               <div>
@@ -255,7 +256,7 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
           onNavigateToItem={onNavigateToItem}
           emptyMessage="No references found"
         />
-        
+
         <CitationList
           title="Cited By"
           icon={<ArrowLeft className="h-4 w-4" />}

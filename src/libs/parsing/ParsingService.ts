@@ -4,6 +4,7 @@
  * 🎯 核心职责:
  * - 扮演 "适配器" (Adapter) 的角色，将来自任何解析源的、半结构化的原始数据，转换为我们应用内部统一的、标准化的数据格式。
  * - 其核心是 `extractMetadata` 方法，它接收原始数据和一个规则集 (`extractionRules.ts`)，然后输出一个可直接用于数据库更新的 `Partial<LibraryItem>` 对象。
+ * - 支持路径提取和正则表达式提取两种模式。
  * 
  * ❌ 不负责:
  * - 与任何外部 API (如 Mineru) 进行通信。这个职责被委托给更底层的、具体的服务 (例如 `MineruService.ts`)。
@@ -13,11 +14,7 @@
  */
 
 import { LibraryItem } from '../db';
-
-// 解析规则类型定义
-export interface ExtractionRules {
-    [key: string]: string[];
-}
+import { ExtractionRule, ExtractionRules } from './extractionRules';
 
 // 解析后的内容类型
 export interface ParsedContent {
@@ -40,29 +37,44 @@ export class ParsingService {
         const extractedMetadata: Partial<LibraryItem> = {};
 
         // 遍历规则，按照优先级顺序提取每个字段
-        for (const [field, paths] of Object.entries(rules)) {
-            const value = this.extractFieldByPaths(parsedData, paths);
+        for (const [field, rule] of Object.entries(rules)) {
+            const value = this.extractFieldByRule(parsedData, rule);
 
-            if (value !== null) {
+            if (value !== null && value !== undefined) {
+                // 应用后处理函数
+                const processedValue = rule.postProcess ? rule.postProcess(value) : value;
+
+                // 根据字段类型进行标准化处理
                 switch (field) {
                     case 'title':
-                        extractedMetadata.title = this.cleanString(value as string);
+                        if (processedValue) {
+                            extractedMetadata.title = this.cleanString(processedValue as string);
+                        }
                         break;
                     case 'authors':
-                        extractedMetadata.authors = this.extractAuthors(value);
+                        extractedMetadata.authors = this.normalizeAuthors(processedValue);
                         break;
                     case 'year':
-                        extractedMetadata.year = this.parseYear(value);
+                        extractedMetadata.year = this.normalizeYear(processedValue);
                         break;
                     case 'doi':
-                        extractedMetadata.doi = this.cleanString(value as string);
+                        if (processedValue) {
+                            extractedMetadata.doi = this.cleanString(processedValue as string);
+                        }
                         break;
                     case 'abstract':
-                        extractedMetadata.abstract = this.cleanString(value as string);
+                        if (processedValue) {
+                            extractedMetadata.abstract = this.cleanString(processedValue as string);
+                        }
+                        break;
+                    case 'publication':
+                        if (processedValue) {
+                            extractedMetadata.publication = this.cleanString(processedValue as string);
+                        }
                         break;
                     default:
                         // 其他字段直接赋值
-                        (extractedMetadata as any)[field] = value;
+                        (extractedMetadata as any)[field] = processedValue;
                 }
             }
         }
@@ -84,6 +96,72 @@ export class ParsingService {
             parsedAt: new Date(),
             fullZipUrl: parsedMdData.fullZipUrl || ''
         };
+    }
+
+    /**
+     * 🔍 根据规则提取字段值
+     * 
+     * @param data - 原始数据对象
+     * @param rule - 提取规则对象
+     * @returns 找到的值或 null
+     */
+    private extractFieldByRule(data: any, rule: ExtractionRule): any {
+        // 1. 优先尝试正则表达式提取
+        if (rule.regex) {
+            const regexValue = this.extractByRegex(data, rule.regex);
+            if (regexValue !== null) {
+                return regexValue;
+            }
+        }
+
+        // 2. 回退到路径提取
+        if (rule.paths) {
+            return this.extractFieldByPaths(data, rule.paths);
+        }
+
+        return null;
+    }
+
+    /**
+     * 🔎 使用正则表达式提取值
+     * 
+     * @param data - 原始数据对象
+     * @param regexConfig - 正则表达式配置
+     * @returns 匹配的值或 null
+     */
+    private extractByRegex(data: any, regexConfig: ExtractionRule['regex']): any {
+        if (!regexConfig) return null;
+
+        let sourceText = '';
+
+        // 根据 source 确定搜索的文本
+        switch (regexConfig.source) {
+            case 'content':
+                sourceText = data.content || '';
+                break;
+            case 'metadata':
+                sourceText = JSON.stringify(data.metadata || {});
+                break;
+            case 'full':
+                sourceText = JSON.stringify(data);
+                break;
+            default:
+                sourceText = data[regexConfig.source] || '';
+        }
+
+        if (!sourceText) return null;
+
+        try {
+            const match = sourceText.match(regexConfig.pattern);
+            if (match) {
+                const groupIndex = regexConfig.group || 1;
+                return match[groupIndex] || match[0];
+            }
+        } catch (error) {
+            console.warn('Regex extraction failed:', error);
+        }
+
+        return null;
     }
 
     /**
@@ -121,12 +199,12 @@ export class ParsingService {
     }
 
     /**
-     * 👥 提取作者信息
+     * 👥 标准化作者信息
      * 
      * @param authorData - 原始作者数据
      * @returns 标准化的作者数组
      */
-    private extractAuthors(authorData: any): string[] {
+    private normalizeAuthors(authorData: any): string[] {
         if (!authorData) return [];
 
         let authors: string[] = [];
@@ -142,18 +220,19 @@ export class ParsingService {
         // 清理和过滤作者名称
         authors = authors
             .map(author => this.cleanString(author))
-            .filter(author => author && author.length > 1);
+            .filter(author => author && author.length > 1)
+            .slice(0, 20); // 限制作者数量
 
-        return authors;
+        return authors.length > 0 ? authors : [];
     }
 
     /**
-     * 📅 解析年份
+     * 📅 标准化年份
      * 
      * @param yearValue - 原始年份数据
      * @returns 有效的年份数字或当前年份
      */
-    private parseYear(yearValue: any): number {
+    private normalizeYear(yearValue: any): number {
         if (typeof yearValue === 'number') {
             return yearValue > 1000 && yearValue < 2100 ? yearValue : new Date().getFullYear();
         }
@@ -194,6 +273,44 @@ export class ParsingService {
      */
     extractReferences(parsedData: any): any[] {
         return parsedData.references || parsedData.extractedReferences || [];
+    }
+
+    /**
+     * 🧪 测试提取规则
+     * 
+     * @param testData - 测试数据
+     * @param rules - 提取规则
+     * @returns 提取结果和调试信息
+     */
+    testExtraction(testData: any, rules: ExtractionRules): {
+        extracted: Partial<LibraryItem>;
+        debug: { [field: string]: { value: any; source: string } };
+    } {
+        const extracted = this.extractMetadata(testData, rules);
+        const debug: { [field: string]: { value: any; source: string } } = {};
+
+        for (const [field, rule] of Object.entries(rules)) {
+            let value = null;
+            let source = 'none';
+
+            if (rule.regex) {
+                value = this.extractByRegex(testData, rule.regex);
+                if (value !== null) {
+                    source = `regex:${rule.regex.source}`;
+                }
+            }
+
+            if (value === null && rule.paths) {
+                value = this.extractFieldByPaths(testData, rule.paths);
+                if (value !== null) {
+                    source = `path:${rule.paths.find(p => this.getNestedValue(testData, p) !== null)}`;
+                }
+            }
+
+            debug[field] = { value, source };
+        }
+
+        return { extracted, debug };
     }
 }
 

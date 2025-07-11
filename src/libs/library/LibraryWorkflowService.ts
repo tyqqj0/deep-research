@@ -322,6 +322,7 @@ export class LibraryWorkflowService {
 
             // 使用ParsingService进行结构化映射
             const extractedMetadata = parsingService.extractMetadata(parsedMdData, MINERU_EXTRACTION_RULES);
+            console.log('extractedMetadata', extractedMetadata);
             const parsedContent = parsingService.createParsedContent(parsedMdData);
 
             // 更新数据库

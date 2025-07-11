@@ -93,7 +93,7 @@ export function LiteratureListItem({
                 className="mt-1"
               />
               <div className="flex-1 min-w-0">
-                <CardTitle 
+                <CardTitle
                   className="text-base font-semibold leading-tight cursor-pointer hover:text-blue-600 transition-colors"
                   onClick={onItemClick}
                 >
@@ -112,18 +112,17 @@ export function LiteratureListItem({
                     <Calendar className="h-3 w-3" />
                     <span>{item.year}</span>
                   </div>
-                </div>
-                {/* Parsing Status */}
-                {item.parsingStatus && (
-                  <div className="mt-2">
-                    <ParsingStatusIndicator 
+                  {/* Parsing Status - 放在同一行 */}
+                  {item.parsingStatus && (
+                    <ParsingStatusIndicator
                       status={item.parsingStatus}
                       onUploadPdf={() => setShowPdfUpload(true)}
                       showUploadButton={item.parsingStatus === 'AWAITING_MANUAL_UPLOAD'}
+                      viewMode={viewMode}
                       parsingProgress={item.parsingProgress}
                     />
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
 

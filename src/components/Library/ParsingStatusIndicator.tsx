@@ -34,6 +34,7 @@ interface ParsingStatusIndicatorProps {
   onUploadPdf?: () => void;
   showUploadButton?: boolean;
   className?: string;
+  viewMode?: 'list' | 'grid';
   parsingProgress?: {
     extractedPages?: number;
     totalPages?: number;
@@ -143,6 +144,7 @@ export function ParsingStatusIndicator({
   onUploadPdf,
   showUploadButton = true,
   className,
+  viewMode = 'grid',
   parsingProgress
 }: ParsingStatusIndicatorProps) {
   const config = statusConfigs[status];
@@ -157,18 +159,21 @@ export function ParsingStatusIndicator({
 
   return (
     <TooltipProvider>
-      <div className={cn("flex items-center gap-2", className)}>
+      <div className={cn("flex items-center", viewMode === 'list' ? "gap-2" : "gap-1", className)}>
         <Tooltip>
           <TooltipTrigger asChild>
             <Badge
               variant={config.variant}
               className={cn(
-                "flex items-center gap-1.5 px-2 py-1 text-xs font-medium",
+                "flex items-center text-xs font-medium",
+                // 根据视图模式调整间距和大小
+                viewMode === 'list' ? "gap-1.5 px-2 py-1" : "gap-1 px-1.5 py-0.5",
                 config.color
               )}
             >
               {config.icon}
-              <span>{config.label}</span>
+              {/* 仅在列表模式下显示标签名称 */}
+              {viewMode === 'list' && <span>{config.label}</span>}
               {shouldShowProgress && (
                 <span className="ml-1 text-xs opacity-80">
                   {parsingProgress?.extractedPages || 0}/{parsingProgress?.totalPages || 0}
