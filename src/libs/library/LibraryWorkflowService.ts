@@ -19,7 +19,7 @@
  * ➡️ 这是一个高阶服务，专注于 "做什么" 和 "按什么顺序做"，连接着具体实现和最终业务目标。
  */
 
-import { LibraryItem } from '../db';
+import { LibraryItem, LITERATURE_SOURCES } from '../db';
 import { libraryService } from '../db/LibraryService';
 import { parsingService } from '../parsing/ParsingService';
 import { mineruService } from '../parsing/MineruService';
@@ -52,7 +52,7 @@ export class LibraryWorkflowService {
                 title: uniqueTitle,
                 authors: ['Unknown'],
                 year: new Date().getFullYear(),
-                source: 'manual',
+                source: LITERATURE_SOURCES.IMPORT,
                 parsingStatus: 'PENDING_MINERU_SUBMISSION',
                 createdAt: new Date()
             };

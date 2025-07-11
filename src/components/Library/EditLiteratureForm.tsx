@@ -52,6 +52,40 @@ interface ReferenceItemProps {
   index: number;
 }
 
+// 优化的authors字段格式化函数
+const formatAuthors = (authors: any): string => {
+  if (!authors) return '';
+
+  // 如果已经是字符串，直接返回
+  if (typeof authors === 'string') {
+    return authors.trim();
+  }
+
+  // 如果是数组，处理数组中的每个元素
+  if (Array.isArray(authors)) {
+    return authors
+      .map((author: any) => {
+        if (typeof author === 'string') {
+          return author.trim();
+        } else if (typeof author === 'object' && author !== null) {
+          // 处理对象形式的作者信息，尝试多个可能的字段
+          return author.name || author.raw || author.fullName || author.firstName + ' ' + author.lastName || String(author);
+        }
+        return String(author);
+      })
+      .filter(author => author && author.length > 0)
+      .join(', ');
+  }
+
+  // 如果是对象，尝试提取作者信息
+  if (typeof authors === 'object' && authors !== null) {
+    return authors.name || authors.raw || authors.fullName || String(authors);
+  }
+
+  // 兜底：转换为字符串
+  return String(authors);
+};
+
 const ReferenceItem = ({ reference, index }: ReferenceItemProps) => {
   if (typeof reference === 'string') {
     return (
@@ -67,7 +101,11 @@ const ReferenceItem = ({ reference, index }: ReferenceItemProps) => {
   return (
     <div className="text-sm p-2 bg-white dark:bg-gray-700 rounded border">
       <p className="font-semibold">{index + 1}. {title}</p>
-      {authors && <p className="text-xs text-gray-600 dark:text-gray-300">Authors: {authors.map((a: any) => a.name || a.raw).join(', ')}</p>}
+      {authors && (
+        <p className="text-xs text-gray-600 dark:text-gray-300">
+          Authors: {formatAuthors(authors)}
+        </p>
+      )}
       {year && <p className="text-xs text-gray-600 dark:text-gray-300">Year: {year}</p>}
       {journal && <p className="text-xs text-gray-600 dark:text-gray-300">Journal: {journal}</p>}
       {doi && <p className="text-xs text-gray-600 dark:text-gray-300">DOI: {doi}</p>}
