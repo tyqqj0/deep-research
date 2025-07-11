@@ -373,6 +373,7 @@ export class LibraryWorkflowService {
             const { references, ...validMetadata } = extractedMetadata as any;
 
             // 更新数据库
+            console.log(`Updating item ${itemId} to SUCCESS status`);
             await libraryService.updateLibraryItem(itemId, {
                 ...validMetadata,
                 parsedContent: finalParsedContent,

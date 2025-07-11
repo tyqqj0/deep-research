@@ -40,8 +40,8 @@ export class LLMReferenceParser {
         try {
             // 使用 useModelProvider hook 的功能
             const modelProviderHook = useModelProvider();
-            const { thinkingModel } = modelProviderHook.getModel();
-            const modelProvider = await modelProviderHook.createModelProvider(thinkingModel);
+            const { networkingModel } = modelProviderHook.getModel();
+            const modelProvider = await modelProviderHook.createModelProvider(networkingModel);
 
             const systemPrompt = this.createSystemPrompt();
             const userPrompt = this.createUserPrompt(referencesText);

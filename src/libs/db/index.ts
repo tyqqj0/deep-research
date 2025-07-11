@@ -16,7 +16,7 @@ export interface LibraryItem {
   url?: string;
   pdfPath?: string;
   mineruTaskId?: string;
-  parsingStatus?: 'IDLE' | 'PENDING_PDF_FETCH' | 'PENDING_PARSE' | 'AWAITING_MANUAL_UPLOAD' | 'PENDING_MINERU_SUBMISSION' | 'PARSING_IN_MINERU' | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED' | 'PARSING_FAILED';
+  parsingStatus?: 'IDLE' | 'PENDING_PDF_FETCH' | 'PENDING_PARSE' | 'AWAITING_MANUAL_UPLOAD' | 'PENDING_MINERU_SUBMISSION' | 'PARSING_IN_MINERU' | 'SUCCESS' | 'PENDING_REFERENCE_EXTRACTION' | 'EXTRACTING_REFERENCES' | 'PARTIAL_SUCCESS' | 'FAILED' | 'PARSING_FAILED';
   parsingProgress?: {
     extractedPages?: number;
     totalPages?: number;

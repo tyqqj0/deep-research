@@ -154,7 +154,9 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
           const processingItems = currentItems.filter(item =>
             item.parsingStatus === 'PARSING_IN_MINERU' ||
             item.parsingStatus === 'PENDING_MINERU_SUBMISSION' ||
-            item.parsingStatus === 'PENDING_PDF_FETCH'
+            item.parsingStatus === 'PENDING_PDF_FETCH' ||
+            item.parsingStatus === 'PENDING_REFERENCE_EXTRACTION' ||
+            item.parsingStatus === 'EXTRACTING_REFERENCES'
           );
 
           if (processingItems.length > 0) {
