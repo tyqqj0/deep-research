@@ -180,9 +180,10 @@ const ViewportMonitor = () => {
 interface CitationGraphProps {
     onNodeClick: (itemId: string) => void;
     className?: string;
+    onExpandToggle?: (expanded: boolean) => void; // 添加展开状态回调
 }
 
-function CitationGraph({ onNodeClick, className }: CitationGraphProps) {
+function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraphProps) {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const { items: allItems, isLoading: isItemsLoading, isInitialized: isStoreInitialized, initialize, createManualCitationLink } = useLibraryStore();
@@ -412,6 +413,16 @@ function CitationGraph({ onNodeClick, className }: CitationGraphProps) {
         setEdgeToDelete(null);
     }, []);
 
+    // 处理展开/收起切换
+    const handleExpandToggle = useCallback(() => {
+        const newExpanded = !isExpanded;
+        setIsExpanded(newExpanded);
+        // 通知父组件状态变化
+        if (onExpandToggle) {
+            onExpandToggle(newExpanded);
+        }
+    }, [isExpanded, onExpandToggle]);
+
 
     if (isItemsLoading || !isStoreInitialized) {
         return (
@@ -433,12 +444,12 @@ function CitationGraph({ onNodeClick, className }: CitationGraphProps) {
                                 {isPhysicsEnabled ? <Zap className="h-4 w-4" /> : <ZapOff className="h-4 w-4" />}
                                 {isPhysicsEnabled ? '物理引擎' : '静态布局'}
                             </Button>
-                            {isPhysicsEnabled && (
+                            {/* {isPhysicsEnabled && (
                                 <Button variant="outline" size="sm" onClick={forceRestartPhysics} className="flex items-center gap-1">
                                     <RefreshCw className="h-4 w-4" />
                                     重启物理引擎
                                 </Button>
-                            )}
+                            )} */}
                             <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                                 <Link2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                 <span className="text-sm text-blue-800 dark:text-blue-200 font-medium">
@@ -448,7 +459,7 @@ function CitationGraph({ onNodeClick, className }: CitationGraphProps) {
                             <Button variant="outline" size="sm" onClick={fetchDataAndLayout} disabled={isLayouting}>
                                 {isLayouting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => setIsExpanded(!isExpanded)}>
+                            <Button variant="outline" size="sm" onClick={handleExpandToggle}>
                                 <Maximize2 className="h-4 w-4 mr-1" />
                                 {isExpanded ? '收起' : '展开'}
                             </Button>
@@ -456,7 +467,7 @@ function CitationGraph({ onNodeClick, className }: CitationGraphProps) {
                     </div>
                 </CardHeader>
                 <CardContent className="p-0 flex-1">
-                    <div className={`transition-all duration-300 relative ${isExpanded ? 'h-[80vh]' : 'h-full'}`}>
+                    <div className="transition-all duration-300 relative h-full">
                         <ReactFlow
                             nodes={nodes}
                             edges={edges}
