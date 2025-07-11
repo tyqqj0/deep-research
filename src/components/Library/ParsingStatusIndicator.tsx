@@ -27,6 +27,7 @@ type ParsingStatus =
   | 'PENDING_MINERU_SUBMISSION'
   | 'PARSING_IN_MINERU'
   | 'PENDING_REFERENCE_EXTRACTION'
+  | 'PENDING_METADATA_EXTRACTION'
   | 'EXTRACTING_REFERENCES'
   | 'SUCCESS'
   | 'PARTIAL_SUCCESS'
@@ -113,6 +114,15 @@ const statusConfigs: Record<ParsingStatus, StatusConfig> = {
     icon: <BookOpen className="h-3 w-3 animate-pulse" />,
     label: 'Extracting Refs',
     description: 'Preparing to extract references using AI',
+    color: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+    variant: 'outline',
+    showUpload: false,
+    animated: true
+  },
+  'PENDING_METADATA_EXTRACTION': {
+    icon: <Brain className="h-3 w-3 animate-pulse" />,
+    label: 'Extracting Metadata',
+    description: 'Preparing to extract metadata using AI',
     color: 'bg-indigo-100 text-indigo-800 border-indigo-300',
     variant: 'outline',
     showUpload: false,

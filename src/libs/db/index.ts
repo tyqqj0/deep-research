@@ -16,7 +16,7 @@ export interface LibraryItem {
   url?: string;
   pdfPath?: string;
   mineruTaskId?: string;
-  parsingStatus?: 'IDLE' | 'PENDING_PDF_FETCH' | 'PENDING_PARSE' | 'AWAITING_MANUAL_UPLOAD' | 'PENDING_MINERU_SUBMISSION' | 'PARSING_IN_MINERU' | 'SUCCESS' | 'PENDING_REFERENCE_EXTRACTION' | 'EXTRACTING_REFERENCES' | 'PARTIAL_SUCCESS' | 'FAILED' | 'PARSING_FAILED';
+  parsingStatus?: 'IDLE' | 'PENDING_PDF_FETCH' | 'PENDING_PARSE' | 'AWAITING_MANUAL_UPLOAD' | 'PENDING_MINERU_SUBMISSION' | 'PARSING_IN_MINERU' | 'SUCCESS' | 'PENDING_REFERENCE_EXTRACTION' | 'PENDING_METADATA_EXTRACTION' | 'EXTRACTING_REFERENCES' | 'PARTIAL_SUCCESS' | 'FAILED' | 'PARSING_FAILED';
   parsingProgress?: {
     extractedPages?: number;
     totalPages?: number;
@@ -80,7 +80,7 @@ export class MyDatabase extends Dexie {
       citations: '++id, [sourceItemId+targetItemId], sourceItemId, targetItemId' // New citations table
     }).upgrade(trans => {
       // Upgrade existing library items to have default parsingStatus
-      return trans.library.toCollection().modify(item => {
+      return trans.table('library').toCollection().modify((item: LibraryItem) => {
         if (!item.parsingStatus) {
           item.parsingStatus = 'IDLE';
         }
@@ -94,7 +94,7 @@ export class MyDatabase extends Dexie {
       citations: '++id, [sourceItemId+targetItemId], sourceItemId, targetItemId'
     }).upgrade(trans => {
       // Upgrade existing library items to have default parsingStatus
-      return trans.library.toCollection().modify(item => {
+      return trans.table('library').toCollection().modify((item: LibraryItem) => {
         if (!item.parsingStatus) {
           item.parsingStatus = 'IDLE';
         }
