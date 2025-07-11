@@ -19,6 +19,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { LibraryItem } from "@/libs/db";
 import { CitationManager } from "./CitationManager";
 import { toast } from "sonner";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface EditLiteratureFormProps {
   open: boolean;
@@ -41,6 +46,35 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+interface ReferenceItemProps {
+  reference: any;
+  index: number;
+}
+
+const ReferenceItem = ({ reference, index }: ReferenceItemProps) => {
+  if (typeof reference === 'string') {
+    return (
+      <div className="text-sm p-2 bg-white dark:bg-gray-700 rounded border">
+        {reference}
+      </div>
+    );
+  }
+
+  // A more structured display for reference objects
+  const { title, authors, year, journal, doi } = reference;
+
+  return (
+    <div className="text-sm p-2 bg-white dark:bg-gray-700 rounded border">
+      <p className="font-semibold">{index + 1}. {title}</p>
+      {authors && <p className="text-xs text-gray-600 dark:text-gray-300">Authors: {authors.map((a: any) => a.name || a.raw).join(', ')}</p>}
+      {year && <p className="text-xs text-gray-600 dark:text-gray-300">Year: {year}</p>}
+      {journal && <p className="text-xs text-gray-600 dark:text-gray-300">Journal: {journal}</p>}
+      {doi && <p className="text-xs text-gray-600 dark:text-gray-300">DOI: {doi}</p>}
+    </div>
+  );
+};
+
 
 export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiteratureFormProps) {
   const [authorInput, setAuthorInput] = useState("");
@@ -124,7 +158,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
 
     try {
       setIsSubmitting(true);
-      
+
       await updateLibraryItem(item.id, {
         title: data.title,
         authors: data.authors,
@@ -212,8 +246,8 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                     placeholder="Enter author name"
                     className="flex-1"
                   />
-                  <Button 
-                    type="button" 
+                  <Button
+                    type="button"
                     onClick={addAuthor}
                     variant="outline"
                     size="sm"
@@ -221,7 +255,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
-                
+
                 {/* Author Tags */}
                 <div className="flex flex-wrap gap-2">
                   {watchedAuthors.map((author, index) => (
@@ -241,7 +275,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                     </Badge>
                   ))}
                 </div>
-                
+
                 {errors.authors && (
                   <p className="text-sm text-red-500">{errors.authors.message}</p>
                 )}
@@ -432,8 +466,8 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
           {/* Citations Tab */}
           <TabsContent value="citations" className="flex-1 overflow-hidden mt-4 max-h-[70vh]">
             <div className="h-full">
-              <CitationManager 
-                item={item} 
+              <CitationManager
+                item={item}
                 onNavigateToItem={handleNavigateToItem}
               />
             </div>
@@ -495,18 +529,23 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
 
                   {/* 提取的引用 */}
                   {item.parsedContent.extractedReferences && item.parsedContent.extractedReferences.length > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold">Extracted References ({item.parsedContent.extractedReferences.length})</h3>
-                      <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <div className="space-y-2">
-                          {item.parsedContent.extractedReferences.map((ref: any, index: number) => (
-                            <div key={index} className="text-sm p-2 bg-white dark:bg-gray-700 rounded border">
-                              {typeof ref === 'string' ? ref : JSON.stringify(ref, null, 2)}
-                            </div>
-                          ))}
+                    <Collapsible>
+                      <CollapsibleTrigger asChild>
+                        <div className="flex justify-between items-center cursor-pointer">
+                          <h3 className="text-lg font-semibold">Extracted References ({item.parsedContent.extractedReferences.length})</h3>
+                          <ChevronDown className="h-4 w-4" />
                         </div>
-                      </div>
-                    </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-4 max-h-64 overflow-y-auto mt-2">
+                          <div className="space-y-2">
+                            {item.parsedContent.extractedReferences.map((ref: any, index: number) => (
+                              <ReferenceItem key={index} reference={ref} index={index} />
+                            ))}
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   )}
 
                   {/* 下载完整结果 */}

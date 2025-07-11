@@ -1,6 +1,6 @@
 "use client";
 
-import { LibraryItem } from "@/libs/db";
+import { db, LibraryItem } from "@/libs/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,14 @@ import {
   ArrowRight,
   ArrowLeft,
   FileText,
-  Upload
+  Upload,
+  Library,
+  Link2,
+  BookDown,
 } from "lucide-react";
 import { useState } from "react";
 import { useCitations, useIsInLibrary } from "@/hooks/useCitations";
+import { useLiveQuery } from "dexie-react-hooks";
 
 interface CitationManagerProps {
   item: LibraryItem;
@@ -32,6 +36,38 @@ interface CitationListProps {
   items: LibraryItem[];
   onNavigateToItem: (itemId: string) => void;
   emptyMessage: string;
+}
+
+interface StatsCardProps {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+  gradient: string;
+  iconColor: string;
+}
+
+function StatsCard({ title, value, icon, gradient, iconColor }: StatsCardProps) {
+  return (
+    <Card className="relative overflow-hidden">
+      <div className={`absolute inset-0 ${gradient} opacity-10`} />
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
+        <CardTitle className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {title}
+        </CardTitle>
+        <div className={`p-2 rounded-full ${iconColor} bg-opacity-20`}>
+          {icon}
+        </div>
+      </CardHeader>
+      <CardContent className="relative z-10">
+        <div className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
+          {value}
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          {value === 0 ? 'None found' : value === 1 ? '1 item' : `${value} items`}
+        </p>
+      </CardContent>
+    </Card>
+  );
 }
 
 function CitationList({ title, icon, items, onNavigateToItem, emptyMessage }: CitationListProps) {
@@ -179,7 +215,37 @@ function CitationItem({ item, onNavigateToItem, onUploadPdf }: CitationItemProps
 
 export function CitationManager({ item, onNavigateToItem }: CitationManagerProps) {
   const [showPdfUpload, setShowPdfUpload] = useState(false);
-  const { references, citedBy, isLoading } = useCitations(item.id);
+  const { citedBy, isLoading } = useCitations(item.id);
+  const references = useLiveQuery(
+    async () => {
+      if (!item.id) return [];
+
+      try {
+        // Get all citations where this item is the source
+        const referenceCitations = await db.citations
+          .where('sourceItemId')
+          .equals(item.id)
+          .toArray();
+
+        // Get the actual library items
+        const referenceItems = await Promise.all(
+          referenceCitations.map(citation => db.library.get(citation.targetItemId))
+        );
+
+        // Filter out any null results
+        return referenceItems.filter(Boolean) as LibraryItem[];
+      } catch (error) {
+        console.error('Error fetching references:', error);
+        return [];
+      }
+    },
+    [item.id]
+  );
+
+  // Calculate total references from parsed content
+  const totalReferences = item.parsedContent?.extractedReferences?.length || 0;
+
+  const referencesInLibrary = (references || []).filter(ref => useIsInLibrary(ref.id)).length;
 
   if (isLoading) {
     return (
@@ -209,16 +275,38 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
 
   return (
     <div className="space-y-4">
+
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatsCard
+          title="Total References"
+          value={totalReferences}
+          icon={<BookDown className="h-5 w-5 text-blue-600" />}
+          gradient="bg-gradient-to-br from-blue-400 to-blue-600"
+          iconColor="bg-blue-100 dark:bg-blue-900"
+        />
+        <StatsCard
+          title="Linked in Library"
+          value={referencesInLibrary}
+          icon={<Link2 className="h-5 w-5 text-green-600" />}
+          gradient="bg-gradient-to-br from-green-400 to-green-600"
+          iconColor="bg-green-100 dark:bg-green-900"
+        />
+        <StatsCard
+          title="Cited By in Library"
+          value={citedBy.length}
+          icon={<Library className="h-5 w-5 text-purple-600" />}
+          gradient="bg-gradient-to-br from-purple-400 to-purple-600"
+          iconColor="bg-purple-100 dark:bg-purple-900"
+        />
+      </div>
+
       {/* Current Item Status Card - Compact Version */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="h-4 w-4" />
             Processing Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
             <ParsingStatusIndicator
               status={item.parsingStatus || 'IDLE'}
               onUploadPdf={() => setShowPdfUpload(true)}
@@ -227,6 +315,11 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
               parsingProgress={item.parsingProgress}
               className="justify-start"
             />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+
 
             {/* Compact metadata */}
             <div className="grid grid-cols-3 gap-3 pt-2 border-t text-xs">
@@ -251,18 +344,17 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <CitationList
           title="References"
-          icon={<ArrowRight className="h-4 w-4" />}
-          items={references}
+          icon={<ArrowRight className="h-4 w-4 text-green-500" />}
+          items={references || []}
           onNavigateToItem={onNavigateToItem}
-          emptyMessage="No references found"
+          emptyMessage="No references found for this item."
         />
-
         <CitationList
           title="Cited By"
-          icon={<ArrowLeft className="h-4 w-4" />}
+          icon={<ArrowLeft className="h-4 w-4 text-blue-500" />}
           items={citedBy}
           onNavigateToItem={onNavigateToItem}
-          emptyMessage="Not cited by any items"
+          emptyMessage="Not cited by any items in your library."
         />
       </div>
 
