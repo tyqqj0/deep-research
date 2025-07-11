@@ -107,6 +107,9 @@ importers:
       '@serwist/next':
         specifier: ^9.0.14
         version: 9.0.15(next@15.3.3(@opentelemetry/api@1.9.0)(babel-plugin-react-compiler@19.1.0-rc.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(typescript@5.8.3)
+      '@types/d3-force':
+        specifier: ^3.0.10
+        version: 3.0.10
       '@types/dagre':
         specifier: ^0.7.53
         version: 0.7.53
@@ -131,6 +134,9 @@ importers:
       copy-to-clipboard:
         specifier: ^3.3.3
         version: 3.3.3
+      d3-force:
+        specifier: ^3.0.0
+        version: 3.0.0
       dagre:
         specifier: ^0.8.5
         version: 0.8.5

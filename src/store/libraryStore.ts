@@ -16,6 +16,7 @@ interface LibraryState {
   isLoading: boolean;
   error: string | null;
   treeVersion: number; // Version number to trigger UI updates
+  isInitialized: boolean;
 
   // Filtering and search
   sourceFilter: LiteratureSource | 'all';
@@ -79,6 +80,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   isLoading: false,
   error: null,
   treeVersion: 0,
+  isInitialized: false,
 
   // Filtering and search
   sourceFilter: 'all',
@@ -126,7 +128,8 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       set({
         items,
         trees,
-        isLoading: false
+        isLoading: false,
+        isInitialized: true
       });
 
       // 自动启动实时更新
@@ -136,7 +139,8 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       console.error('LibraryStore: Initialization failed:', error);
       set({
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to initialize library'
+        error: error instanceof Error ? error.message : 'Failed to initialize library',
+        isInitialized: true // also mark as initialized on failure to prevent re-initializing loop
       });
     }
   },

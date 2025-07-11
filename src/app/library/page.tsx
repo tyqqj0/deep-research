@@ -137,9 +137,13 @@ export default function LibraryPage() {
   };
 
   const handleNodeClick = (itemId: string) => {
+    console.log('[LibraryPage] Node click received for itemId:', itemId);
     const item = items.find(i => i.id === itemId);
+    console.log('[LibraryPage] Found item:', item?.title);
     if (item) {
       handleEditLiterature(item);
+    } else {
+      console.error('[LibraryPage] Item not found for ID:', itemId);
     }
   };
 
@@ -201,9 +205,57 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      {/* Global Knowledge Graph */}
+      {/* Dashboard: Statistics + Global Knowledge Graph */}
       <div className="mb-8">
-        <GlobalCitationGraph onNodeClick={handleNodeClick} />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[500px]">
+          {/* Left Column: Statistics Cards */}
+          <div className="lg:col-span-4">
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Library Overview</CardTitle>
+                <CardDescription>Statistics and metrics for your literature collection</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 h-full overflow-y-auto">
+                {/* Total Items Card */}
+                <div className="p-4 rounded-lg bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Items</p>
+                      <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{items.length}</p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400">
+                        {filteredItems.length} filtered
+                      </p>
+                    </div>
+                    <div className="text-blue-500">
+                      <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Source Statistics */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">By Source</h4>
+                  {Object.entries(sourceStats).map(([source, count]) => (
+                    <div key={source} className="flex items-center justify-between p-3 rounded-md bg-gray-50 dark:bg-gray-800">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{SOURCE_METADATA[source as keyof typeof SOURCE_METADATA]?.icon}</span>
+                        <span className="text-sm font-medium">{SOURCE_METADATA[source as keyof typeof SOURCE_METADATA]?.name}</span>
+                      </div>
+                      <Badge variant="secondary" className="font-semibold">{count}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Column: Global Citation Graph */}
+          <div className="lg:col-span-8 h-full">
+            <GlobalCitationGraph onNodeClick={handleNodeClick} className="h-full" />
+          </div>
+        </div>
       </div>
 
       {/* Error Display */}
@@ -229,35 +281,6 @@ export default function LibraryPage() {
           </div>
         </div>
       )}
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{items.length}</div>
-            <p className="text-xs text-muted-foreground">
-              {filteredItems.length} filtered
-            </p>
-          </CardContent>
-        </Card>
-
-        {Object.entries(sourceStats).map(([source, count]) => (
-          <Card key={source}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <span>{SOURCE_METADATA[source as keyof typeof SOURCE_METADATA]?.icon}</span>
-                {SOURCE_METADATA[source as keyof typeof SOURCE_METADATA]?.name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{count}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
       {/* Search and Filter Bar */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
