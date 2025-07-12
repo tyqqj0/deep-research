@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { zoteroService } from "@/libs/zotero";
 import { useLibraryStore } from "@/store/libraryStore";
 import type { ZoteroConfig, ZoteroSyncResult, ZoteroUserInfo, ZoteroCollection, ZoteroGroup } from "@/libs/zotero/types";
+import { useTranslation } from "react-i18next";
 
 interface ZoteroImportProps {
   open: boolean;
@@ -48,6 +49,7 @@ const configSchema = z.object({
 type ConfigFormData = z.infer<typeof configSchema>;
 
 export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("config");
   const [isConnected, setIsConnected] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -116,7 +118,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
 
         // If we have stored config, go directly to import tab
         setActiveTab("import");
-        toast.success("Auto-connected to Zotero!");
+        toast.success(t('library.zoteroImportEnhanced.autoConnectedToZotero'));
       }
     } catch (error) {
       console.error("Auto-connection test failed:", error);
@@ -171,7 +173,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
     setSelectedGroup("");
     reset();
     setActiveTab("config");
-    toast.info("Disconnected from Zotero");
+    toast.info(t('library.zoteroImportEnhanced.disconnectedFromZotero'));
   };
 
   const testConnection = async (data: ConfigFormData) => {
@@ -199,12 +201,12 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
         loadCollectionsAndGroups();
 
         setActiveTab("import");
-        toast.success("Zotero connection successful!");
+        toast.success(t('library.zoteroImportEnhanced.zoteroConnectionSuccessful'));
       } else {
-        toast.error("Failed to connect to Zotero. Please check your API key.");
+        toast.error(t('library.zoteroImportEnhanced.failedToConnectToZotero'));
       }
     } catch (error) {
-      toast.error("Connection test failed. Please check your configuration.");
+      toast.error(t('library.zoteroImportEnhanced.connectionTestFailed'));
       console.error("Zotero connection test error:", error);
     } finally {
       setIsTesting(false);
@@ -213,7 +215,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
 
   const startImport = async () => {
     if (!isConnected) {
-      toast.error("Please connect to Zotero first");
+      toast.error(t('library.zoteroImportEnhanced.pleaseConnectToZoteroFirst'));
       return;
     }
 
@@ -250,21 +252,21 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
 
       if (result.success) {
         if (result.itemsAdded > 0) {
-          toast.success(`Successfully imported ${result.itemsAdded} new items from Zotero!`);
+          toast.success(t('library.zoteroImportEnhanced.successfullyImportedNewItemsFromZotero', { count: result.itemsAdded }));
         }
         if (result.itemsUpdated > 0) {
-          toast.success(`Updated ${result.itemsUpdated} existing items from Zotero!`);
+          toast.success(t('library.zoteroImportEnhanced.updatedExistingItemsFromZotero', { count: result.itemsUpdated }));
         }
         if (result.itemsSkipped > 0) {
-          toast.info(`Skipped ${result.itemsSkipped} items (already up to date)`);
+          toast.info(t('library.zoteroImportEnhanced.skippedItemsAlreadyUpToDate', { count: result.itemsSkipped }));
         }
 
         setActiveTab("result");
       } else {
-        toast.error("Import failed. Please check the error details.");
+        toast.error(t('library.zoteroImportEnhanced.importFailed'));
       }
     } catch (error) {
-      toast.error("Import failed. Please try again.");
+      toast.error(t('library.zoteroImportEnhanced.importFailed'));
       console.error("Zotero import error:", error);
     } finally {
       setIsImporting(false);
@@ -278,7 +280,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-green-600">
               <CheckCircle className="h-4 w-4" />
-              <span className="text-sm">Connected to Zotero</span>
+              <span className="text-sm">{t('library.zoteroImportEnhanced.connectedToZotero')}</span>
             </div>
             <Button
               variant="outline"
@@ -287,7 +289,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
               className="h-8 px-2"
             >
               <LogOut className="h-3 w-3 mr-1" />
-              Disconnect
+              {t('library.zoteroImportEnhanced.disconnect')}
             </Button>
           </div>
         </div>
@@ -296,7 +298,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground">
         <XCircle className="h-4 w-4" />
-        <span className="text-sm">Not connected</span>
+        <span className="text-sm">{t('library.zoteroImportEnhanced.notConnected')}</span>
       </div>
     );
   };
@@ -307,7 +309,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Cloud className="h-5 w-5" />
-            Import from Zotero
+            {t('library.zoteroImportEnhanced.importFromZotero')}
           </DialogTitle>
         </DialogHeader>
 
@@ -315,35 +317,35 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="config">
               <Settings className="h-4 w-4 mr-2" />
-              Configuration
+              {t('library.zoteroImportEnhanced.configuration')}
             </TabsTrigger>
             <TabsTrigger value="import" disabled={!isConnected}>
               <Download className="h-4 w-4 mr-2" />
-              Import
+              {t('library.zoteroImportEnhanced.import')}
             </TabsTrigger>
             <TabsTrigger value="result" disabled={!importResult}>
               <CheckCircle className="h-4 w-4 mr-2" />
-              Results
+              {t('library.zoteroImportEnhanced.results')}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="config" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Zotero API Configuration</CardTitle>
+                <CardTitle className="text-lg">{t('library.zoteroImportEnhanced.zoteroApiConfiguration')}</CardTitle>
                 <CardDescription>
-                  Connect to your Zotero library to import your literature collection.
+                  {t('library.zoteroImportEnhanced.connectToZoteroLibrary')}
                 </CardDescription>
                 {getConnectionStatus()}
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit(testConnection)} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="apiKey">API Key *</Label>
+                    <Label htmlFor="apiKey">{t('library.zoteroImportEnhanced.apiKey')}</Label>
                     <Input
                       id="apiKey"
                       {...register("apiKey")}
-                      placeholder="Enter your Zotero API key"
+                      placeholder={t('library.zoteroImportEnhanced.enterApiKey')}
                       type="password"
                       className={errors.apiKey ? "border-red-500" : ""}
                     />
@@ -351,14 +353,14 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                       <p className="text-sm text-red-500">{errors.apiKey.message}</p>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      Get your API key from{" "}
+                      {t('library.zoteroImportEnhanced.getApiKeyFrom')}
                       <a
                         href="https://www.zotero.org/settings/keys"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline inline-flex items-center gap-1"
                       >
-                        Zotero Settings
+                        {t('library.zoteroImportEnhanced.zoteroSettings')}
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     </p>
@@ -366,26 +368,26 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="userId">User ID</Label>
+                      <Label htmlFor="userId">{t('library.zoteroImportEnhanced.userId')}</Label>
                       <Input
                         id="userId"
                         {...register("userId")}
                         placeholder="Your Zotero user ID (optional)"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Leave empty to use current user
+                        {t('library.zoteroImportEnhanced.leaveEmptyToUseCurrentUser')}
                       </p>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="groupId">Group ID</Label>
+                      <Label htmlFor="groupId">{t('library.zoteroImportEnhanced.groupId')}</Label>
                       <Input
                         id="groupId"
                         {...register("groupId")}
-                        placeholder="Group ID (optional)"
+                        placeholder={t('library.zoteroImportEnhanced.groupIdPlaceholder')}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Import from a specific group
+                        {t('library.zoteroImportEnhanced.importFromSpecificGroup')}
                       </p>
                     </div>
                   </div>
@@ -398,12 +400,12 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                     {isTesting ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Testing Connection...
+                        {t('library.zoteroImportEnhanced.testingConnection')}
                       </>
                     ) : (
                       <>
                         <CheckCircle className="h-4 w-4 mr-2" />
-                        Test Connection
+                        {t('library.zoteroImportEnhanced.testConnection')}
                       </>
                     )}
                   </Button>
@@ -414,8 +416,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                <strong>Privacy Notice:</strong> Your API key is stored locally and never sent to our servers.
-                All communication is direct between your browser and Zotero's API.
+                <strong>{t('library.zoteroImportEnhanced.privacyNotice')}:</strong> {t('library.zoteroImportEnhanced.privacyNoticeDescription')}
               </AlertDescription>
             </Alert>
           </TabsContent>
@@ -423,17 +424,17 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
           <TabsContent value="import" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Import Literature</CardTitle>
+                <CardTitle className="text-lg">{t('library.zoteroImportEnhanced.importLiterature')}</CardTitle>
                 <CardDescription>
-                  Import your Zotero library items into Deep Research.
+                  {t('library.zoteroImportEnhanced.importZoteroLibraryItems')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                   <div>
-                    <p className="font-medium">Ready to import</p>
+                    <p className="font-medium">{t('library.zoteroImportEnhanced.readyToImport')}</p>
                     <p className="text-sm text-muted-foreground">
-                      This will sync your Zotero library with Deep Research
+                      {t('library.zoteroImportEnhanced.thisWillSyncZoteroLibraryWithDeepResearch')}
                     </p>
                     {userInfo && (
                       <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
@@ -458,20 +459,20 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                   </div>
                   <Badge variant="outline" className="text-green-600">
                     <CheckCircle className="h-3 w-3 mr-1" />
-                    Connected
+                    {t('library.zoteroImportEnhanced.connected')}
                   </Badge>
                 </div>
 
                 {/* Collection Selection */}
                 {collections.length > 0 && (
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">📁 Select Collection (Optional)</Label>
+                    <Label className="text-sm font-medium">{t('library.zoteroImportEnhanced.selectCollection')}</Label>
                     <Select value={selectedCollection} onValueChange={setSelectedCollection}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Import from all collections" />
+                        <SelectValue placeholder={t('library.zoteroImportEnhanced.importFromAllCollections')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__all__">All collections</SelectItem>
+                        <SelectItem value="__all__">{t('library.zoteroImportEnhanced.allCollections')}</SelectItem>
                         <Separator />
                         {collections.map((collection) => (
                           <SelectItem key={collection.key} value={collection.key}>
@@ -491,7 +492,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      💡 Choose a specific collection to import only those items
+                      {t('library.zoteroImportEnhanced.chooseSpecificCollectionToImportOnlyThoseItems')}
                     </p>
                   </div>
                 )}
@@ -499,7 +500,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                 {/* Group Selection */}
                 {groups.length > 0 && (
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">👥 Available Groups</Label>
+                    <Label className="text-sm font-medium">{t('library.zoteroImportEnhanced.availableGroups')}</Label>
                     <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto">
                       {groups.map((group) => (
                         <div key={group.id} className="flex items-center justify-between p-2 bg-muted rounded">
@@ -511,7 +512,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                             </Badge>
                             {selectedGroup === group.id && (
                               <Badge variant="default" className="text-xs">
-                                Selected
+                                {t('library.zoteroImportEnhanced.selected')}
                               </Badge>
                             )}
                           </div>
@@ -524,13 +525,13 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                               toast.info(`Selected group: ${group.name}`);
                             }}
                           >
-                            {selectedGroup === group.id ? "Selected" : "Select"}
+                            {selectedGroup === group.id ? t('library.zoteroImportEnhanced.selected') : t('library.zoteroImportEnhanced.select')}
                           </Button>
                         </div>
                       ))}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      💡 Select a group to import from that group's library instead of your personal library
+                      {t('library.zoteroImportEnhanced.selectGroupToImportFromThatGroupsLibrary')}
                     </p>
                   </div>
                 )}
@@ -538,7 +539,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                 {isLoadingCollections && (
                   <div className="flex items-center justify-center p-4 text-sm text-muted-foreground border-2 border-dashed rounded-lg">
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Loading collections and groups...
+                    {t('library.zoteroImportEnhanced.loadingCollectionsAndGroups')}
                   </div>
                 )}
 
@@ -546,7 +547,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                 {!isLoadingCollections && collections.length === 0 && groups.length === 0 && isConnected && (
                   <div className="p-4 bg-yellow-50 rounded-lg">
                     <p className="text-sm text-yellow-800">
-                      ⚠️ No collections or groups found. You can still import from your main library.
+                      {t('library.zoteroImportEnhanced.noCollectionsOrGroupsFound')}
                     </p>
                   </div>
                 )}
@@ -554,7 +555,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                 {isImporting && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span>Importing items...</span>
+                      <span>{t('library.zoteroImportEnhanced.importingItems')}</span>
                       <span>{importProgress}%</span>
                     </div>
                     <Progress value={importProgress} className="w-full" />
@@ -570,25 +571,24 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                     {isImporting ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Importing...
+                        {t('library.zoteroImportEnhanced.importing')}
                       </>
                     ) : (
                       <>
                         <Download className="h-4 w-4 mr-2" />
-                        Start Import
+                        {t('library.zoteroImportEnhanced.startImport')}
                       </>
                     )}
                   </Button>
                   <Button variant="outline" onClick={handleClose}>
-                    Cancel
+                    {t('library.zoteroImportEnhanced.cancel')}
                   </Button>
                 </div>
 
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    <strong>Import Process:</strong> We'll check for duplicates based on title matching.
-                    Existing items will be updated if they have newer modification dates in Zotero.
+                    <strong>{t('library.zoteroImportEnhanced.importProcess')}:</strong> {t('library.zoteroImportEnhanced.importProcessDescription')}
                     {selectedCollection && selectedCollection !== "__all__" && (
                       <div className="mt-2 text-sm">
                         <strong>Selected Collection:</strong> {collections.find(c => c.key === selectedCollection)?.name}
@@ -610,7 +610,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                     ) : (
                       <XCircle className="h-5 w-5 text-red-600" />
                     )}
-                    Import Results
+                    {t('library.zoteroImportEnhanced.importResults')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -619,19 +619,19 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                       <div className="text-2xl font-bold text-green-600">
                         {importResult.itemsAdded}
                       </div>
-                      <div className="text-sm text-muted-foreground">Items Added</div>
+                      <div className="text-sm text-muted-foreground">{t('library.zoteroImportEnhanced.itemsAdded')}</div>
                     </div>
                     <div className="text-center p-4 bg-blue-50 rounded-lg">
                       <div className="text-2xl font-bold text-blue-600">
                         {importResult.itemsUpdated}
                       </div>
-                      <div className="text-sm text-muted-foreground">Items Updated</div>
+                      <div className="text-sm text-muted-foreground">{t('library.zoteroImportEnhanced.itemsUpdated')}</div>
                     </div>
                     <div className="text-center p-4 bg-gray-50 rounded-lg">
                       <div className="text-2xl font-bold text-gray-600">
                         {importResult.itemsSkipped}
                       </div>
-                      <div className="text-sm text-muted-foreground">Items Skipped</div>
+                      <div className="text-sm text-muted-foreground">{t('library.zoteroImportEnhanced.itemsSkipped')}</div>
                     </div>
                   </div>
 
@@ -639,7 +639,7 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
                     <Alert>
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
-                        <strong>Errors encountered:</strong>
+                        <strong>{t('library.zoteroImportEnhanced.errorsEncountered')}:</strong>
                         <ul className="mt-2 space-y-1">
                           {importResult.errors.map((error, index) => (
                             <li key={index} className="text-sm">• {error}</li>
@@ -651,14 +651,14 @@ export function ZoteroImport({ open, onClose }: ZoteroImportProps) {
 
                   <div className="flex gap-2">
                     <Button onClick={handleClose} className="flex-1">
-                      Close
+                      {t('library.zoteroImportEnhanced.close')}
                     </Button>
                     <Button
                       variant="outline"
                       onClick={() => setActiveTab("import")}
                       disabled={!isConnected}
                     >
-                      Import Again
+                      {t('library.zoteroImportEnhanced.importAgain')}
                     </Button>
                   </div>
                 </CardContent>

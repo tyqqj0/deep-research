@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { zoteroService } from "@/libs/zotero";
 import { useLibraryStore } from "@/store/libraryStore";
 import type { ZoteroSyncResult, ZoteroUserInfo, ZoteroCollection, ZoteroGroup, ZoteroLibrary } from "@/libs/zotero/types";
+import { useTranslation } from "react-i18next";
 
 interface ZoteroImportSectionProps {
   isConnected: boolean;
@@ -52,10 +53,10 @@ export function ZoteroImportSection({
   const [selectedCollection, setSelectedCollection] = useState<string>("__all__");
   
   const { items: libraryItems, addLibraryItems, updateLibraryItem } = useLibraryStore();
-
+  const { t } = useTranslation();
   const startImport = async () => {
     if (!isConnected || !currentLibrary) {
-      toast.error("Please connect to Zotero and select a library first");
+      toast.error(t('library.zoteroImportSection.pleaseConnectToZoteroAndSelectLibraryFirst'));
       return;
     }
 
@@ -97,19 +98,19 @@ export function ZoteroImportSection({
 
       if (result.success) {
         if (result.itemsAdded > 0) {
-          toast.success(`Successfully imported ${result.itemsAdded} new items from Zotero!`);
+          toast.success(t('library.zoteroImportSection.successfullyImportedNewItemsFromZotero', { count: result.itemsAdded }));
         }
         if (result.itemsUpdated > 0) {
-          toast.success(`Updated ${result.itemsUpdated} existing items from Zotero!`);
+          toast.success(t('library.zoteroImportSection.updatedExistingItemsFromZotero', { count: result.itemsUpdated }));
         }
         if (result.itemsSkipped > 0) {
-          toast.info(`Skipped ${result.itemsSkipped} items (already up to date)`);
+          toast.info(t('library.zoteroImportSection.skippedItemsAlreadyUpToDate', { count: result.itemsSkipped }));
         }
       } else {
-        toast.error("Import failed. Please check the error details.");
+        toast.error(t('library.zoteroImportSection.importFailed'));
       }
     } catch (error) {
-      toast.error("Import failed. Please try again.");
+      toast.error(t('library.zoteroImportSection.importFailed'));
       console.error("Zotero import error:", error);
     } finally {
       setIsImporting(false);
@@ -118,17 +119,17 @@ export function ZoteroImportSection({
 
   const refreshCollections = async () => {
     if (!isConnected || !currentLibrary) {
-      toast.error("Please connect to Zotero and select a library first");
+      toast.error(t('library.zoteroImportSection.pleaseConnectToZoteroAndSelectLibraryFirst'));
       return;
     }
 
     try {
-      toast.info("Refreshing collections...");
+      toast.info(t('library.zoteroImportSection.refreshingCollections'));
       await zoteroService.fetchCollectionsForLibrary(currentLibrary);
-      toast.success("Collections refreshed!");
+      toast.success(t('library.zoteroImportSection.collectionsRefreshed'));
       // Parent component will handle the UI refresh through proper state management
     } catch (error) {
-      toast.error("Failed to refresh collections");
+      toast.error(t('library.zoteroImportSection.failedToRefreshCollections'));
       console.error("Refresh error:", error);
     }
   };
@@ -137,9 +138,9 @@ export function ZoteroImportSection({
     try {
       setSelectedCollection("__all__"); // Reset collection selection
       onLibraryChange(libraryId);
-      toast.info("Switching library and refreshing collections...");
+      toast.info(t('library.zoteroImportSection.switchingLibraryAndRefreshingCollections'));
     } catch (error) {
-      toast.error("Failed to switch library");
+      toast.error(t('library.zoteroImportSection.failedToSwitchLibrary'));
       console.error("Library switch error:", error);
     }
   };
@@ -150,20 +151,20 @@ export function ZoteroImportSection({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <RefreshCw className="h-5 w-5" />
-            Zotero Integration
+            {t('library.zoteroImportSection.zoteroIntegration')}
           </CardTitle>
           <CardDescription>
-            Connect to your Zotero library to import and sync literature
+            {t('library.zoteroImportSection.connectToZoteroLibrary')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
             <div className="flex items-center justify-center gap-2 text-muted-foreground mb-4">
               <XCircle className="h-5 w-5" />
-              <span>Not connected to Zotero</span>
+              <span>{t('library.zoteroImportSection.notConnectedToZotero')}</span>
             </div>
             <Button onClick={onLoginClick}>
-              Connect to Zotero
+              {t('library.zoteroImportSection.connectToZotero')}
             </Button>
           </div>
         </CardContent>
@@ -178,10 +179,10 @@ export function ZoteroImportSection({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CheckCircle className="h-5 w-5 text-green-600" />
-            Connected to Zotero
+            {t('library.zoteroImportSection.connectedToZotero')}
           </CardTitle>
           <CardDescription>
-            Ready to import literature from your Zotero library
+            {t('library.zoteroImportSection.readyToImportLiteratureFromZoteroLibrary')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -195,7 +196,7 @@ export function ZoteroImportSection({
                 {libraries.length > 0 && (
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>{libraries.length} libraries available</span>
+                    <span>{t('library.zoteroImportSection.librariesAvailable', { count: libraries.length })}</span>
                   </div>
                 )}
               </div>
@@ -207,7 +208,7 @@ export function ZoteroImportSection({
                 onClick={onLoginClick}
                 size="sm"
               >
-                Manage Connection
+                {t('library.zoteroImportSection.manageConnection')}
               </Button>
               <Button 
                 variant="outline" 
@@ -216,7 +217,7 @@ export function ZoteroImportSection({
                 disabled={!currentLibrary}
               >
                 <RefreshCw className="h-3 w-3 mr-1" />
-                Refresh Collections
+                {t('library.zoteroImportSection.refreshCollections')}
               </Button>
             </div>
           </div>
@@ -228,23 +229,23 @@ export function ZoteroImportSection({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
-            Import Literature
+            {t('library.zoteroImportSection.importLiterature')}
           </CardTitle>
           <CardDescription>
-            Select libraries and collections to import items from your Zotero library
+            {t('library.zoteroImportSection.selectLibrariesAndCollectionsToImportItemsFromZoteroLibrary')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Library Selection */}
           {libraries.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-sm font-medium">📚 Select Library</Label>
+              <Label className="text-sm font-medium">{t('library.zoteroImportSection.selectLibrary')}</Label>
               <Select 
                 value={currentLibrary?.id || ""} 
                 onValueChange={handleLibraryChange}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a library" />
+                  <SelectValue placeholder={t('library.zoteroImportSection.chooseLibrary')} />
                 </SelectTrigger>
                 <SelectContent>
                   {libraries.map((library) => (
@@ -257,7 +258,7 @@ export function ZoteroImportSection({
                         )}
                         <span>{library.name}</span>
                         <Badge variant="outline" className="text-xs ml-2">
-                          {library.isPersonal ? 'Personal' : 'Group'}
+                          {library.isPersonal ? t('library.zoteroImportSection.personal') : t('library.zoteroImportSection.group')}
                         </Badge>
                       </div>
                     </SelectItem>
@@ -265,7 +266,7 @@ export function ZoteroImportSection({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                🏠 Switch between your personal library and group libraries
+                {t('library.zoteroImportSection.switchBetweenPersonalAndGroupLibraries')}
               </p>
             </div>
           )}
@@ -273,13 +274,13 @@ export function ZoteroImportSection({
           {/* Collection Selection */}
           {currentLibrary && collections.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-sm font-medium">📁 Select Collection</Label>
+              <Label className="text-sm font-medium">{t('library.zoteroImportSection.selectCollection')}</Label>
               <Select value={selectedCollection} onValueChange={setSelectedCollection}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a collection" />
+                  <SelectValue placeholder={t('library.zoteroImportSection.chooseCollection')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">All collections</SelectItem>
+                  <SelectItem value="__all__">{t('library.zoteroImportSection.allCollections')}</SelectItem>
                   <Separator />
                   {collections.map((collection) => (
                     <SelectItem key={collection.key} value={collection.key}>
@@ -299,7 +300,7 @@ export function ZoteroImportSection({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                📂 Choose a specific collection to import only those items
+                {t('library.zoteroImportSection.chooseSpecificCollectionToImportOnlyThoseItems')}
               </p>
             </div>
           )}
@@ -313,16 +314,16 @@ export function ZoteroImportSection({
                 ) : (
                   <Users className="h-4 w-4 text-green-600" />
                 )}
-                <span className="font-medium">Current Library:</span>
+                <span className="font-medium">{t('library.zoteroImportSection.currentLibrary')}:</span>
                 <span>{currentLibrary.name}</span>
                 <Badge variant={currentLibrary.isPersonal ? "default" : "secondary"}>
-                  {currentLibrary.isPersonal ? 'Personal' : 'Group'}
+                  {currentLibrary.isPersonal ? t('library.zoteroImportSection.personal') : t('library.zoteroImportSection.group')}
                 </Badge>
               </div>
               {collections.length > 0 && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                   <Folder className="h-3 w-3" />
-                  <span>{collections.length} collections available</span>
+                  <span>{t('library.zoteroImportSection.collectionsAvailable', { count: collections.length })}</span>
                 </div>
               )}
             </div>
@@ -332,7 +333,7 @@ export function ZoteroImportSection({
           {isImporting && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span>Importing items...</span>
+                <span>{t('library.zoteroImportSection.importingItems')}</span>
                 <span>{importProgress}%</span>
               </div>
               <Progress value={importProgress} className="w-full" />
@@ -348,12 +349,12 @@ export function ZoteroImportSection({
             {isImporting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Importing...
+                {t('library.zoteroImportSection.importing')}
               </>
             ) : (
               <>
                 <Download className="h-4 w-4 mr-2" />
-                Start Import
+                {t('library.zoteroImportSection.startImport')}
               </>
             )}
           </Button>
@@ -361,8 +362,7 @@ export function ZoteroImportSection({
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              <strong>Import Process:</strong> We'll check for duplicates based on title matching. 
-              Existing items will be updated if they have newer modification dates in Zotero.
+              <strong>{t('library.zoteroImportSection.importProcess')}:</strong> {t('library.zoteroImportSection.importProcessDescription')}
               {currentLibrary && (
                 <div className="mt-2 text-sm space-y-1">
                   <div><strong>Library:</strong> {currentLibrary.name}</div>
@@ -372,8 +372,7 @@ export function ZoteroImportSection({
                 </div>
               )}
               <div className="mt-2 text-xs text-muted-foreground">
-                <strong>Note:</strong> Collection counts may differ from import counts because we only import regular items (books, articles, etc.) 
-                and exclude notes, attachments, and other metadata items.
+                <strong>{t('library.zoteroImportSection.note')}:</strong> {t('library.zoteroImportSection.noteDescription')}
               </div>
             </AlertDescription>
           </Alert>
@@ -390,7 +389,7 @@ export function ZoteroImportSection({
               ) : (
                 <XCircle className="h-5 w-5 text-red-600" />
               )}
-              Import Results
+              {t('library.zoteroImportSection.importResults')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -399,19 +398,19 @@ export function ZoteroImportSection({
                 <div className="text-2xl font-bold text-green-600">
                   {importResult.itemsAdded}
                 </div>
-                <div className="text-sm text-muted-foreground">Items Added</div>
+                <div className="text-sm text-muted-foreground">{t('library.zoteroImportSection.itemsAdded')}</div>
               </div>
               <div className="text-center p-4 bg-blue-50 rounded-lg">
                 <div className="text-2xl font-bold text-blue-600">
                   {importResult.itemsUpdated}
                 </div>
-                <div className="text-sm text-muted-foreground">Items Updated</div>
+                <div className="text-sm text-muted-foreground">{t('library.zoteroImportSection.itemsUpdated')}</div>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl font-bold text-gray-600">
                   {importResult.itemsSkipped}
                 </div>
-                <div className="text-sm text-muted-foreground">Items Skipped</div>
+                <div className="text-sm text-muted-foreground">{t('library.zoteroImportSection.itemsSkipped')}</div>
               </div>
             </div>
 
@@ -419,7 +418,7 @@ export function ZoteroImportSection({
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>Errors encountered:</strong>
+                  <strong>{t('library.zoteroImportSection.errorsEncountered')}:</strong>
                   <ul className="mt-2 space-y-1">
                     {importResult.errors.map((error, index) => (
                       <li key={index} className="text-sm">• {error}</li>
@@ -434,7 +433,7 @@ export function ZoteroImportSection({
               onClick={() => setImportResult(null)}
               className="w-full"
             >
-              Clear Results
+              {t('library.zoteroImportSection.clearResults')}
             </Button>
           </CardContent>
         </Card>

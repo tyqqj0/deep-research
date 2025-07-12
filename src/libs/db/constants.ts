@@ -12,32 +12,32 @@ export type LiteratureSource = typeof LITERATURE_SOURCES[keyof typeof LITERATURE
 // Source display names and descriptions
 export const SOURCE_METADATA = {
   [LITERATURE_SOURCES.MANUAL]: {
-    name: 'Manual Entry',
-    description: 'Manually added by user',
+    name: 'library.literatureSources.manualEntry',
+    description: 'library.literatureSources.manuallyAddedByUser',
     icon: '✏️',
     color: 'bg-blue-100 text-blue-800'
   },
   [LITERATURE_SOURCES.SEARCH]: {
-    name: 'Search Result',
-    description: 'Added from search results',
+    name: 'library.literatureSources.searchResult',
+    description: 'library.literatureSources.addedFromSearchResults',
     icon: '🔍',
     color: 'bg-green-100 text-green-800'
   },
   [LITERATURE_SOURCES.IMPORT]: {
-    name: 'File Import',
-    description: 'Imported from file',
+    name: 'library.literatureSources.fileImport',
+    description: 'library.literatureSources.importedFromFile',
     icon: '📄',
     color: 'bg-purple-100 text-purple-800'
   },
   [LITERATURE_SOURCES.KNOWLEDGE]: {
-    name: 'Knowledge Base',
-    description: 'Added from knowledge base',
+    name: 'library.literatureSources.knowledgeBase',
+    description: 'library.literatureSources.addedFromKnowledgeBase',
     icon: '🧠',
     color: 'bg-yellow-100 text-yellow-800'
   },
   [LITERATURE_SOURCES.ZOTERO]: {
-    name: 'Zotero',
-    description: 'Synced from Zotero',
+    name: 'library.literatureSources.zotero',
+    description: 'library.literatureSources.syncedFromZotero',
     icon: '📚',
     color: 'bg-red-100 text-red-800'
   }

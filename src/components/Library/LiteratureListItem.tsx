@@ -39,6 +39,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useTranslation } from "react-i18next";
 
 interface LiteratureListItemProps {
   item: LibraryItem;
@@ -61,6 +62,7 @@ export function LiteratureListItem({
   onItemClick,
   viewMode
 }: LiteratureListItemProps) {
+  const { t } = useTranslation();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showAbstract, setShowAbstract] = useState(false);
   const [showPdfUpload, setShowPdfUpload] = useState(false);
@@ -131,9 +133,9 @@ export function LiteratureListItem({
               <Badge
                 variant="outline"
                 className={`text-xs ${sourceMetadata?.color || 'bg-gray-100 text-gray-800'} px-2`}
-                title={sourceMetadata?.name}
+                title={t(sourceMetadata?.name)}
               >
-                {sourceMetadata?.icon} {viewMode === 'list' && sourceMetadata?.name}
+                {t(sourceMetadata?.icon)} {viewMode === 'list' && t(sourceMetadata?.name)}
               </Badge>
 
               {/* Actions Dropdown */}
@@ -146,11 +148,11 @@ export function LiteratureListItem({
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={onEdit}>
                     <Edit2 className="h-4 w-4 mr-2" />
-                    Edit
+                    {t('library.list.edit')}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={onSelectForTree}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Add to Tree
+                    {t('library.list.addToTree')}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -158,7 +160,7 @@ export function LiteratureListItem({
                     className="text-red-600"
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
+                    {t('library.list.delete')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -181,7 +183,7 @@ export function LiteratureListItem({
               <Collapsible open={showAbstract} onOpenChange={setShowAbstract}>
                 <CollapsibleTrigger className="flex items-center gap-1 text-sm font-medium hover:underline">
                   <FileText className="h-3 w-3" />
-                  Abstract
+                  {t('library.list.abstract')}
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-2">
                   <div className="text-sm text-muted-foreground bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
@@ -194,23 +196,23 @@ export function LiteratureListItem({
             {/* Summary */}
             {item.summary && (
               <div className="text-sm text-muted-foreground">
-                <strong>Summary:</strong> {truncateText(item.summary, 150)}
+                <strong>{t('library.list.summary')}:</strong> {truncateText(item.summary, 150)}
               </div>
             )}
 
             {/* Footer Info */}
             <div className="flex items-center justify-between pt-2 border-t">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Added: {formatDate(item.createdAt)}</span>
+                <span>{t('library.list.added')}: {formatDate(item.createdAt)}</span>
                 {item.updatedAt && item.updatedAt.getTime() !== item.createdAt.getTime() && (
-                  <span>• Updated: {formatDate(item.updatedAt)}</span>
+                  <span>• {t('library.list.updated')}: {formatDate(item.updatedAt)}</span>
                 )}
               </div>
 
               <div className="flex items-center gap-1">
                 {item.zoteroKey && (
                   <Badge variant="outline" className="text-xs">
-                    Zotero
+                    {t('library.list.zotero')}
                   </Badge>
                 )}
 
@@ -243,15 +245,15 @@ export function LiteratureListItem({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>{t('library.list.areYouSure')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete "{item.title}" from your library. This action cannot be undone.
+              {t('library.list.deleteLiteratureDescription', { title: item.title })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('library.list.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              Delete
+              {t('library.list.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useTranslation } from "react-i18next";
 
 interface LiteratureListProps {
   items: LibraryItem[];
@@ -44,6 +45,7 @@ export function LiteratureList({
   onSelectForTree,
   onItemClick
 }: LiteratureListProps) {
+  const { t } = useTranslation();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -177,12 +179,12 @@ export function LiteratureList({
         <CardContent className="text-center py-12">
           <div className="text-muted-foreground">
             <div className="text-6xl mb-4">📚</div>
-            <h3 className="text-lg font-semibold mb-2">No Literature Found</h3>
+            <h3 className="text-lg font-semibold mb-2"> {t('library.list.noLiteratureFound')}</h3>
             <p className="text-sm mb-4">
-              Start building your literature collection by adding your first item.
+              {t('library.list.startBuildingLiteratureCollection')}
             </p>
             <Button onClick={() => {/* TODO: Open add form */}}>
-              Add Your First Literature
+              {t('library.list.addYourFirstLiterature')}
             </Button>
           </div>
         </CardContent>
@@ -196,11 +198,11 @@ export function LiteratureList({
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">
-            {items.length} items
+            {items.length} {t('library.list.items')}
           </span>
           {selectedItems.size > 0 && (
             <Badge variant="secondary">
-              {selectedItems.size} selected
+              {selectedItems.size} {t('library.list.selected')}
             </Badge>
           )}
         </div>
@@ -217,14 +219,14 @@ export function LiteratureList({
                 disabled={isLoading}
               >
                 <Trash2 className="h-3 w-3 mr-1" />
-                Delete Selected ({selectedItems.size})
+                {t('library.list.deleteSelected', { count: selectedItems.size })}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={clearSelection}
               >
-                Clear Selection
+                {t('library.list.clearSelection')}
               </Button>
             </div>
           )}
@@ -236,7 +238,7 @@ export function LiteratureList({
               size="sm"
               onClick={selectedItems.size === items.length ? clearSelection : selectAllItems}
             >
-              {selectedItems.size === items.length ? 'Deselect All' : 'Select All'}
+              {selectedItems.size === items.length ? t('library.list.deselectAll') : t('library.list.selectAll')}
             </Button>
           </div>
 
@@ -247,10 +249,10 @@ export function LiteratureList({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="title">Title</SelectItem>
-                <SelectItem value="year">Year</SelectItem>
-                <SelectItem value="createdAt">Date Added</SelectItem>
-                <SelectItem value="authors">Authors</SelectItem>
+                <SelectItem value="title">{t('library.list.title')}</SelectItem>
+                <SelectItem value="year">{t('library.list.year')}</SelectItem>
+                <SelectItem value="createdAt">{t('library.list.dateAdded')}</SelectItem>
+                <SelectItem value="authors">{t('library.list.authors')}</SelectItem>
               </SelectContent>
             </Select>
 
@@ -324,19 +326,18 @@ export function LiteratureList({
       <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Selected Literature</AlertDialogTitle>
+            <AlertDialogTitle>{t('library.list.deleteSelectedLiterature')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete {selectedItems.size} selected literature items? 
-              This action cannot be undone.
+              {t('library.list.deleteSelectedLiteratureDescription', { count: selectedItems.size })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('library.list.cancel')}</AlertDialogCancel>
             <AlertDialogAction 
               onClick={confirmBulkDelete} 
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete {selectedItems.size} Items
+              {t('library.list.deleteSelectedItems', { count: selectedItems.size })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

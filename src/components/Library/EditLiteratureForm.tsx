@@ -25,6 +25,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useTranslation } from "react-i18next";
 
 interface EditLiteratureFormProps {
   open: boolean;
@@ -137,6 +138,7 @@ const ReferenceItem = ({ reference, index, onEdit }: ReferenceItemProps) => {
 
 
 export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiteratureFormProps) {
+  const { t } = useTranslation();
   const [authorInput, setAuthorInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("metadata");
@@ -218,7 +220,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
       setEditingReference(null);
 
       // 可选：重新运行自动链接
-      toast.success("引文已更新，可以重新运行自动链接");
+      toast.success(t('library.editLiteratureForm.referenceUpdated'));
     } catch (error) {
       console.error("Error updating reference:", error);
       throw error;
@@ -241,7 +243,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
       await addExtractedReference(item.id, newReference);
       setIsAddingReference(false);
 
-      toast.success("新引文已添加");
+      toast.success(t('library.editLiteratureForm.newReferenceAdded'));
     } catch (error) {
       console.error("Error adding reference:", error);
       throw error;
@@ -284,11 +286,11 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
         url: data.url || undefined,
       });
 
-      toast.success("Literature updated successfully!");
+      toast.success(t('library.editLiteratureForm.literatureUpdatedSuccess'));
       onSuccess?.();
       handleClose();
     } catch (error) {
-      toast.error("Failed to update literature. Please try again.");
+      toast.error(t('library.editLiteratureForm.literatureUpdatedError'));
       console.error("Error updating literature:", error);
     } finally {
       setIsSubmitting(false);
@@ -318,15 +320,15 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="metadata" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
-              Metadata & Details
+              {t('library.editLiteratureForm.metadataDetails')}
             </TabsTrigger>
             <TabsTrigger value="citations" className="flex items-center gap-2">
               <Link className="h-4 w-4" />
-              Citation Management
+              {t('library.editLiteratureForm.citationManagement')}
             </TabsTrigger>
             <TabsTrigger value="content" className="flex items-center gap-2">
               <Eye className="h-4 w-4" />
-              Parsed Content
+              {t('library.editLiteratureForm.parsedContent')}
             </TabsTrigger>
           </TabsList>
 
@@ -335,11 +337,11 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Title */}
               <div className="space-y-2">
-                <Label htmlFor="title">Title *</Label>
+                <Label htmlFor="title">{t('library.editLiteratureForm.title')}</Label>
                 <Input
                   id="title"
                   {...register("title")}
-                  placeholder="Enter literature title"
+                  placeholder={t('library.editLiteratureForm.enterTitle')}
                   className={errors.title ? "border-red-500" : ""}
                 />
                 {errors.title && (
@@ -349,13 +351,13 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
 
               {/* Authors */}
               <div className="space-y-2">
-                <Label>Authors *</Label>
+                <Label>{t('library.editLiteratureForm.authors')}</Label>
                 <div className="flex gap-2">
                   <Input
                     value={authorInput}
                     onChange={(e) => setAuthorInput(e.target.value)}
                     onKeyPress={handleAuthorKeyPress}
-                    placeholder="Enter author name"
+                      placeholder={t('library.editLiteratureForm.enterAuthorName')}
                     className="flex-1"
                   />
                   <Button
@@ -396,12 +398,12 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
               {/* Year and Source */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="year">Year *</Label>
+                  <Label htmlFor="year">{t('library.editLiteratureForm.year')}</Label>
                   <Input
                     id="year"
                     type="number"
                     {...register("year", { valueAsNumber: true })}
-                    placeholder="2024"
+                    placeholder={t('library.editLiteratureForm.enterYear')}
                     className={errors.year ? "border-red-500" : ""}
                   />
                   {errors.year && (
@@ -410,20 +412,20 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Source</Label>
+                  <Label>{t('library.editLiteratureForm.source')}</Label>
                   <Select
                     value={watchedSource}
                     onValueChange={(value) => setValue("source", value as any)}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select source" />
+                      <SelectValue placeholder={t('library.editLiteratureForm.selectSource')} />
                     </SelectTrigger>
                     <SelectContent>
                       {Object.entries(LITERATURE_SOURCES).map(([key, value]) => (
                         <SelectItem key={key} value={value}>
                           <div className="flex items-center gap-2">
-                            <span>{SOURCE_METADATA[value]?.icon}</span>
-                            {SOURCE_METADATA[value]?.name}
+                            <span>{t(SOURCE_METADATA[value]?.icon)}</span>
+                            {t(SOURCE_METADATA[value]?.name)}
                           </div>
                         </SelectItem>
                       ))}
@@ -434,22 +436,22 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
 
               {/* Publication */}
               <div className="space-y-2">
-                <Label htmlFor="publication">Publication</Label>
+                <Label htmlFor="publication">{t('library.editLiteratureForm.publication')}</Label>
                 <Input
                   id="publication"
                   {...register("publication")}
-                  placeholder="Journal, Conference, etc."
+                  placeholder={t('library.editLiteratureForm.enterPublication')}
                 />
               </div>
 
               {/* DOI and URL */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="doi">DOI</Label>
+                  <Label htmlFor="doi">{t('library.editLiteratureForm.doi')}</Label>
                   <Input
                     id="doi"
                     {...register("doi")}
-                    placeholder="10.1000/123456"
+                    placeholder={t('library.editLiteratureForm.enterDoi')}
                     className={errors.doi ? "border-red-500" : ""}
                   />
                   {errors.doi && (
@@ -458,12 +460,12 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="url">URL</Label>
+                  <Label htmlFor="url">{t('library.editLiteratureForm.url')}</Label>
                   <Input
                     id="url"
                     type="url"
                     {...register("url")}
-                    placeholder="https://example.com/paper.pdf"
+                    placeholder={t('library.editLiteratureForm.enterUrl')}
                     className={errors.url ? "border-red-500" : ""}
                   />
                   {errors.url && (
@@ -474,22 +476,22 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
 
               {/* Abstract */}
               <div className="space-y-2">
-                <Label htmlFor="abstract">Abstract</Label>
+                <Label htmlFor="abstract">{t('library.editLiteratureForm.abstract')}</Label>
                 <Textarea
                   id="abstract"
                   {...register("abstract")}
-                  placeholder="Enter abstract"
+                  placeholder={t('library.editLiteratureForm.enterAbstract')}
                   rows={4}
                 />
               </div>
 
               {/* Summary */}
               <div className="space-y-2">
-                <Label htmlFor="summary">Summary</Label>
+                <Label htmlFor="summary">{t('library.editLiteratureForm.summary')}</Label>
                 <Textarea
                   id="summary"
                   {...register("summary")}
-                  placeholder="Enter your summary or notes"
+                  placeholder={t('library.editLiteratureForm.enterSummary')}
                   rows={3}
                 />
               </div>
@@ -497,11 +499,11 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
               {/* Zotero Key (only show if source is zotero) */}
               {watchedSource === 'zotero' && (
                 <div className="space-y-2">
-                  <Label htmlFor="zoteroKey">Zotero Key</Label>
+                  <Label htmlFor="zoteroKey">{t('library.editLiteratureForm.zoteroKey')}</Label>
                   <Input
                     id="zoteroKey"
                     {...register("zoteroKey")}
-                    placeholder="Zotero item key"
+                    placeholder={t('library.editLiteratureForm.enterZoteroKey')}
                     readOnly
                   />
                 </div>
@@ -517,15 +519,15 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                   />
                   <div>
                     <Label htmlFor="auto-extract" className="text-sm font-medium cursor-pointer">
-                      Auto-Extract Metadata
+                      {t('library.editLiteratureForm.autoExtractMetadata')}
                     </Label>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Automatically update title, authors, year, and abstract from parsed PDF content
+                      {t('library.editLiteratureForm.autoExtractMetadataDescription')}
                     </p>
                   </div>
                 </div>
                 <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                  TODO: This setting will be moved to global settings panel
+                  {t('library.editLiteratureForm.autoExtractMetadataDescription')}
                 </p>
               </div>
 
@@ -533,14 +535,14 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
               <div className="p-3 bg-muted rounded-lg text-sm text-muted-foreground">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <strong>Created:</strong> {new Date(item.createdAt).toLocaleString()}
+                    <strong>{t('library.editLiteratureForm.created')}:</strong> {new Date(item.createdAt).toLocaleString()}
                   </div>
                   <div>
-                    <strong>Last Modified:</strong> {new Date(item.updatedAt || item.createdAt).toLocaleString()}
+                    <strong>{t('library.editLiteratureForm.lastModified')}:</strong> {new Date(item.updatedAt || item.createdAt).toLocaleString() || 'N/A'}
                   </div>
                 </div>
                 <div className="mt-2">
-                  <strong>ID:</strong> {item.id}
+                  <strong>{t('library.editLiteratureForm.id')}:</strong> {item.id}
                 </div>
               </div>
 
@@ -552,7 +554,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                   onClick={handleClose}
                   disabled={isSubmitting}
                 >
-                  Cancel
+                  {t('library.editLiteratureForm.cancel')}
                 </Button>
                 <Button
                   type="submit"
@@ -562,12 +564,12 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                   {isSubmitting ? (
                     <>
                       <Save className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
+                      {t('library.editLiteratureForm.saving')}
                     </>
                   ) : (
                     <>
                       <Save className="h-4 w-4 mr-2" />
-                      Save Changes
+                      {t('library.editLiteratureForm.saveChanges')}
                     </>
                   )}
                 </Button>
@@ -595,10 +597,10 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                   <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                     <div className="flex items-center gap-2 text-green-800 dark:text-green-200">
                       <Eye className="h-4 w-4" />
-                      <span className="font-medium">Content Successfully Parsed</span>
+                      <span className="font-medium">{t('library.editLiteratureForm.contentSuccessfullyParsed')}</span>
                     </div>
                     <p className="text-sm text-green-600 dark:text-green-300 mt-1">
-                      Parsed on: {new Date(item.parsedContent.parsedAt || '').toLocaleString()}
+                      {t('library.editLiteratureForm.parsedOn')}: {new Date(item.parsedContent.parsedAt || '').toLocaleString()}
                     </p>
                   </div>
 
@@ -609,7 +611,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                         <div className="flex justify-between items-center cursor-pointer">
                           <h3 className="text-lg font-semibold flex items-center gap-2">
                             <FileText className="h-5 w-5" />
-                            Extracted Text Content
+                            {t('library.editLiteratureForm.extractedTextContent')}
                           </h3>
                           <ChevronDown className="h-4 w-4" />
                         </div>
@@ -627,7 +629,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                   {/* 提取的元数据 */}
                   {item.parsedContent.extractedMetadata && Object.keys(item.parsedContent.extractedMetadata).length > 0 && (
                     <div className="space-y-2">
-                      <h3 className="text-lg font-semibold">Extracted Metadata</h3>
+                      <h3 className="text-lg font-semibold">{t('library.editLiteratureForm.extractedMetadata')}</h3>
                       <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-4">1
                         <pre className="text-sm overflow-x-auto">
                           {JSON.stringify(item.parsedContent.extractedMetadata, null, 2)}
@@ -643,7 +645,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                       <div className="flex justify-between items-center cursor-pointer">
                         <h3 className="text-lg font-semibold flex items-center gap-2">
                           <BookOpen className="h-5 w-5" />
-                          Extracted References ({item.parsedContent?.extractedReferences?.length || 0})
+                          {t('library.editLiteratureForm.extractedReferences')} ({item.parsedContent?.extractedReferences?.length || 0})
                         </h3>
                         <ChevronDown className="h-4 w-4" />
                       </div>
@@ -660,7 +662,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                             className="flex items-center gap-2"
                           >
                             <Plus className="h-4 w-4" />
-                            添加新引文
+                            {t('library.editLiteratureForm.addNewReference')}
                           </Button>
                         </div>
 
@@ -678,8 +680,8 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                           ) : (
                             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                               <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                              <p className="text-sm">暂无引文信息</p>
-                              <p className="text-xs mt-1">点击上方按钮添加新引文</p>
+                              <p className="text-sm">{t('library.editLiteratureForm.noReferences')}</p>
+                              <p className="text-xs mt-1">{t('library.editLiteratureForm.clickAddNewReference')}</p>
                             </div>
                           )}
                         </div>
@@ -697,7 +699,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                         className="flex items-center gap-2"
                       >
                         <FileText className="h-4 w-4" />
-                        Download Full Results (ZIP)
+                        {t('library.editLiteratureForm.downloadFullResults')}
                       </Button>
                     </div>
                   )}
@@ -706,19 +708,19 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                 <div className="text-center py-12">
                   <Eye className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                   <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                    No Parsed Content Available
+                    {t('library.editLiteratureForm.noParsedContentAvailable')}
                   </h3>
                   <p className="text-gray-500 dark:text-gray-400 mb-6">
-                    This document hasn't been processed yet or processing failed.
+                    {t('library.editLiteratureForm.noParsedContentAvailableDescription')}
                   </p>
                   {(item.parsingStatus === 'AWAITING_MANUAL_UPLOAD' || item.parsingStatus === 'FAILED') && (
                     <p className="text-sm text-blue-600 dark:text-blue-400">
-                      Upload a PDF file to start content extraction.
+                      {t('library.editLiteratureForm.uploadPdfToStartExtraction')}
                     </p>
                   )}
                   {(item.parsingStatus === 'PENDING_MINERU_SUBMISSION' || item.parsingStatus === 'PARSING_IN_MINERU') && (
                     <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                      Processing in progress... Content will appear here when ready.
+                      {t('library.editLiteratureForm.processingInProgress')}
                     </p>
                   )}
                 </div>

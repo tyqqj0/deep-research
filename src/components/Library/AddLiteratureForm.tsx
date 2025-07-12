@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useLibraryStore } from "@/store/libraryStore";
 import { LITERATURE_SOURCES, SOURCE_METADATA } from "@/libs/db/constants";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 interface AddLiteratureFormProps {
   open: boolean;
@@ -37,6 +38,7 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
+  const { t } = useTranslation();
   const [authorInput, setAuthorInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { addLibraryItem } = useLibraryStore();
@@ -104,17 +106,17 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
       });
 
       if (result && result.success) {
-        toast.success("Literature added successfully!");
+        toast.success(t('library.addLiteratureForm.literatureAddedSuccess'));
         handleClose();
       } else if (result && result.duplicate) {
         // Handle duplicate case
-        toast.warning(`Literature "${data.title}" already exists in your library.`);
+        toast.warning(t('library.addLiteratureForm.literatureAlreadyExists', { title: data.title }));
         // Form stays open for user to modify or cancel
       } else {
-        toast.error("Failed to add literature. Please try again.");
+        toast.error(t('library.addLiteratureForm.literatureAddedError'));
       }
     } catch (error) {
-      toast.error("Failed to add literature. Please try again.");
+      toast.error(t('library.addLiteratureForm.literatureAddedError'));
       console.error("Error adding literature:", error);
     } finally {
       setIsSubmitting(false);
@@ -132,17 +134,17 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Literature</DialogTitle>
+          <DialogTitle>{t('library.addLiteratureForm.addNewLiterature')}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Title */}
           <div className="space-y-2">
-            <Label htmlFor="title">Title *</Label>
+            <Label htmlFor="title">{t('library.addLiteratureForm.title')}</Label>
             <Input
               id="title"
               {...register("title")}
-              placeholder="Enter literature title"
+              placeholder={t('library.addLiteratureForm.enterTitle')}
               className={errors.title ? "border-red-500" : ""}
             />
             {errors.title && (
@@ -152,13 +154,13 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
 
           {/* Authors */}
           <div className="space-y-2">
-            <Label>Authors *</Label>
+            <Label>{t('library.addLiteratureForm.authors')}</Label>
             <div className="flex gap-2">
               <Input
                 value={authorInput}
                 onChange={(e) => setAuthorInput(e.target.value)}
                 onKeyPress={handleAuthorKeyPress}
-                placeholder="Enter author name"
+                placeholder={t('library.addLiteratureForm.enterAuthorName')}
                 className="flex-1"
               />
               <Button 
@@ -199,12 +201,12 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
           {/* Year and Source */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="year">Year *</Label>
+              <Label htmlFor="year">{t('library.addLiteratureForm.year')}</Label>
               <Input
                 id="year"
                 type="number"
                 {...register("year", { valueAsNumber: true })}
-                placeholder="2024"
+                placeholder={t('library.addLiteratureForm.enterYear')}
                 className={errors.year ? "border-red-500" : ""}
               />
               {errors.year && (
@@ -213,20 +215,20 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
             </div>
 
             <div className="space-y-2">
-              <Label>Source</Label>
+              <Label>{t('library.addLiteratureForm.source')}</Label>
               <Select
                 value={watchedSource}
                 onValueChange={(value) => setValue("source", value as any)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select source" />
+                  <SelectValue placeholder={t('library.addLiteratureForm.selectSource')} />
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(LITERATURE_SOURCES).map(([key, value]) => (
                     <SelectItem key={key} value={value}>
                       <div className="flex items-center gap-2">
-                        <span>{SOURCE_METADATA[value]?.icon}</span>
-                        {SOURCE_METADATA[value]?.name}
+                        <span>{t(SOURCE_METADATA[value]?.icon)}</span>
+                        {t(SOURCE_METADATA[value]?.name)}
                       </div>
                     </SelectItem>
                   ))}
@@ -237,22 +239,22 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
 
           {/* Publication */}
           <div className="space-y-2">
-            <Label htmlFor="publication">Publication</Label>
+            <Label htmlFor="publication">{t('library.addLiteratureForm.publication')}</Label>
             <Input
               id="publication"
               {...register("publication")}
-              placeholder="Journal, Conference, etc."
+              placeholder={t('library.addLiteratureForm.enterPublication')}
             />
           </div>
 
           {/* DOI and URL */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="doi">DOI</Label>
+              <Label htmlFor="doi">{t('library.addLiteratureForm.doi')}</Label>
               <Input
                 id="doi"
                 {...register("doi")}
-                placeholder="10.1000/123456"
+                placeholder={t('library.addLiteratureForm.enterDoi')}
                 className={errors.doi ? "border-red-500" : ""}
               />
               {errors.doi && (
@@ -261,12 +263,12 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="url">URL</Label>
+              <Label htmlFor="url">{t('library.addLiteratureForm.url')}</Label>
               <Input
                 id="url"
                 type="url"
                 {...register("url")}
-                placeholder="https://example.com/paper.pdf"
+                placeholder={t('library.addLiteratureForm.enterUrl')}
                 className={errors.url ? "border-red-500" : ""}
               />
               {errors.url && (
@@ -277,22 +279,22 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
 
           {/* Abstract */}
           <div className="space-y-2">
-            <Label htmlFor="abstract">Abstract</Label>
+            <Label htmlFor="abstract">{t('library.addLiteratureForm.abstract')}</Label>
             <Textarea
               id="abstract"
               {...register("abstract")}
-              placeholder="Enter abstract"
+              placeholder={t('library.addLiteratureForm.enterAbstract')}
               rows={4}
             />
           </div>
 
           {/* Summary */}
           <div className="space-y-2">
-            <Label htmlFor="summary">Summary</Label>
+            <Label htmlFor="summary">{t('library.addLiteratureForm.summary')}</Label>
             <Textarea
               id="summary"
               {...register("summary")}
-              placeholder="Enter your summary or notes"
+              placeholder={t('library.addLiteratureForm.enterSummary')}
               rows={3}
             />
           </div>
@@ -300,11 +302,11 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
           {/* Zotero Key (only show if source is zotero) */}
           {watchedSource === 'zotero' && (
             <div className="space-y-2">
-              <Label htmlFor="zoteroKey">Zotero Key</Label>
+              <Label htmlFor="zoteroKey">{t('library.addLiteratureForm.zoteroKey')}</Label>
               <Input
                 id="zoteroKey"
                 {...register("zoteroKey")}
-                placeholder="Zotero item key"
+                placeholder={t('library.addLiteratureForm.enterZoteroKey')}
                 readOnly
               />
             </div>
@@ -318,13 +320,13 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
               onClick={handleClose}
               disabled={isSubmitting}
             >
-              Cancel
+              {t('library.addLiteratureForm.cancel')}
             </Button>
             <Button
               type="submit"
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Adding..." : "Add Literature"}
+              {isSubmitting ? t('library.addLiteratureForm.adding') : t('library.addLiteratureForm.addLiterature')}
             </Button>
           </div>
         </form>

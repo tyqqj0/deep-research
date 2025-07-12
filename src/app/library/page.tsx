@@ -24,6 +24,7 @@ import { zoteroService } from "@/libs/zotero";
 import type { LibraryItem } from "@/libs/db";
 import { GlobalCitationGraph } from "@/components/Library/CitationGraph";
 
+
 export default function LibraryPage() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -164,14 +165,14 @@ export default function LibraryPage() {
             className="flex items-center gap-2 text-lg px-6 py-3 font-semibold"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            {t('library.common.back')}
           </Button>
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Literature Library
+              {t('library.common.title')}
             </h1>
             <p className="text-gray-600 dark:text-gray-300 mt-1">
-              Manage your research literature collection
+              {t('library.common.description')}
             </p>
           </div>
         </div>
@@ -182,7 +183,7 @@ export default function LibraryPage() {
             onClick={() => { alert('TODO: Export functionality' /* TODO: Export functionality */) }}
           >
             <Download className="h-4 w-4 mr-2" />
-            Export
+            {t('library.common.export')}
           </Button>
           <Button
             variant="outline"
@@ -190,7 +191,7 @@ export default function LibraryPage() {
             onClick={() => setShowPdfUpload(true)}
           >
             <Upload className="h-4 w-4 mr-2" />
-            Import PDFs
+            {t('library.common.import')}
           </Button>
           <Button
             variant="outline"
@@ -198,14 +199,14 @@ export default function LibraryPage() {
             onClick={() => setShowZoteroLogin(true)}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
-            Zotero Sync
+            {t('library.common.zoteroSync')}
           </Button>
           <Button
             onClick={() => setShowAddForm(true)}
             size="sm"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Add Literature
+            {t('library.common.addLiterature')}
           </Button>
         </div>
       </div>
@@ -218,18 +219,18 @@ export default function LibraryPage() {
             <div className="lg:col-span-4">
               <Card className="h-full">
                 <CardHeader>
-                  <CardTitle className="text-lg font-semibold">Library Overview</CardTitle>
-                  <CardDescription>Statistics and metrics for your literature collection</CardDescription>
+                  <CardTitle className="text-lg font-semibold">{t('library.common.libraryOverview')}</CardTitle>
+                  <CardDescription>{t('library.common.libraryOverviewDescription')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 h-full overflow-y-auto">
                   {/* Total Items Card */}
                   <div className="p-4 rounded-lg bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Items</p>
+                        <p className="text-sm font-medium text-blue-700 dark:text-blue-300">{t('library.common.totalItems')}</p>
                         <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{items.length}</p>
                         <p className="text-xs text-blue-600 dark:text-blue-400">
-                          {filteredItems.length} filtered
+                          {filteredItems.length} {t('library.common.filtered')}
                         </p>
                       </div>
                       <div className="text-blue-500">
@@ -242,12 +243,12 @@ export default function LibraryPage() {
 
                   {/* Source Statistics */}
                   <div className="space-y-2">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">By Source</h4>
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('library.common.bySource')}</h4>
                     {Object.entries(sourceStats).map(([source, count]) => (
                       <div key={source} className="flex items-center justify-between p-3 rounded-md bg-gray-50 dark:bg-gray-800">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm">{SOURCE_METADATA[source as keyof typeof SOURCE_METADATA]?.icon}</span>
-                          <span className="text-sm font-medium">{SOURCE_METADATA[source as keyof typeof SOURCE_METADATA]?.name}</span>
+                          <span className="text-sm">{t(SOURCE_METADATA[source as keyof typeof SOURCE_METADATA]?.icon)}</span>
+                          <span className="text-sm font-medium">{t(SOURCE_METADATA[source as keyof typeof SOURCE_METADATA]?.name)}</span>
                         </div>
                         <Badge variant="secondary" className="font-semibold">{count}</Badge>
                       </div>
@@ -286,7 +287,7 @@ export default function LibraryPage() {
                 onClick={clearError}
                 className="mt-2"
               >
-                Dismiss
+                {t('library.common.dismiss')}
               </Button>
             </div>
           </div>
@@ -302,7 +303,7 @@ export default function LibraryPage() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Search literature..."
+                placeholder={t('library.common.searchLiterature')}
                 value={searchTerm}
                 onChange={(e) => handleSearch(e.target.value)}
                 className="pl-10"
@@ -310,15 +311,15 @@ export default function LibraryPage() {
             </div>
             <Select value={sourceFilter} onValueChange={handleFilterChange}>
               <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by source" />
+                <SelectValue placeholder={t('library.common.filterBySource')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Sources</SelectItem>
+                <SelectItem value="all">{t('library.common.allSources')}</SelectItem>
                 {Object.entries(LITERATURE_SOURCES).map(([key, value]) => (
                   <SelectItem key={key} value={value}>
                     <div className="flex items-center gap-2">
-                      <span>{SOURCE_METADATA[value]?.icon}</span>
-                      {SOURCE_METADATA[value]?.name}
+                      <span>{t(SOURCE_METADATA[value]?.icon)}</span>
+                      {t(SOURCE_METADATA[value]?.name)}
                     </div>
                   </SelectItem>
                 ))}
@@ -329,9 +330,9 @@ export default function LibraryPage() {
           {/* Main Content */}
           <Tabs defaultValue="list" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="list">Literature List</TabsTrigger>
-              <TabsTrigger value="trees">Literature Trees</TabsTrigger>
-              <TabsTrigger value="sync">Zotero Sync</TabsTrigger>
+              <TabsTrigger value="list">{t('library.common.literatureList')}</TabsTrigger>
+              <TabsTrigger value="trees">{t('library.common.literatureTrees')}</TabsTrigger>
+              <TabsTrigger value="sync">{t('library.common.zoteroSync')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="list" className="space-y-4">
@@ -343,15 +344,15 @@ export default function LibraryPage() {
                   try {
                     const { deleteLibraryItem } = useLibraryStore.getState();
                     await deleteLibraryItem(id);
-                    toast.success("Literature item deleted successfully!");
+                    toast.success(t('library.common.literatureItemDeletedSuccess'));
                   } catch (error) {
-                    toast.error("Failed to delete literature item");
+                    toast.error(t('library.common.literatureItemDeletedError'));
                   }
                 }}
                 onBulkDelete={handleBulkDelete}
                 onSelectForTree={(item) => {
                   // TODO: Implement tree selection
-                  toast.info(`Add "${item.title}" to tree functionality coming soon!`);
+                  toast.info(t('library.common.addLiteratureToTreeComingSoon', { title: item.title }));
                 }}
                 onItemClick={(item) => {
                   handleEditLiterature(item);
@@ -362,14 +363,14 @@ export default function LibraryPage() {
             <TabsContent value="trees" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Literature Trees</CardTitle>
+                  <CardTitle>{t('library.common.literatureTrees')}</CardTitle>
                   <CardDescription>
-                    Manage your MCTS literature exploration trees
+                    {t('library.common.literatureTreesDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-center text-muted-foreground py-8">
-                    Tree management functionality coming soon...
+                    {t('library.common.treeManagementComingSoon')}
                   </p>
                 </CardContent>
               </Card>
@@ -435,7 +436,7 @@ export default function LibraryPage() {
               open={showPdfUpload}
               onClose={() => setShowPdfUpload(false)}
               onUploadSuccess={() => {
-                toast.success("PDFs uploaded successfully!");
+                toast.success(t('library.common.pdfUploadSuccess'));
                 setShowPdfUpload(false);
               }}
             />
