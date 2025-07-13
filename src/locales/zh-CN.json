@@ -10,7 +10,7 @@
       "description": "管理您的文献库",
       "back": "返回",
       "export": "导出",
-      "import": "导入",
+      "import": "PDF 导入",
       "zoteroSync": "Zotero 同步",
       "addLiterature": "添加文献",
       "libraryOverview": "文献库概览",
@@ -52,7 +52,14 @@
       "delete": "删除",
       "updated": "更新",
       "added": "添加",
-      "zotero": "Zotero"
+      "zotero": "Zotero",
+      "abstract": "摘要",
+      "summary": "总结",
+      "publication": "出版物",
+      "doi": "DOI",
+      "url": "URL",
+      "source": "来源",
+      "sourceDescription": "来源描述"
     },
     "editLiteratureForm": {
       "referenceUpdated": "引文已更新，可以重新运行自动链接",
@@ -104,7 +111,10 @@
       "noParsedContentAvailableDescription": "此文档尚未处理或处理失败。",
       "downloadFullResultsDescription": "下载完整结果（ZIP）",
       "noReferencesDescription": "暂无引文信息",
-      "clickAddNewReferenceDescription": "点击上方按钮添加新引文"
+      "clickAddNewReferenceDescription": "点击上方按钮添加新引文",
+      "parsedOn": "解析于",
+      "parsedBy": "解析于",
+      "parsedByDescription": "解析于"
     },
     "addLiteratureForm": {
       "url": "URL",
@@ -137,7 +147,16 @@
       "noParsedContentAvailableDescription": "此文档尚未处理或处理失败。",
       "downloadFullResultsDescription": "下载完整结果（ZIP）",
       "noReferencesDescription": "暂无引文信息",
-      "clickAddNewReferenceDescription": "点击上方按钮添加新引文"
+      "clickAddNewReferenceDescription": "点击上方按钮添加新引文",
+      "addNewLiterature": "添加新文献",
+      "title": "标题",
+      "enterTitle": "请输入标题",
+      "authors": "作者",
+      "enterAuthorName": "请输入作者名称",
+      "year": "年份",
+      "enterYear": "请输入年份",
+      "source": "来源",
+      "selectSource": "请选择来源"
     },
     "zoteroImportEnhanced": {
       "autoConnectedToZotero": "已自动连接到 Zotero！",
@@ -230,7 +249,9 @@
       "errorsEncountered": "遇到错误：",
       "clearResults": "清除结果",
       "note": "注意",
-      "noteDescription": "集合计数可能与导入计数不同，因为我们只导入常规项目（书籍、文章等），并排除笔记、附件和其他元数据项目。"
+      "noteDescription": "集合计数可能与导入计数不同，因为我们只导入常规项目（书籍、文章等），并排除笔记、附件和其他元数据项目。",
+      "readyToImportLiteratureFromZoteroLibrary": "可以从 Zotero 库导入文献",
+      "currentLibrary": "当前库"
     },
     "literatureSources": {
       "manualEntry": "手动添加",
@@ -243,6 +264,7 @@
       "addedFromKnowledgeBase": "从知识库添加",
       "zotero": "Zotero",
       "syncedFromZotero": "从 Zotero 同步"
+      
     }
   },
   "research": {
