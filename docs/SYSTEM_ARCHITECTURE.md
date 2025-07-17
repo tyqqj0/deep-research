@@ -140,11 +140,46 @@ graph TD
         L2 --> L3[LibraryWorkflowService<br/>🚀 工作流处理]
         L3 --> L4[Store in DB<br/>💾 数据库存储]
         L4 -- "liveQuery" --> L5[Update UI<br/>🔄 UI自动更新]
-        
+
         L8[Delete Literature<br/>🗑️ 删除文献] --> L9[Confirm Action<br/>⚠️ 确认操作]
         L9 --> L10[Remove from DB<br/>❌ 从数据库移除]
         L10 -- "liveQuery" --> L5
     end
+```
+
+### 树形数据结构模块 (Tree Visualization System)
+
+> 🌳 **设计理念**: 即插即用的树形可视化组件，支持多场景使用和一体化编辑功能。
+
+```mermaid
+graph TD
+    subgraph "Tree Visualization System"
+        T1[TreeVisualization<br/>🌳 一体化组件] --> T2{Display Mode<br/>📱 显示模式}
+        T2 -- "edit" --> T3[Full Edit Mode<br/>✏️ 完整编辑模式]
+        T2 -- "view" --> T4[Read-only View<br/>👁️ 只读查看模式]
+        T2 -- "embedded" --> T5[Embedded Mode<br/>📦 嵌入模式]
+
+        T1 --> T6[useTree Hook<br/>🎣 业务逻辑层]
+        T6 --> T7[TreeService<br/>🔧 数据访问层]
+        T7 --> T8[TreeController<br/>🧠 MCTS算法层]
+
+        T6 --> T9[useLibraryStore<br/>🗂️ 状态管理]
+        T9 -- "treeVersion++" --> T1
+
+        T3 --> T10[Node Operations<br/>⚙️ 节点操作]
+        T10 --> T11[Add/Delete/Move<br/>➕➖🔄 增删移动]
+        T11 --> T7
+    end
+
+    subgraph "Usage Scenarios"
+        U1[Library Page<br/>📚 文献库页面]
+        U2[Deep Research<br/>🔬 深度研究]
+        U3[Other Components<br/>🔗 其他组件]
+    end
+
+    U1 --> T1
+    U2 --> T1
+    U3 --> T1
 ```
 
 ## 📋 功能分层详细说明
@@ -156,6 +191,8 @@ graph TD
 | LiteratureList      | 文献列表展示        | ✅ 完成       | `src/components/Library/LiteratureList.tsx`      |
 | Add/Edit Forms      | 添加/编辑表单       | ✅ 完成       | `src/components/Library/*Form.tsx`               |
 | GlobalCitationGraph | 全局引文网络图      | ✅ 完成       | `src/components/Library/CitationGraph.tsx`       |
+| **TreeVisualization** | **树形可视化组件**    | 🚧 **开发中** | `src/components/Library/TreeVisualization.tsx`   |
+| **TreeSelector**      | **树选择器组件**      | 🚧 **开发中** | `src/components/Library/TreeSelector.tsx`        |
 | ZoteroImportSection | Zotero导入/同步面板 | ✅ 完成       | `src/components/Library/ZoteroImportSection.tsx` |
 | ZoteroLogin         | Zotero登录模态框    | ✅ 完成       | `src/components/Library/ZoteroLogin.tsx`         |
 | PdfUploadDialog     | PDF上传对话框       | ✅ 完成       | `src/components/Library/PdfUploadDialog.tsx`     |
@@ -165,11 +202,20 @@ graph TD
 | --------------- | ---------------- | ------ | --------------------------- |
 | useLibraryStore | 文献状态管理中心 | ✅ 完成 | `src/store/libraryStore.ts` |
 
+### Hook Layer (业务逻辑封装层)
+| Hook            | 功能             | 状态   | 文件路径                    |
+| --------------- | ---------------- | ------ | --------------------------- |
+| useCitations    | 引文关系管理     | ✅ 完成 | `src/hooks/useCitations.ts` |
+| **useTree**     | **树操作管理**   | 🚧 **开发中** | `src/hooks/useTree.ts`      |
+| useZotero       | Zotero集成管理   | ✅ 完成 | `src/hooks/useZotero.ts`    |
+
 ### Service Layer (服务层)
 | 服务                   | 功能             | 状态   | 文件路径                                     |
 | ---------------------- | ---------------- | ------ | -------------------------------------------- |
 | LibraryWorkflowService | 复杂工作流编排   | ✅ 完成 | `src/libs/library/LibraryWorkflowService.ts` |
 | LibraryService         | 核心文献数据服务 | ✅ 完成 | `src/libs/db/LibraryService.ts`              |
+| **TreeService**        | **树形数据服务** | 🚧 **开发中** | `src/libs/tree/TreeService.ts`               |
+| **TreeWorkflowService** | **树操作工作流** | 🚧 **开发中** | `src/libs/tree/TreeWorkflowService.ts`       |
 | ZoteroService          | Zotero集成服务   | ✅ 完成 | `src/libs/zotero/ZoteroService.ts`           |
 | MineruService          | AI解析服务       | ✅ 完成 | `src/libs/parsing/MineruService.ts`          |
 | ParsingService         | 解析数据映射     | ✅ 完成 | `src/libs/parsing/ParsingService.ts`         |
@@ -194,7 +240,10 @@ graph TD
 ### ⏳ 功能待办清单
 - [ ] **文献去重机制**: 在导入新文献时，提供更智能的重复检测和合并建议。
 - [ ] **高级搜索与过滤**: 实现基于作者、年份、标签等多维度的搜索。
-- [ ] **文献树 (`TreeController`) UI实现**: 为`MCTS`文献树功能提供前端交互界面。
+- [🚧] **文献树可视化系统**: 实现即插即用的树形可视化组件，支持编辑和多场景使用。
+  - [🚧] `TreeVisualization` - 一体化可视化编辑组件
+  - [🚧] `TreeService` - 树形数据CRUD服务
+  - [🚧] `useTree` Hook - 树操作业务逻辑封装
 - [ ] **批量操作**: 完善批量删除、批量添加到文献树等功能。
 - [ ] **导出功能**: 实现将文献库或特定文献导出为常见格式（如BibTeX）。
 - [ ] **全局设置持久化**: 将 `autoExtractMetadata` 等设置存储到数据库，而非`localStorage`。

@@ -145,3 +145,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* 确保Select下拉菜单正常显示 */
+[data-radix-select-content] {
+  z-index: 9999 !important;
+}
+
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}

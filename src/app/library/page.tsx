@@ -21,6 +21,7 @@ import { PdfUploadDialog } from "@/components/Library/PdfUploadDialog";
 import { toast } from "sonner";
 import type { LibraryItem } from "@/libs/db";
 import { GlobalCitationGraph } from "@/components/Library/CitationGraph";
+import { TreeVisualization } from "@/components/Library/TreeVisualization";
 import { useZotero } from "@/hooks/useZotero";
 
 
@@ -343,9 +344,27 @@ export default function LibraryPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-center text-muted-foreground py-8">
-                    {t('library.common.treeManagementComingSoon')}
-                  </p>
+                  <TreeVisualization
+                    mode="edit"
+                    height="700px"
+                    showControls={true}
+                    showMiniMap={true}
+                    showTreeSelector={true}
+                    showNodeStats={true}
+                    enablePhysics={true}
+                    onNodeSelect={(node) => {
+                      console.log('Selected node:', node);
+                    }}
+                    onTreeChange={(treeId) => {
+                      console.log('Tree changed:', treeId);
+                    }}
+                    onNodeAdd={(parentId, itemId) => {
+                      console.log('Node added:', parentId, itemId);
+                    }}
+                    onNodeDelete={(nodeId) => {
+                      console.log('Node deleted:', nodeId);
+                    }}
+                  />
                 </CardContent>
               </Card>
             </TabsContent>
