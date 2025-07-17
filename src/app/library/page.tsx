@@ -19,10 +19,9 @@ import { ZoteroLogin } from "@/components/Library/ZoteroLogin";
 import { ZoteroImportSection } from "@/components/Library/ZoteroImportSection";
 import { PdfUploadDialog } from "@/components/Library/PdfUploadDialog";
 import { toast } from "sonner";
-import type { ZoteroUserInfo, ZoteroCollection, ZoteroGroup, ZoteroLibrary } from "@/libs/zotero/types";
-import { zoteroService } from "@/libs/zotero";
 import type { LibraryItem } from "@/libs/db";
 import { GlobalCitationGraph } from "@/components/Library/CitationGraph";
+import { useZotero } from "@/hooks/useZotero";
 
 
 export default function LibraryPage() {
@@ -33,13 +32,18 @@ export default function LibraryPage() {
   const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
   const [showZoteroLogin, setShowZoteroLogin] = useState(false);
   const [showPdfUpload, setShowPdfUpload] = useState(false);
-  const [zoteroUserInfo, setZoteroUserInfo] = useState<ZoteroUserInfo | null>(null);
-  const [zoteroCollections, setZoteroCollections] = useState<ZoteroCollection[]>([]);
-  const [zoteroGroups, setZoteroGroups] = useState<ZoteroGroup[]>([]);
-  const [zoteroLibraries, setZoteroLibraries] = useState<ZoteroLibrary[]>([]);
-  const [currentZoteroLibrary, setCurrentZoteroLibrary] = useState<ZoteroLibrary | null>(null);
-  const [isZoteroConnected, setIsZoteroConnected] = useState(false);
   const [isGraphExpanded, setIsGraphExpanded] = useState(false); // 添加图谱展开状态
+
+  const {
+    userInfo: zoteroUserInfo,
+    collections: zoteroCollections,
+    groups: zoteroGroups,
+    libraries: zoteroLibraries,
+    currentLibrary: currentZoteroLibrary,
+    isConnected: isZoteroConnected,
+    handleLibraryChange: handleZoteroLibraryChange,
+    handleLoginSuccess,
+  } = useZotero();
 
   const {
     items,
@@ -64,25 +68,6 @@ export default function LibraryPage() {
     const initializeAsync = async () => {
       try {
         await initialize();
-
-        // Check if Zotero is already configured
-        const storedConfig = zoteroService.getStoredConfig();
-        if (storedConfig) {
-          setIsZoteroConnected(true);
-          // Try to get cached user info
-          const cachedUserInfo = zoteroService.getCachedUserInfo();
-          if (cachedUserInfo) {
-            setZoteroUserInfo(cachedUserInfo);
-          }
-          const cachedCollections = zoteroService.getCachedCollections();
-          const cachedGroups = zoteroService.getCachedGroups();
-          const cachedLibraries = zoteroService.getCachedLibraries();
-          const currentLibrary = zoteroService.getCurrentLibrary();
-          setZoteroCollections(cachedCollections);
-          setZoteroGroups(cachedGroups);
-          setZoteroLibraries(cachedLibraries);
-          setCurrentZoteroLibrary(currentLibrary);
-        }
       } catch (error) {
         console.error('Library initialization failed:', error);
       }
@@ -107,17 +92,6 @@ export default function LibraryPage() {
 
     return stats;
   }, [items]);
-
-  const handleZoteroLibraryChange = async (libraryId: string) => {
-    try {
-      const collections = await zoteroService.switchLibrary(libraryId);
-      setZoteroCollections(collections);
-      setCurrentZoteroLibrary(zoteroService.getCurrentLibrary());
-    } catch (error) {
-      toast.error('Failed to switch library');
-      console.error('Library switch error:', error);
-    }
-  };
 
   const handleEditLiterature = (item: LibraryItem) => {
     setEditingItem(item);
@@ -412,21 +386,7 @@ export default function LibraryPage() {
             <ZoteroLogin
               open={showZoteroLogin}
               onClose={() => setShowZoteroLogin(false)}
-              onLoginSuccess={async (userInfo, collections, groups) => {
-                setZoteroUserInfo(userInfo);
-                setZoteroCollections(collections);
-                setZoteroGroups(groups);
-                setIsZoteroConnected(true);
-
-                // Get libraries after successful login
-                try {
-                  const libraries = await zoteroService.getAvailableLibraries();
-                  setZoteroLibraries(libraries);
-                  setCurrentZoteroLibrary(zoteroService.getCurrentLibrary());
-                } catch (error) {
-                  console.error('Failed to get libraries:', error);
-                }
-              }}
+              onLoginSuccess={handleLoginSuccess}
             />
           )}
 

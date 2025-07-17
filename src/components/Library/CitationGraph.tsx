@@ -186,7 +186,14 @@ interface CitationGraphProps {
 function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraphProps) {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    const { items: allItems, isLoading: isItemsLoading, isInitialized: isStoreInitialized, initialize, createManualCitationLink } = useLibraryStore();
+    const {
+        items: allItems,
+        isLoading: isItemsLoading,
+        isInitialized: isStoreInitialized,
+        initialize,
+        createManualCitationLink,
+        deleteCitationLink
+    } = useLibraryStore();
 
     const [isExpanded, setIsExpanded] = useState(false);
     const [isLayouting, setIsLayouting] = useState(true);
@@ -389,8 +396,8 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
         const { edge, sourceItem, targetItem } = edgeToDelete;
 
         try {
-            console.log(`[Graph] Deleting edge: ${edge.source} -> ${edge.target}`);
-            await libraryService.deleteCitationLink(edge.source, edge.target);
+            console.log(`[Graph] Deleting edge via store: ${edge.source} -> ${edge.target}`);
+            await deleteCitationLink(edge.source, edge.target);
 
             toast.success(`已删除引用关系：${sourceItem.title} → ${targetItem.title}`);
             console.log(`[Graph] Edge deleted successfully, refreshing graph...`);
@@ -405,7 +412,7 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
             setDeleteDialogOpen(false);
             setEdgeToDelete(null);
         }
-    }, [edgeToDelete, fetchDataAndLayout]);
+    }, [edgeToDelete, deleteCitationLink, fetchDataAndLayout]);
 
     // 取消删除
     const handleCancelDelete = useCallback(() => {

@@ -74,6 +74,7 @@ interface LibraryActions {
 
   // 🔗 手动链接功能
   createManualCitationLink: (sourceItemId: string, targetItemId: string) => Promise<boolean>;
+  deleteCitationLink: (sourceItemId: string, targetItemId: string) => Promise<void>;
 }
 
 // Use the real library service
@@ -691,6 +692,26 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       set({
         isLoading: false,
         error: error instanceof Error ? error.message : 'Failed to create citation link'
+      });
+      throw error;
+    }
+  },
+
+  // 🗑️ 删除引文链接
+  deleteCitationLink: async (sourceItemId: string, targetItemId: string) => {
+    try {
+      set({ isLoading: true, error: null });
+
+      await libraryService.deleteCitationLink(sourceItemId, targetItemId);
+
+      set({ isLoading: false });
+
+      console.log(`[LibraryStore] Deleted manual citation link: ${sourceItemId} -> ${targetItemId}`);
+
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to delete citation link'
       });
       throw error;
     }
