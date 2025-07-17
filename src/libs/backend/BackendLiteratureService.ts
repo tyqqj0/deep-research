@@ -105,7 +105,7 @@ export class BackendLiteratureService {
 
   constructor(config?: Partial<BackendConfig>) {
     this.config = {
-      baseUrl: process.env.NEXT_PUBLIC_BACKEND_API_URL || '/api/v1',
+      baseUrl: process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000/api/v1',
       timeout: 30000, // 30秒超时
       retryAttempts: 3,
       retryDelay: 1000,
@@ -174,8 +174,58 @@ export class BackendLiteratureService {
   }
 
   /**
+   * 📄 提交PDF文件解析任务
+   *
+   * @param pdfFile - PDF文件（File或Blob）
+   * @param metadata - 可选的元数据信息
+   * @returns Promise<SubmitLiteratureResponse> - 任务ID和状态URL
+   */
+  async submitPdfFile(pdfFile: File | Blob, metadata?: { title?: string; authors?: string[] }): Promise<SubmitLiteratureResponse> {
+    try {
+      console.log(`[BackendService] Submitting PDF file (${pdfFile.size} bytes)`);
+
+      // 创建FormData来上传文件
+      const formData = new FormData();
+
+      // 添加PDF文件
+      if (pdfFile instanceof File) {
+        formData.append('file', pdfFile);
+      } else {
+        // 如果是Blob，需要创建一个File对象
+        const fileName = metadata?.title ? `${metadata.title}.pdf` : 'document.pdf';
+        const file = new File([pdfFile], fileName, { type: 'application/pdf' });
+        formData.append('file', file);
+      }
+
+      // 添加可选的元数据
+      if (metadata) {
+        formData.append('metadata', JSON.stringify(metadata));
+      }
+
+      const response = await this.makeRequest('/literatures/upload', {
+        method: 'POST',
+        body: formData,
+        // 不设置Content-Type，让浏览器自动设置multipart/form-data
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`HTTP ${response.status}: ${errorData.message || response.statusText}`);
+      }
+
+      const result: SubmitLiteratureResponse = await response.json();
+      console.log(`[BackendService] PDF file submitted successfully:`, result);
+
+      return result;
+    } catch (error) {
+      console.error('[BackendService] Error submitting PDF file:', error);
+      throw new Error(`Failed to submit PDF file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * 📚 获取最终文献数据
-   * 
+   *
    * @param literatureId - 文献ID
    * @returns Promise<BackendLiterature> - 完整的文献数据
    */

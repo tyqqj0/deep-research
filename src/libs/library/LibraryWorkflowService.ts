@@ -291,26 +291,47 @@ export class LibraryWorkflowService {
 
     /**
      * 📄 PDF文件后端处理 - 统一的PDF处理入口
-     * 
+     *
      * 🎯 用于: PDF上传、Zotero PDF、手动上传PDF
      */
     private async processPdfWithBackend(itemId: string, pdfFile: File | Blob): Promise<void> {
         try {
             console.log(`[WorkflowService] Processing PDF with backend for item ${itemId}`);
 
-            // 更新状态
+            // 获取文献信息用于元数据
+            const item = await libraryService.getLibraryItemById(itemId);
+            const metadata = item ? {
+                title: item.title,
+                authors: item.authors
+            } : undefined;
+
+            // 更新状态为处理中
             await libraryService.updateLibraryItem(itemId, {
                 parsingStatus: 'PROCESSING'
             });
 
-            // TODO: 实现PDF文件上传到后端的逻辑
-            // 这里需要后端支持PDF文件上传的API端点
-            console.log(`[WorkflowService] PDF backend processing not yet implemented for item ${itemId}`);
-            
-            // 临时：标记为等待手动处理
+            // 🚀 提交PDF到后端
+            const response = await backendLiteratureService.submitPdfFile(pdfFile, metadata);
+
+            // 更新本地记录
             await libraryService.updateLibraryItem(itemId, {
-                parsingStatus: 'AWAITING_MANUAL_UPLOAD'
+                parsingStatus: 'PROCESSING',
+                backendTaskId: response.taskId
             });
+
+            // 🔄 开始状态同步
+            syncService.startPolling(
+                response.taskId,
+                itemId,
+                (progress) => {
+                    console.log(`[WorkflowService] PDF Progress for ${itemId}:`, progress.overall_status);
+                },
+                (error) => {
+                    console.error(`[WorkflowService] PDF Error for ${itemId}:`, error.message);
+                }
+            );
+
+            console.log(`[WorkflowService] Started PDF backend processing for item ${itemId}, taskId: ${response.taskId}`);
 
         } catch (error) {
             console.error(`[WorkflowService] PDF backend processing failed for item ${itemId}:`, error);
