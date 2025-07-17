@@ -100,6 +100,27 @@ export class MyDatabase extends Dexie {
         }
       });
     });
+
+    // Version 4 - Add backend integration fields
+    this.version(4).stores({
+      library: '++id, title, *authors, year, source, publication, zoteroKey, doi, url, pdfPath, mineruTaskId, backendTaskId, backendLiteratureId, parsingStatus, createdAt', // Added backend fields
+      literatureTrees: '++id, name, createdAt',
+      citations: '++id, [sourceItemId+targetItemId], sourceItemId, targetItemId'
+    }).upgrade(trans => {
+      // Initialize backend fields for existing items
+      return trans.table('library').toCollection().modify((item: LibraryItem) => {
+        // 为现有条目添加默认的后端字段
+        if (!item.backendTaskId) {
+          item.backendTaskId = undefined;
+        }
+        if (!item.backendLiteratureId) {
+          item.backendLiteratureId = undefined;
+        }
+        if (!item.backendStatus) {
+          item.backendStatus = undefined;
+        }
+      });
+    });
   }
 }
 

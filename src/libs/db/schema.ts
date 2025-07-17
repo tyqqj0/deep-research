@@ -1,21 +1,27 @@
 import { z } from 'zod';
 import { LITERATURE_SOURCES } from './constants';
 
-// Define and export ParsingStatus enum
+// Define and export ParsingStatus enum - 简化后端集成版本
 export const ParsingStatusEnum = [
-  'IDLE',
-  'PENDING_PDF_FETCH',
-  'PENDING_PARSE', // Legacy, can be removed later
-  'AWAITING_MANUAL_UPLOAD',
-  'PENDING_MINERU_SUBMISSION',
-  'PARSING_IN_MINERU',
-  'PENDING_METADATA_EXTRACTION', // 🚀 新增：等待元数据提取
-  'PENDING_REFERENCE_EXTRACTION', // 🚀 新增：等待引文提取
-  'EXTRACTING_REFERENCES', // 🚀 新增：正在提取引文
-  'SUCCESS',
-  'PARTIAL_SUCCESS',
-  'FAILED',
-  'PARSING_FAILED'
+  'IDLE',                    // 空闲状态
+  'PENDING',                 // 等待后端处理
+  'PROCESSING',              // 后端处理中
+  'SUCCESS',                 // 处理成功
+  'PARTIAL_SUCCESS',         // 部分成功
+  'FAILED',                  // 处理失败
+
+  // 🔄 保留的Zotero和手动上传状态
+  'AWAITING_MANUAL_UPLOAD',  // 等待手动上传PDF
+  'PENDING_PDF_FETCH',       // 等待PDF抓取（主要用于Zotero）
+
+  // 🗑️ 以下状态将在后续版本中移除（向后兼容）
+  'PENDING_PARSE',           // Legacy
+  'PENDING_MINERU_SUBMISSION', // Legacy
+  'PARSING_IN_MINERU',       // Legacy
+  'PENDING_METADATA_EXTRACTION', // Legacy
+  'PENDING_REFERENCE_EXTRACTION', // Legacy
+  'EXTRACTING_REFERENCES',   // Legacy
+  'PARSING_FAILED'           // Legacy
 ] as const;
 
 // Zod Schema for LibraryItem
@@ -38,6 +44,47 @@ export const LibraryItemSchema = z.object({
   doi: z.string().optional(),
   url: z.string().url().optional(),
   pdfPath: z.string().optional(),
+
+  // 🌐 后端集成字段
+  backendTaskId: z.string().optional(),        // 后端任务ID
+  backendLiteratureId: z.string().optional(),  // 后端文献ID
+  backendStatus: z.object({
+    overall_status: z.enum(['processing', 'success', 'partial_success', 'failed']),
+    components: z.object({
+      metadata: z.object({
+        status: z.enum(['pending', 'processing', 'success', 'failed', 'waiting']),
+        stage: z.string(),
+        progress: z.number().min(0).max(100),
+        source: z.string().optional(),
+        next_action: z.string().optional(),
+        error_info: z.object({
+          error_message: z.string()
+        }).optional()
+      }),
+      content: z.object({
+        status: z.enum(['pending', 'processing', 'success', 'failed', 'waiting']),
+        stage: z.string(),
+        progress: z.number().min(0).max(100),
+        source: z.string().optional(),
+        next_action: z.string().optional(),
+        error_info: z.object({
+          error_message: z.string()
+        }).optional()
+      }),
+      references: z.object({
+        status: z.enum(['pending', 'processing', 'success', 'failed', 'waiting']),
+        stage: z.string(),
+        progress: z.number().min(0).max(100),
+        source: z.string().optional(),
+        next_action: z.string().optional(),
+        error_info: z.object({
+          error_message: z.string()
+        }).optional()
+      })
+    })
+  }).optional(),
+
+  // 🗑️ Legacy字段（向后兼容，将来会移除）
   mineruTaskId: z.string().optional(),
   parsingStatus: z.enum(ParsingStatusEnum).default('IDLE'),
   parsingProgress: z.object({
