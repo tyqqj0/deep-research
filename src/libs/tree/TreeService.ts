@@ -169,6 +169,11 @@ export class TreeService {
         throw new Error(`Tree with ID ${treeId} not found`);
       }
 
+      // 检查节点是否存在
+      if (!tree.nodes[nodeId]) {
+        throw new Error(`Node with ID ${nodeId} not found in tree`);
+      }
+
       // 不能删除根节点
       if (nodeId === tree.rootNodeId) {
         throw new Error('Cannot delete root node');
@@ -177,6 +182,12 @@ export class TreeService {
       // 获取要删除的节点及其所有子节点
       const nodesToDelete = this.getNodeAndDescendants(tree, nodeId);
 
+      if (nodesToDelete.length === 0) {
+        throw new Error(`No nodes found to delete for node ID ${nodeId}`);
+      }
+
+      console.log(`Deleting ${nodesToDelete.length} nodes:`, nodesToDelete.map(n => n.id));
+
       // 从树中删除所有节点
       for (const nodeToDelete of nodesToDelete) {
         delete tree.nodes[nodeToDelete.id];
@@ -184,9 +195,10 @@ export class TreeService {
 
       // 更新树
       await this.updateTree(tree);
+      console.log(`Successfully deleted nodes from tree ${treeId}`);
     } catch (error) {
       console.error('Error deleting node from tree:', error);
-      throw new Error('Failed to delete node from tree');
+      throw error; // 重新抛出原始错误而不是包装错误
     }
   }
 

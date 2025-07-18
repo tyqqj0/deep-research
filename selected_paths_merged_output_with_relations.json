@@ -1,0 +1,1249 @@
+{
+  "nodes": [
+    {
+      "id": "Selection-inference: Exploiting large language models for interpretable logical reasoning",
+      "visits": 270,
+      "value": 447.9715908226792,
+      "average_value": 1.7212267786700135,
+      "children_ids": [
+        "Emergent abilities of large language models",
+        "Least-to-most prompting enables complex reasoning in large language models",
+        "Chain of thought prompting elicits reasoning in large language models",
+        "Lamda: Language models for dialog applications"
+      ],
+      "type": "paper",
+      "author": "A. Creswell, M. Shanahan, and I. Higgins",
+      "year": "2022",
+      "citations": 325,
+      "abstract": "Large language models (LLMs) have been shown to be capable of impressive few-shot generalisation to new tasks. However, they still tend to perform poorly on multi-step logical reasoning problems. Here we carry out a comprehensive evaluation of LLMs on 50 tasks that probe different aspects of logical reasoning. We show that language models tend to perform fairly well at single step inference or entailment tasks, but struggle to chain together multiple reasoning steps to solve more complex problems. In light of this, we propose a Selection-Inference (SI) framework that exploits pre-trained LLMs as general processing modules, and alternates between selection and inference to generate a series of interpretable, casual reasoning steps leading to the final answer. We show that a 7B parameter LLM used within the SI framework in a 5-shot generalisation setting, with no fine-tuning, yields a performance improvement of over 100% compared to an equivalent vanilla baseline on a suite of 10 logical reasoning tasks. The same model in the same setting even outperforms a significantly larger 280B parameter baseline on the same suite of tasks. Moreover, answers produced by the SI framework are accompanied by a causal natural-language-based reasoning trace, which has important implications for the safety and trustworthiness of the system.",
+      "size": 10,
+      "year_int": 2022,
+      "title": "Selection-inference: Exploiting large language models for interpretable logical reasoning"
+    },
+    {
+      "id": "Chain of thought prompting elicits reasoning in large language models",
+      "visits": 367,
+      "value": 606.8003096816482,
+      "average_value": 1.6751056570336185,
+      "children_ids": [
+        "Why think step-by-step? reasoning emerges from the locality of experience",
+        "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity",
+        "Sparks of artificial general intelligence: Early experiments with gpt-4",
+        "Least-to-most prompting enables complex reasoning in large language models",
+        "Selection-inference: Exploiting large language models for interpretable logical reasoning"
+      ],
+      "type": "paper",
+      "author": "J. Wei, X. Wang, D. Schuurmans, M. Bosma, E. H. Chi, Q. Le, and D. Zhou",
+      "year": "2022",
+      "citations": 7248,
+      "abstract": "We explore how generating a chain of thought -- a series of intermediate reasoning steps -- significantly improves the ability of large language models to perform complex reasoning. In particular, we show how such reasoning abilities emerge naturally in sufficiently large language models via a simple method called chain of thought prompting, where a few chain of thought demonstrations are provided as exemplars in prompting. Experiments on three large language models show that chain of thought prompting improves performance on a range of arithmetic, commonsense, and symbolic reasoning tasks. The empirical gains can be striking. For instance, prompting a 540B-parameter language model with just eight chain of thought exemplars achieves state of the art accuracy on the GSM8K benchmark of math word problems, surpassing even finetuned GPT-3 with a verifier.",
+      "size": 10,
+      "year_int": 2022,
+      "title": "Chain of thought prompting elicits reasoning in large language models"
+    },
+    {
+      "id": "Catastrophic Interference in Connectionist Networks: The Sequential Learning Problem",
+      "visits": 200,
+      "value": 324.034751248468,
+      "average_value": 1.6201737562423402,
+      "children_ids": [
+        "Long Short-Term Memory"
+      ],
+      "type": "paper",
+      "author": "Michael McCloskey and Neal J. Cohen",
+      "year": "1989",
+      "citations": 1595,
+      "abstract": "",
+      "size": 10,
+      "year_int": 1989,
+      "title": "Catastrophic Interference in Connectionist Networks: The Sequential Learning Problem"
+    },
+    {
+      "id": "Scalable multi-hop relational reasoning for knowledge-aware question answering",
+      "visits": 216,
+      "value": 370.98724538860586,
+      "average_value": 1.744653321206968,
+      "children_ids": [
+        "QA-GNN: reasoning with language models and knowledge graphs for question answering",
+        "Measuring massive multitask language understanding"
+      ],
+      "type": "paper",
+      "author": "Y. Feng, X. Chen, B. Y. Lin, P. Wang, J. Yan, and X. Ren",
+      "year": "2020",
+      "citations": 77,
+      "abstract": "Existing work on augmenting question answering (QA) models with external knowledge (e.g., knowledge graphs) either struggle to model multi-hop relations efficiently, or lack transparency into the model's prediction rationale. In this paper, we propose a novel knowledge-aware approach that equips pre-trained language models (PTLMs) with a multi-hop relational reasoning module, named multi-hop graph relation network (MHGRN). It performs multi-hop, multi-relational reasoning over subgraphs extracted from external knowledge graphs. The proposed reasoning module unifies path-based reasoning methods and graph neural networks to achieve better interpretability and scalability. We also empirically show its effectiveness and scalability on CommonsenseQA and OpenbookQA datasets, and interpret its behaviors with case studies.",
+      "size": 10,
+      "year_int": 2020,
+      "title": "Scalable multi-hop relational reasoning for knowledge-aware question answering"
+    },
+    {
+      "id": "Training language models to follow instructions with human feedback",
+      "visits": 303,
+      "value": 488.91737259404727,
+      "average_value": 1.5528022164790223,
+      "children_ids": [
+        "Sparks of artificial general intelligence: Early experiments with gpt-4",
+        "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity",
+        "Chain of thought prompting elicits reasoning in large language models"
+      ],
+      "type": "paper",
+      "author": "Ouyang, L., Wu, J., Jiang, X., Almeida, D., Wainwright, C.L., Mishkin, P., Zhang, C., Agarwal, S., Slama, K., Ray, A., et al.",
+      "year": "2022",
+      "citations": 10812,
+      "abstract": "Making language models bigger does not inherently make them better at following a user's intent. For example, large language models can generate outputs that are untruthful, toxic, or simply not helpful to the user. In other words, these models are not aligned with their users. In this paper, we show an avenue for aligning language models with user intent on a wide range of tasks by fine-tuning with human feedback. Starting with a set of labeler-written prompts and prompts submitted through the OpenAI API, we collect a dataset of labeler demonstrations of the desired model behavior, which we use to fine-tune GPT-3 using supervised learning. We then collect a dataset of rankings of model outputs, which we use to further fine-tune this supervised model using reinforcement learning from human feedback. We call the resulting models InstructGPT. In human evaluations on our prompt distribution, outputs from the 1.3B parameter InstructGPT model are preferred to outputs from the 175B GPT-3, despite having 100x fewer parameters. Moreover, InstructGPT models show improvements in truthfulness and reductions in toxic output generation while having minimal performance regressions on public NLP datasets. Even though InstructGPT still makes simple mistakes, our results show that fine-tuning with human feedback is a promising direction for aligning language models with human intent.",
+      "size": 10,
+      "year_int": 2022,
+      "title": "Training language models to follow instructions with human feedback"
+    },
+    {
+      "id": "QA-GNN: reasoning with language models and knowledge graphs for question answering",
+      "visits": 324,
+      "value": 545.4328287630497,
+      "average_value": 1.7466696345251855,
+      "children_ids": [
+        "Selection-inference: Exploiting large language models for interpretable logical reasoning",
+        "Chain of thought prompting elicits reasoning in large language models",
+        "Folio: Natural language reasoning with first-order logic",
+        "Greaselm: Graph reasoning enhanced language models"
+      ],
+      "type": "paper",
+      "author": "M. Yasunaga, H. Ren, A. Bosselut, P. Liang, and J. Leskovec",
+      "year": "2021",
+      "citations": 148,
+      "abstract": "The problem of answering questions using knowledge from pre-trained language models (LMs) and knowledge graphs (KGs) presents two challenges: given a QA context (question and answer choice), methods need to (i) identify relevant knowledge from large KGs, and (ii) perform joint reasoning over the QA context and KG. Here we propose a new model, QA-GNN, which addresses the above challenges through two key innovations: (i) relevance scoring, where we use LMs to estimate the importance of KG nodes relative to the given QA context, and (ii) joint reasoning, where we connect the QA context and KG to form a joint graph, and mutually update their representations through graph-based message passing. We evaluate QA-GNN on the CommonsenseQA and OpenBookQA datasets, and show its improvement over existing LM and LM+KG models, as well as its capability to perform interpretable and structured reasoning, e.g., correctly handling negation in questions.",
+      "size": 10,
+      "year_int": 2021,
+      "title": "QA-GNN: reasoning with language models and knowledge graphs for question answering"
+    },
+    {
+      "id": "Attention is All you Need",
+      "visits": 331,
+      "value": 548.314149526281,
+      "average_value": 1.7065902897415655,
+      "children_ids": [
+        "Improving language understanding by generative pre-training",
+        "SpanBERT: Improving Pre-training by Representing and Predicting Spans",
+        "Distilbert, a distilled version of bert: smaller, faster, cheaper and lighter",
+        "Multi-hop reading comprehension through question decomposition and rescoring",
+        "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",
+        "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding"
+      ],
+      "type": "paper",
+      "author": "Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, and Illia Polosukhin",
+      "year": "2017",
+      "citations": 119090,
+      "abstract": "The dominant sequence transduction models are based on complex recurrent or convolutional neural networks in an encoder-decoder configuration. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing both with large and limited training data.",
+      "size": 10,
+      "year_int": 2017,
+      "title": "Attention is All you Need"
+    },
+    {
+      "id": "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",
+      "visits": 118,
+      "value": 193.63674627845378,
+      "average_value": 1.6208506098898106,
+      "children_ids": [
+        "Scalable multi-hop relational reasoning for knowledge-aware question answering"
+      ],
+      "type": "paper",
+      "author": "Zihang Dai, Zhilin Yang, Yiming Yang, William W. Cohen, and Ruslan Salakhutdinov",
+      "year": "2019",
+      "citations": 1351,
+      "abstract": "Transformers have a potential of learning longer-term dependency, but are limited by a fixed-length context in the setting of language modeling. We propose a novel neural architecture Transformer-XL that enables learning dependency beyond a fixed length without disrupting temporal coherence. It consists of a segment-level recurrence mechanism and a novel positional encoding scheme. Our method not only enables capturing longer-term dependency, but also resolves the context fragmentation problem. As a result, Transformer-XL learns dependency that is 80% longer than RNNs and 450% longer than vanilla Transformers, achieves better performance on both short and long sequences, and is up to 1,800+ times faster than vanilla Transformers during evaluation. Notably, we improve the state-of-the-art results of bpc/perplexity to 0.99 on enwiki8, 1.08 on text8, 18.3 on WikiText-103, 21.8 on One Billion Word, and 54.5 on Penn Treebank (without finetuning). When trained only on WikiText-103, Transformer-XL manages to generate reasonably coherent, novel text articles with thousands of tokens. Our code, pretrained models, and hyperparameters are available in both Tensorflow and PyTorch.",
+      "size": 10,
+      "year_int": 2019,
+      "title": "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context"
+    },
+    {
+      "id": "Improving language understanding by generative pre-training",
+      "visits": 81,
+      "value": 138.44719107596956,
+      "average_value": 1.7092245811848092,
+      "children_ids": [
+        "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",
+        "Language Models are Few-Shot Learners"
+      ],
+      "type": "paper",
+      "author": "A. Radford, K. Narasimhan, T. Salimans, and I. Sutskever",
+      "year": "2018",
+      "citations": 10850,
+      "abstract": "",
+      "size": 10,
+      "year_int": 2018,
+      "title": "Improving language understanding by generative pre-training"
+    },
+    {
+      "id": "Why think step-by-step? reasoning emerges from the locality of experience",
+      "visits": 394,
+      "value": 661.3364998487365,
+      "average_value": 1.7032083150047306,
+      "children_ids": [
+        "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity"
+      ],
+      "type": "paper",
+      "author": "B. Prystawski and N. D. Goodman",
+      "year": "2023",
+      "citations": 79,
+      "abstract": "Humans have a powerful and mysterious capacity to reason. By working through a series of purely mental steps, we can make inferences we would not be capable of making directly -- despite the fact that we get no additional data from the world. Similarly, when large language models generate a series of intermediate steps (a chain of thought) before answering a question, they often produce better answers than they otherwise would. We investigate why and how chain-of-thought reasoning is useful in language models, testing the hypothesis that reasoning is effective when training data consists of local clusters of variables that influence each other strongly. These training conditions enable the chaining of accurate local inferences in order to estimate relationships between variables that were not seen together in training. We prove that there will exist a\"reasoning gap\", where reasoning through intermediate variables improves inference, for the simple case of an autoregressive density estimator trained on local samples from a chain-structured probabilistic model. We then test our hypothesis empirically in more complex models, training an autoregressive language model on samples from Bayes nets but only including a subset of variables in each sample. We test language models' ability to match conditional probabilities with and without intermediate reasoning steps, finding that intermediate steps are only helpful when the training data is locally structured with respect to dependencies between variables and that the combination of locally-structured observations and reasoning is much more data-efficient than training on all variables. Our results illustrate how the effectiveness of reasoning step by step is rooted in the local statistical structure of the training data.",
+      "size": 10,
+      "year_int": 2023,
+      "title": "Why think step-by-step? reasoning emerges from the locality of experience"
+    },
+    {
+      "id": "Long Short-Term Memory",
+      "visits": 789,
+      "value": 1289.6280999669154,
+      "average_value": 1.6864149807877538,
+      "children_ids": [
+        "Attention is All you Need",
+        "Efficient Estimation of Word Representations in Vector Space"
+      ],
+      "type": "paper",
+      "author": "Sepp Hochreiter and Jürgen Schmidhuber",
+      "year": "1997",
+      "citations": 86792,
+      "abstract": "Learning to store information over extended time intervals by recurrent backpropagation takes a very long time, mostly because of insufficient, decaying error backflow. We briefly review Hochreiter's (1991) analysis of this problem, then address it by introducing a novel, efficient, gradient based method called long short-term memory (LSTM). Truncating the gradient where this does not do harm, LSTM can learn to bridge minimal time lags in excess of 1000 discrete-time steps by enforcing constant error flow through constant error carousels within special units. Multiplicative gate units learn to open and close access to the constant error flow. LSTM is local in space and time; its computational complexity per time step and weight is O. 1. Our experiments with artificial data involve local, distributed, real-valued, and noisy pattern representations. In comparisons with real-time recurrent learning, back propagation through time, recurrent cascade correlation, Elman nets, and neural sequence chunking, LSTM leads to many more successful runs, and learns much faster. LSTM also solves complex, artificial long-time-lag tasks that have never been solved by previous recurrent network algorithms.",
+      "size": 10,
+      "year_int": 1997,
+      "title": "Long Short-Term Memory"
+    },
+    {
+      "id": "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity",
+      "visits": 365,
+      "value": 597.7793553233317,
+      "average_value": 1.646893714736411,
+      "children_ids": [
+        "A comprehensive overview of large language models",
+        "Sparks of artificial general intelligence: Early experiments with gpt-4"
+      ],
+      "type": "paper",
+      "author": "Y. Bang, S. Cahyawijaya, N. Lee, W. Dai, D. Su, B. Wilie, H. Lovenia, Z. Ji, T. Yu, W. Chung, Q. V. Do, Y. Xu, and P. Fung",
+      "year": "2023",
+      "citations": 223,
+      "abstract": "This paper proposes a framework for quantitatively evaluating interactive LLMs such as ChatGPT using publicly available data sets. We carry out an extensive technical evaluation of ChatGPT using 23 data sets covering 8 different common NLP application tasks. We evaluate the multitask, multilingual and multi-modal aspects of ChatGPT based on these data sets and a newly designed multimodal dataset. We find that ChatGPT outperforms LLMs with zero-shot learning on most tasks and even outperforms fine-tuned models on some tasks. We find that it is better at understanding non-Latin script languages than generating them. It is able to generate multimodal content from textual prompts, via an intermediate code generation step. Moreover, we find that ChatGPT is 63.41% accurate on average in 10 different reasoning categories under logical reasoning, non-textual reasoning, and commonsense reasoning, hence making it an unreliable reasoner. It is, for example, better at deductive than inductive reasoning. ChatGPT suffers from hallucination problems like other LLMs and it generates more extrinsic hallucinations from its parametric memory as it does not have access to an external knowledge base. Finally, the interactive feature of ChatGPT enables human collaboration with the underlying LLM to improve its performance, i.e, 8% ROUGE-1 on summarization and 2% ChrF++ on machine translation, in a multi-turn\"prompt engineering\"fashion. We also release codebase for evaluation set extraction.",
+      "size": 10,
+      "year_int": 2023,
+      "title": "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity"
+    },
+    {
+      "id": "Sparks of artificial general intelligence: Early experiments with gpt-4",
+      "visits": 322,
+      "value": 526.6931989553962,
+      "average_value": 1.5579286874901903,
+      "children_ids": [],
+      "type": "paper",
+      "author": "S. Bubeck, V. Chandrasekaran, R. Eldan, J. Gehrke, E. Horvitz, E. Kamar, P. Lee, Y. T. Lee, Y. Li, S. Lundberg, H. Nori, H. Palangi, M. T. Ribeiro, and Y. Zhang",
+      "year": "2023",
+      "citations": 2739,
+      "abstract": "Contended that early versions of GPT-4 exhibit more general intelligence than previous AI models, showing sparks of Artificial General Intelligence (AGI).",
+      "size": 10,
+      "year_int": 2023,
+      "title": "Sparks of artificial general intelligence: Early experiments with gpt-4"
+    },
+    {
+      "id": "Scaling instruction-finetuned language models",
+      "visits": 271,
+      "value": 450.60907106807934,
+      "average_value": 1.663761044271849,
+      "children_ids": [
+        "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity",
+        "Sparks of artificial general intelligence: Early experiments with gpt-4",
+        "Training language models to follow instructions with human feedback",
+        "Chain of thought prompting elicits reasoning in large language models",
+        "Why think step-by-step? reasoning emerges from the locality of experience"
+      ],
+      "type": "paper",
+      "author": "H. W. Chung, L. Hou, S. Longpre, B. Zoph, Y. Tay, W. Fedus, E. Li, X. Wang, M. Dehghani, S. Brahma, A. Webson, S. S. Gu, Z. Dai, M. Suzgun, X. Chen, A. Chowdhery, S. Narang, G. Mishra, A. Yu, V. Y. Zhao, Y. Huang, A. M. Dai, H. Yu, S. Petrov, E. H. Chi, J. Dean, J. Devlin, A. Roberts, D. Zhou, Q. V. Le, and J. Wei",
+      "year": "2022",
+      "citations": 2798,
+      "abstract": "Finetuning language models on a collection of datasets phrased as instructions has been shown to improve model performance and generalization to unseen tasks. In this paper we explore instruction finetuning with a particular focus on (1) scaling the number of tasks, (2) scaling the model size, and (3) finetuning on chain-of-thought data. We find that instruction finetuning with the above aspects dramatically improves performance on a variety of model classes (PaLM, T5, U-PaLM), prompting setups (zero-shot, few-shot, CoT), and evaluation benchmarks (MMLU, BBH, TyDiQA, MGSM, open-ended generation). For instance, Flan-PaLM 540B instruction-finetuned on 1.8K tasks outperforms PALM 540B by a large margin (+9.4% on average). Flan-PaLM 540B achieves state-of-the-art performance on several benchmarks, such as 75.2% on five-shot MMLU. We also publicly release Flan-T5 checkpoints, which achieve strong few-shot performance even compared to much larger models, such as PaLM 62B. Overall, instruction finetuning is a general method for improving the performance and usability of pretrained language models.",
+      "size": 10,
+      "year_int": 2022,
+      "title": "Scaling instruction-finetuned language models"
+    },
+    {
+      "id": "Emergent abilities of large language models",
+      "visits": 357,
+      "value": 594.4334602752067,
+      "average_value": 1.6726099677590898,
+      "children_ids": [
+        "Sparks of artificial general intelligence: Early experiments with gpt-4",
+        "Training language models to follow instructions with human feedback",
+        "Scaling instruction-finetuned language models",
+        "Chain of thought prompting elicits reasoning in large language models",
+        "Why think step-by-step? reasoning emerges from the locality of experience",
+        "A comprehensive overview of large language models",
+        "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity"
+      ],
+      "type": "paper",
+      "author": "J. Wei, Y. Tay, R. Bommasani, C. Raffel, B. Zoph, S. Borgeaud, D. Yogatama, M. Bosma, D. Zhou, D. Metzler, E. H. Chi, T. Hashimoto, O. Vinyals, P. Liang, J. Dean, and W. Fedus",
+      "year": "2022",
+      "citations": 2147,
+      "abstract": "Discussed an unpredictable phenomenon where abilities not present in small models emerge in large models, which cannot be predicted by simple extrapolation.",
+      "size": 10,
+      "year_int": 2022,
+      "title": "Emergent abilities of large language models"
+    },
+    {
+      "id": "Least-to-most prompting enables complex reasoning in large language models",
+      "visits": 308,
+      "value": 516.1992362027648,
+      "average_value": 1.6699200131196,
+      "children_ids": [
+        "Emergent abilities of large language models",
+        "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity",
+        "Why think step-by-step? reasoning emerges from the locality of experience",
+        "Lamda: Language models for dialog applications",
+        "Training language models to follow instructions with human feedback",
+        "Sparks of artificial general intelligence: Early experiments with gpt-4",
+        "Chain of thought prompting elicits reasoning in large language models"
+      ],
+      "type": "paper",
+      "author": "D. Zhou, N. Schärli, L. Hou, J. Wei, N. Scales, X. Wang, D. Schuurmans, C. Cui, O. Bousquet, Q. Le, and E. Chi",
+      "year": "2022",
+      "citations": 955,
+      "abstract": "Proposed a strategy to break down a complex problem into a series of simpler subproblems and then solve them in sequence, enabling generalization to harder problems.",
+      "size": 10,
+      "year_int": 2022,
+      "title": "Least-to-most prompting enables complex reasoning in large language models"
+    },
+    {
+      "id": "SpanBERT: Improving Pre-training by Representing and Predicting Spans",
+      "visits": 48,
+      "value": 72.3650449982421,
+      "average_value": 1.5076051041300438,
+      "children_ids": [
+        "QA-GNN: reasoning with language models and knowledge graphs for question answering"
+      ],
+      "type": "paper",
+      "author": "Mandar Joshi, Danqi Chen, Yinhan Liu, Daniel S. Weld, Luke Zettlemoyer, and Omer Levy",
+      "year": "2020",
+      "citations": 641,
+      "abstract": "We present SpanBERT, a pre-training method that is designed to better represent and predict spans of text. Our approach extends BERT by (1) masking contiguous random spans, rather than random tokens, and (2) training the span boundary representations to predict the entire content of the masked span, without relying on the individual token representations within it. SpanBERT consistently outperforms BERT and our better-tuned baselines, with substantial gains on span selection tasks such as question answering and coreference resolution. In particular, with the same training data and model size as BERTlarge, our single model obtains 94.6% and 88.7% F1 on SQuAD 1.1 and 2.0 respectively. We also achieve a new state of the art on the OntoNotes coreference resolution task (79.6% F1), strong performance on the TACRED relation extraction benchmark, and even gains on GLUE.1",
+      "size": 10,
+      "year_int": 2020,
+      "title": "SpanBERT: Improving Pre-training by Representing and Predicting Spans"
+    },
+    {
+      "id": "\"Cloze Procedure\": A New Tool for Measuring Readability",
+      "visits": 200,
+      "value": 301.9740229616102,
+      "average_value": 1.5098701148080511,
+      "children_ids": [
+        "Long Short-Term Memory"
+      ],
+      "type": "paper",
+      "author": "Wilson L. Taylor",
+      "year": "1953",
+      "citations": 1160,
+      "abstract": "",
+      "size": 10,
+      "year_int": 1953,
+      "title": "\"Cloze Procedure\": A New Tool for Measuring Readability"
+    },
+    {
+      "id": "Lamda: Language models for dialog applications",
+      "visits": 128,
+      "value": 211.38300365282498,
+      "average_value": 1.6431205718578332,
+      "children_ids": [
+        "Chain of thought prompting elicits reasoning in large language models",
+        "Training language models to follow instructions with human feedback",
+        "Why think step-by-step? reasoning emerges from the locality of experience",
+        "Scaling instruction-finetuned language models"
+      ],
+      "type": "paper",
+      "author": "Thoppilan, R., De Freitas, D., Hall, J., Shazeer, N., Kulshreshtha, A., Cheng, H.T., Jin, A., Bos, T., Baker, L., Du, Y., et al.",
+      "year": "2022",
+      "citations": 1466,
+      "abstract": "We present LaMDA: Language Models for Dialog Applications. LaMDA is a family of Transformer-based neural language models specialized for dialog, which have up to 137B parameters and are pre-trained on 1.56T words of public dialog data and web text. While model scaling alone can improve quality, it shows less improvements on safety and factual grounding. We demonstrate that fine-tuning with annotated data and enabling the model to consult external knowledge sources can lead to significant improvements towards the two key challenges of safety and factual grounding. The first challenge, safety, involves ensuring that the model's responses are consistent with a set of human values, such as preventing harmful suggestions and unfair bias. We quantify safety using a metric based on an illustrative set of human values, and we find that filtering candidate responses using a LaMDA classifier fine-tuned with a small amount of crowdworker-annotated data offers a promising approach to improving model safety. The second challenge, factual grounding, involves enabling the model to consult external knowledge sources, such as an information retrieval system, a language translator, and a calculator. We quantify factuality using a groundedness metric, and we find that our approach enables the model to generate responses grounded in known sources, rather than responses that merely sound plausible. Finally, we explore the use of LaMDA in the domains of education and content recommendations, and analyze their helpfulness and role consistency.",
+      "size": 10,
+      "year_int": 2022,
+      "title": "Lamda: Language models for dialog applications"
+    },
+    {
+      "id": "A comprehensive overview of large language models",
+      "visits": 189,
+      "value": 318.7007294354863,
+      "average_value": 1.6588110951390747,
+      "children_ids": [],
+      "type": "paper",
+      "author": "Humza Naveed, Asad Ullah Khan, Shi Qiu, Muhammad Saqib, Saeed Anwar, Muhammad Usman, Naveed Akhtar, Nick Barnes, and Ajmal Mian",
+      "year": "2023",
+      "citations": 400,
+      "abstract": "Large Language Models (LLMs) have recently demonstrated remarkable capabilities in natural language processing tasks and beyond. This success of LLMs has led to a large influx of research contributions in this direction. These works encompass diverse topics such as architectural innovations, better training strategies, context length improvements, fine-tuning, multi-modal LLMs, robotics, datasets, benchmarking, efficiency, and more. With the rapid development of techniques and regular breakthroughs in LLM research, it has become considerably challenging to perceive the bigger picture of the advances in this direction. Considering the rapidly emerging plethora of literature on LLMs, it is imperative that the research community is able to benefit from a concise yet comprehensive overview of the recent developments in this field. This article provides an overview of the existing literature on a broad range of LLM-related concepts. Our self-contained comprehensive overview of LLMs discusses relevant background concepts along with covering the advanced topics at the frontier of research in LLMs. This review article is intended to not only provide a systematic survey but also a quick comprehensive reference for the researchers and practitioners to draw insights from extensive informative summaries of the existing works to advance the LLM research.",
+      "size": 10,
+      "year_int": 2023,
+      "title": "A comprehensive overview of large language models"
+    },
+    {
+      "id": "Folio: Natural language reasoning with first-order logic",
+      "visits": 87,
+      "value": 146.05745021233366,
+      "average_value": 1.6788212668084328,
+      "children_ids": [
+        "Least-to-most prompting enables complex reasoning in large language models"
+      ],
+      "type": "paper",
+      "author": "S. Han, H. Schoelkopf, Y. Zhao, Z. Qi, M. Riddell, L. Benson, L. Sun, E. Zubova, Y. Qiao, M. Burtell, D. Peng, J. Fan, Y. Liu, B. Wong, M. Sailor, A. Ni, L. Nan, J. Kasai, T. Yu, R. Zhang, S. Joty, A. R. Fabbri, W. Kryscinski, X. V. Lin, C. Xiong, and D. Radev",
+      "year": "2022",
+      "citations": 81,
+      "abstract": "Large language models (LLMs) have achieved remarkable performance on a variety of natural language understanding tasks. However, existing benchmarks are inadequate in measuring the complex logical reasoning capabilities of a model. We present FOLIO, a human-annotated, logically complex and diverse dataset for reasoning in natural language (NL), equipped with first-order logic (FOL) annotations. FOLIO consists of 1,430 examples (unique conclusions), each paired with one of 487 sets of premises used to deductively reason for the validity of each conclusion. The logical correctness of the premises and conclusions is ensured by their FOL annotations, which are automatically verified by an FOL inference engine. In addition to the main NL reasoning task, NL-FOL pairs in FOLIO constitute a new NL-FOL translation dataset. Our experiments on FOLIO systematically evaluate the FOL reasoning ability of supervised fine-tuning on medium-sized language models. For both NL reasoning and NL-FOL translation, we benchmark multiple state-of-the-art language models. Our results show that a subset of FOLIO remains a challenge for one of the most capable Large Language Model (LLM) publicly available, GPT-4.",
+      "size": 10,
+      "year_int": 2022,
+      "title": "Folio: Natural language reasoning with first-order logic"
+    },
+    {
+      "id": "Distilbert, a distilled version of bert: smaller, faster, cheaper and lighter",
+      "visits": 46,
+      "value": 76.94710457704916,
+      "average_value": 1.6727631429793295,
+      "children_ids": [
+        "Scalable multi-hop relational reasoning for knowledge-aware question answering"
+      ],
+      "type": "paper",
+      "author": "Sanh, V., Debut, L., Chaumond, J., Wolf, T.",
+      "year": "2019",
+      "citations": 6827,
+      "abstract": "Leveraged knowledge distillation during pre-training to reduce the size of a BERT model by 40% while retaining 97% of its capabilities.",
+      "size": 10,
+      "year_int": 2019,
+      "title": "Distilbert, a distilled version of bert: smaller, faster, cheaper and lighter"
+    },
+    {
+      "id": "Measuring massive multitask language understanding",
+      "visits": 40,
+      "value": 69.53357106738729,
+      "average_value": 1.7383392766846821,
+      "children_ids": [
+        "Selection-inference: Exploiting large language models for interpretable logical reasoning"
+      ],
+      "type": "paper",
+      "author": "D. Hendrycks, C. Burns, S. Basart, A. Zou, M. Mazeika, D. Song, and J. Steinhardt",
+      "year": "2021",
+      "citations": 3338,
+      "abstract": "We propose a new test to measure a text model's multitask accuracy. The test covers 57 tasks including elementary mathematics, US history, computer science, law, and more. To attain high accuracy on this test, models must possess extensive world knowledge and problem solving ability. We find that while most recent models have near random-chance accuracy, the very largest GPT-3 model improves over random chance by almost 20 percentage points on average. However, on every one of the 57 tasks, the best models still need substantial improvements before they can reach expert-level accuracy. Models also have lopsided performance and frequently do not know when they are wrong. Worse, they still have near-random accuracy on some socially important subjects such as morality and law. By comprehensively evaluating the breadth and depth of a model's academic and professional understanding, our test can be used to analyze models across many tasks and to identify important shortcomings.",
+      "size": 10,
+      "year_int": 2021,
+      "title": "Measuring massive multitask language understanding"
+    },
+    {
+      "id": "Multi-hop reading comprehension through question decomposition and rescoring",
+      "visits": 37,
+      "value": 63.901202657398436,
+      "average_value": 1.7270595312810388,
+      "children_ids": [
+        "QA-GNN: reasoning with language models and knowledge graphs for question answering"
+      ],
+      "type": "paper",
+      "author": "S. Min, V. Zhong, L. Zettlemoyer, and H. Hajishirzi",
+      "year": "2019",
+      "citations": 52,
+      "abstract": "Multi-hop Reading Comprehension (RC) requires reasoning and aggregation across several paragraphs. We propose a system for multi-hop RC that decomposes a compositional question into simpler sub-questions that can be answered by off-the-shelf single-hop RC models. Since annotations for such decomposition are expensive, we recast subquestion generation as a span prediction problem and show that our method, trained using only 400 labeled examples, generates sub-questions that are as effective as human-authored sub-questions. We also introduce a new global rescoring approach that considers each decomposition (i.e. the sub-questions and their answers) to select the best final answer, greatly improving overall performance. Our experiments on HotpotQA show that this approach achieves the state-of-the-art results, while providing explainable evidence for its decision making in the form of sub-questions.",
+      "size": 10,
+      "year_int": 2019,
+      "title": "Multi-hop reading comprehension through question decomposition and rescoring"
+    },
+    {
+      "id": "Greaselm: Graph reasoning enhanced language models",
+      "visits": 85,
+      "value": 143.68983426053137,
+      "average_value": 1.6904686383591927,
+      "children_ids": [
+        "Selection-inference: Exploiting large language models for interpretable logical reasoning"
+      ],
+      "type": "paper",
+      "author": "X. Zhang, A. Bosselut, M. Yasunaga, H. Ren, P. Liang, C. D. Manning, and J. Leskovec",
+      "year": "2022",
+      "citations": 199,
+      "abstract": "Proposed a model that fuses encoded representations from pretrained LMs and graph neural networks over multiple layers of modality interaction.",
+      "size": 10,
+      "year_int": 2022,
+      "title": "Greaselm: Graph reasoning enhanced language models"
+    },
+    {
+      "id": "Efficient Estimation of Word Representations in Vector Space",
+      "visits": 0,
+      "value": 0,
+      "average_value": 0,
+      "children_ids": [
+        "Deep contextualized word representations"
+      ],
+      "type": "paper",
+      "author": "T. Mikolov, K. Chen, et al.",
+      "year": "2013",
+      "citations": 33807,
+      "abstract": "Proposed Word2Vec, a computationally-efficient model for learning dense vector representations of words from raw text.",
+      "size": 10,
+      "year_int": 2013,
+      "title": "Efficient Estimation of Word Representations in Vector Space"
+    },
+    {
+      "id": "Deep contextualized word representations",
+      "visits": 0,
+      "value": 0,
+      "average_value": 0,
+      "children_ids": [],
+      "type": "paper",
+      "author": "M. E. Peters, M. Neumann, et al.",
+      "year": "2018",
+      "citations": 11571,
+      "abstract": "Introduced ELMo (Embeddings from Language Models), a type of deep contextualized word representation that models complex characteristics of word use.",
+      "size": 10,
+      "year_int": 2018,
+      "title": "Deep contextualized word representations"
+    },
+    {
+      "id": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+      "visits": 94,
+      "value": 85.650949806,
+      "average_value":1.689,
+      "children_ids": [
+        "Distilbert, a distilled version of bert: smaller, faster, cheaper and lighter",
+        "Scalable multi-hop relational reasoning for knowledge-aware question answering"
+      ],
+      "type": "paper",
+      "author": "J. Devlin, M. Chang, et al.",
+      "year": "2018",
+      "citations": 84333,
+      "abstract": "Introduced BERT, which pre-trains deep bidirectional representations by jointly conditioning on both left and right context in all layers.",
+      "size": 10,
+      "year_int": 2018,
+      "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding"
+    },
+    {
+      "id": "Language Models are Few-Shot Learners",
+      "visits": 87,
+      "value": 75.68444467,
+      "average_value": 0,
+      "children_ids": [
+        "Training language models to follow instructions with human feedback",
+        "Emergent abilities of large language models"
+      ],
+      "type": "paper",
+      "author": "T. B. Brown, B. Mann, et al.",
+      "year": "2020",
+      "citations": 27958,
+      "abstract": "Showed that scaling up language models greatly improves task-agnostic, few-shot performance, sometimes reaching competitiveness with prior state-of-the-art fine-tuning approaches. This is the GPT-3 paper.",
+      "size": 10,
+      "year_int": 2020,
+      "title": "Language Models are Few-Shot Learners"
+    }
+  ],
+  "edges": [
+    {
+      "source": "Selection-inference: Exploiting large language models for interpretable logical reasoning",
+      "target": "Emergent abilities of large language models",
+      "visits": 122,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next significant breakthrough in AI/NLP will be Adaptive and Contextual Lifelong Learning Systems, integrating advanced meta-learning, dynamic neural architectures, enhanced attention mechanisms, contextual memory management, robust lifelong learning algorithms, multi-modal integration, and scalable transparent reasoning modules. These innovations address scalability, adaptability, efficiency, and interpretability.",
+      "relation_score": 0.75,
+      "relation": "The next significant breakthrough in AI/NLP will be Adaptive and Contextual Lifelong Learning Systems, integrating advanced meta-learning, dynamic neural architectures, enhanced attention mechanisms, contextual memory management, robust lifelong learning algorithms, multi-modal integration, and scalable transparent reasoning modules. These innovations address scalability, adaptability, efficiency, and interpretability.",
+      "relation_description": "The subsequent paper on \"Emergent abilities of large language models\" builds upon the foundational work of \"Selection-inference: Exploiting large language models for interpretable logical reasoning\" by extending the understanding of large language models (LLMs). While the former paper introduces a Selection-Inference (SI) framework to enhance the logical reasoning capabilities and interpretability of LLMs, the latter paper explores the unpredictable emergent abilities that arise as LLMs scale in size. The emergent abilities discussed in the subsequent paper complement the SI framework by suggesting that larger models can develop new and unforeseen capabilities, which could further improve the performance and reliability of systems like the one proposed in the SI framework."
+    },
+    {
+      "source": "Scalable multi-hop relational reasoning for knowledge-aware question answering",
+      "target": "QA-GNN: reasoning with language models and knowledge graphs for question answering",
+      "visits": 169,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will be Adaptive and Contextual Lifelong Learning Systems, integrating advanced self-supervised learning, dynamic neural architectures, and robust lifelong learning algorithms to enhance contextual understanding, efficient lifelong learning, multi-modal integration, interpretable reasoning, and scalable training.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will be Adaptive and Contextual Lifelong Learning Systems, integrating advanced self-supervised learning, dynamic neural architectures, and robust lifelong learning algorithms to enhance contextual understanding, efficient lifelong learning, multi-modal integration, interpretable reasoning, and scalable training.",
+      "relation_description": "The subsequent paper \"QA-GNN: reasoning with language models and knowledge graphs for question answering\" builds upon the multi-hop relational reasoning approach introduced in \"Scalable multi-hop relational reasoning for knowledge-aware question answering\" by enhancing the integration of pre-trained language models (LMs) and knowledge graphs (KGs). Specifically, QA-GNN introduces relevance scoring to identify pertinent KG nodes relative to the QA context and joint reasoning through graph-based message passing, which unifies the QA context and KG into a single graph for mutual representation updates. This addresses the challenges of efficient and interpretable multi-hop reasoning and improves performance on question answering tasks, particularly in handling complex structures like negation."
+    },
+    {
+      "source": "Selection-inference: Exploiting large language models for interpretable logical reasoning",
+      "target": "Least-to-most prompting enables complex reasoning in large language models",
+      "visits": 217,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will involve Adaptive and Contextual Lifelong Learning Systems, integrating dynamic neural architectures, enhanced attention mechanisms, contextual memory management, robust lifelong learning algorithms, multi-modal integration, and interpretable reasoning modules. Key innovations include meta-learning techniques, hierarchical attention models, scalable training methods, and context-aware embeddings, addressing scalability, adaptability, efficiency, and interpretability.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will involve Adaptive and Contextual Lifelong Learning Systems, integrating dynamic neural architectures, enhanced attention mechanisms, contextual memory management, robust lifelong learning algorithms, multi-modal integration, and interpretable reasoning modules. Key innovations include meta-learning techniques, hierarchical attention models, scalable training methods, and context-aware embeddings, addressing scalability, adaptability, efficiency, and interpretability.",
+      "relation_description": "The subsequent paper builds upon the concept of improving complex reasoning in large language models by introducing a novel prompting strategy, least-to-most prompting, which complements the Selection-Inference (SI) framework. While the SI framework enhances logical reasoning through a series of interpretable steps, least-to-most prompting focuses on breaking down complex problems into simpler subproblems, facilitating easier-to-hard generalization. This approach not only improves performance on tasks requiring multi-step reasoning but also addresses the challenge of generalizing to more difficult problems, thereby extending the capabilities of large language models in handling complex reasoning tasks."
+    },
+    {
+      "source": "Scaling instruction-finetuned language models",
+      "target": "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity",
+      "visits": 321,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in lifelong learning, multimodal integration, efficient fine-tuning, contextual interaction, and robust generalization.",
+      "relation_score": 0.75,
+      "relation": "Advancements in lifelong learning, multimodal integration, efficient fine-tuning, contextual interaction, and robust generalization.",
+      "relation_description": "The subsequent paper builds upon the advancements made in instruction finetuning as described in the preceding paper by evaluating the performance of an interactive LLM, ChatGPT, in a multitask, multilingual, and multimodal context. It expands on the concept of fine-tuning by assessing how instruction finetuning affects the model's reasoning capabilities, hallucination issues, and interactive features, which were not the focus of the earlier study. Additionally, it demonstrates the practical implications of instruction finetuning by showing how it enhances the model's performance in real-world applications, including summarization and machine translation, through human collaboration."
+    },
+    {
+      "source": "Emergent abilities of large language models",
+      "target": "Sparks of artificial general intelligence: Early experiments with gpt-4",
+      "visits": 232,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next AI/NLP breakthroughs will focus on fully autonomous and self-improving systems, context-aware dynamic neural architectures, enhanced lifelong learning, explainable AI, efficient training and inference, and emergent abilities, collectively improving robustness, efficiency, and versatility.",
+      "relation_score": 0.85,
+      "relation": "The next AI/NLP breakthroughs will focus on fully autonomous and self-improving systems, context-aware dynamic neural architectures, enhanced lifelong learning, explainable AI, efficient training and inference, and emergent abilities, collectively improving robustness, efficiency, and versatility.",
+      "relation_description": "The subsequent paper builds upon the concept of emergent abilities introduced in the earlier paper by demonstrating how GPT-4, through its unprecedented scale of compute and data, exhibits more general intelligence and a broader range of capabilities. It extends the discussion from emergent abilities to the potential of GPT-4 as an early version of artificial general intelligence (AGI), showcasing its advanced performance across various domains and tasks, often surpassing human-level performance and previous models. The subsequent paper also delves into the limitations and challenges for further advancing towards more comprehensive AGI systems."
+    },
+    {
+      "source": "Scaling instruction-finetuned language models",
+      "target": "Training language models to follow instructions with human feedback",
+      "visits": 258,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will involve enhanced adaptive lifelong learning, advanced multimodal and multilingual representations, scalable and efficient architectures, context-aware dynamic attention, robust and explainable models, unified instruction-following frameworks, and ethical and fair AI.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will involve enhanced adaptive lifelong learning, advanced multimodal and multilingual representations, scalable and efficient architectures, context-aware dynamic attention, robust and explainable models, unified instruction-following frameworks, and ethical and fair AI.",
+      "relation_description": "The subsequent paper builds on the advancements of instruction finetuning by introducing a method to align language models more closely with human intent through human feedback. While the first paper focuses on scaling instruction finetuning to improve model performance and generalization, the second paper addresses the issue of model alignment, ensuring that the outputs are truthful, non-toxic, and more helpful to users. This represents an evolution from enhancing model capabilities to ensuring those capabilities are used in a way that aligns with ethical and user-centric standards."
+    },
+    {
+      "source": "Emergent abilities of large language models",
+      "target": "Chain of thought prompting elicits reasoning in large language models",
+      "visits": 364,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in AI/NLP, including fully autonomous and self-improving systems, context-aware dynamic architectures, advanced meta-learning, explainable AI, efficient lifelong learning, emergent capabilities in large models, and contextual memory augmentation, will collectively enhance system robustness, efficiency, and versatility.",
+      "relation_score": 0.85,
+      "relation": "Advancements in AI/NLP, including fully autonomous and self-improving systems, context-aware dynamic architectures, advanced meta-learning, explainable AI, efficient lifelong learning, emergent capabilities in large models, and contextual memory augmentation, will collectively enhance system robustness, efficiency, and versatility.",
+      "relation_description": "The subsequent paper builds on the concept of emergent abilities in large language models by specifically exploring and enhancing one such ability: complex reasoning through chain of thought prompting. This method leverages the inherent emergent capabilities of large models to improve their performance on reasoning tasks, demonstrating that these emergent abilities can be further refined and utilized for specific applications."
+    },
+    {
+      "source": "Improving language understanding by generative pre-training",
+      "target": "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",
+      "visits": 60,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Adaptive and Contextually Aware Neural Architectures will enable models to dynamically adjust, learn continuously, transfer knowledge effectively, and maintain computational efficiency.",
+      "relation_score": 0.85,
+      "relation": "Adaptive and Contextually Aware Neural Architectures will enable models to dynamically adjust, learn continuously, transfer knowledge effectively, and maintain computational efficiency.",
+      "relation_description": "The 2019 paper \"Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context\" builds upon the foundational work of generative pre-training introduced in the 2018 paper \"Improving language understanding by generative pre-training\" by extending the model's ability to capture longer-term dependencies through a segment-level recurrence mechanism and a novel positional encoding scheme. This addresses the fixed-length context limitation of vanilla Transformers, enabling more coherent and contextually aware language modeling."
+    },
+    {
+      "source": "Chain of thought prompting elicits reasoning in large language models",
+      "target": "Why think step-by-step? reasoning emerges from the locality of experience",
+      "visits": 221,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will involve Adaptive and Contextual Lifelong Learning Systems, integrating dynamic neural architectures, enhanced attention mechanisms, contextual memory management, robust lifelong learning algorithms, multi-modal integration, and interpretable reasoning modules. Key innovations include meta-learning techniques, hierarchical attention models, scalable training methods, and context-aware embeddings.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will involve Adaptive and Contextual Lifelong Learning Systems, integrating dynamic neural architectures, enhanced attention mechanisms, contextual memory management, robust lifelong learning algorithms, multi-modal integration, and interpretable reasoning modules. Key innovations include meta-learning techniques, hierarchical attention models, scalable training methods, and context-aware embeddings.",
+      "relation_description": "The subsequent paper builds upon the concept of chain of thought reasoning introduced in the earlier paper by exploring why and how this method is effective. It hypothesizes and empirically tests that chain-of-thought reasoning is particularly useful when the training data is locally structured, allowing for the chaining of accurate local inferences to estimate relationships between variables not seen together in training. This expands the understanding of the mechanisms behind the effectiveness of chain of thought prompting and provides a theoretical foundation for its empirical success, addressing the question of why such reasoning steps improve model performance."
+    },
+    {
+      "source": "Chain of thought prompting elicits reasoning in large language models",
+      "target": "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity",
+      "visits": 152,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will involve Adaptive and Contextual Lifelong Learning Systems, integrating dynamic neural architectures, enhanced attention mechanisms, contextual memory management, robust lifelong learning algorithms, multi-modal integration, and interpretable reasoning modules. Key innovations include meta-learning techniques, hierarchical attention models, scalable training methods, and context-aware embeddings.",
+      "relation_score": 0.75,
+      "relation": "The next breakthrough in AI/NLP will involve Adaptive and Contextual Lifelong Learning Systems, integrating dynamic neural architectures, enhanced attention mechanisms, contextual memory management, robust lifelong learning algorithms, multi-modal integration, and interpretable reasoning modules. Key innovations include meta-learning techniques, hierarchical attention models, scalable training methods, and context-aware embeddings.",
+      "relation_description": "The follow-up paper extends the evaluation of large language models (LLMs) by focusing on the multitask, multilingual, and multimodal capabilities of ChatGPT, building on the concept of chain of thought prompting introduced in the preceding paper. While the 2022 paper demonstrates how chain of thought prompting enhances reasoning in LLMs, the 2023 paper provides a comprehensive evaluation framework to assess the reasoning, hallucination, and interactivity of ChatGPT. It also highlights the model's strengths and limitations, particularly in generating multimodal content and handling different reasoning tasks, and shows how human collaboration can further improve its performance."
+    },
+    {
+      "source": "Attention is All you Need",
+      "target": "Improving language understanding by generative pre-training",
+      "visits": 80,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will be Adaptive and Contextual Lifelong Learning Systems, integrating dynamic neural architectures, enhanced attention mechanisms, contextual memory management, and robust lifelong learning algorithms to improve scalability, adaptability, and efficiency.",
+      "relation_score": 0.75,
+      "relation": "The next breakthrough in AI/NLP will be Adaptive and Contextual Lifelong Learning Systems, integrating dynamic neural architectures, enhanced attention mechanisms, contextual memory management, and robust lifelong learning algorithms to improve scalability, adaptability, and efficiency.",
+      "relation_description": "The 2018 paper \"Improving language understanding by generative pre-training\" builds upon the attention mechanism introduced in the 2017 paper \"Attention is All you Need\" by leveraging the Transformer architecture for generative pre-training. This approach enhances the model's ability to understand and generate language by pre-training on large amounts of unlabelled data, which in turn improves its performance on downstream tasks. The 2018 paper addresses the limitations of supervised learning by utilizing unsupervised pre-training, thereby improving the model's generalization and contextual understanding."
+    },
+    {
+      "source": "Scaling instruction-finetuned language models",
+      "target": "Sparks of artificial general intelligence: Early experiments with gpt-4",
+      "visits": 241,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in lifelong learning, multimodal integration, efficient fine-tuning, contextual interaction, and robust generalization.",
+      "relation_score": 0.85,
+      "relation": "Advancements in lifelong learning, multimodal integration, efficient fine-tuning, contextual interaction, and robust generalization.",
+      "relation_description": "The follow-up paper builds upon the advancements in instruction finetuning explored in the 2022 paper, scaling the capabilities of large language models (LLMs) further. It introduces GPT-4, which not only refines and expands the instruction finetuning techniques but also demonstrates more robust generalization and contextual interaction across a wider range of tasks, including multimodal tasks. GPT-4 shows significant improvements in performance, often surpassing human-level performance in various domains, thereby advancing the field towards more general intelligence."
+    },
+    {
+      "source": "Scaling instruction-finetuned language models",
+      "target": "Chain of thought prompting elicits reasoning in large language models",
+      "visits": 302,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will involve enhanced adaptive lifelong learning, advanced multimodal and multilingual representations, scalable and efficient architectures, context-aware dynamic attention, robust and explainable models, unified instruction-following frameworks, and ethical and fair AI.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will involve enhanced adaptive lifelong learning, advanced multimodal and multilingual representations, scalable and efficient architectures, context-aware dynamic attention, robust and explainable models, unified instruction-following frameworks, and ethical and fair AI.",
+      "relation_description": "The follow-up paper extends the concept of instruction finetuning explored in the preceding paper by focusing specifically on the effectiveness of chain-of-thought (CoT) prompting. While the first paper demonstrates the general benefits of instruction finetuning across a variety of tasks and model sizes, the second paper shows that incorporating CoT exemplars in prompts can significantly enhance the reasoning capabilities of large language models, particularly in complex reasoning tasks such as arithmetic, commonsense, and symbolic reasoning. This approach not only improves performance but also achieves state-of-the-art results on benchmarks like GSM8K, surpassing even fine-tuned models."
+    },
+    {
+      "source": "Selection-inference: Exploiting large language models for interpretable logical reasoning",
+      "target": "Chain of thought prompting elicits reasoning in large language models",
+      "visits": 67,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will involve Adaptive and Contextual Lifelong Learning Systems, integrating dynamic neural architectures, enhanced attention mechanisms, contextual memory management, robust lifelong learning algorithms, multi-modal integration, and interpretable reasoning modules. Key innovations include meta-learning techniques, hierarchical attention models, scalable training methods, and context-aware embeddings, addressing scalability, adaptability, efficiency, and interpretability.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will involve Adaptive and Contextual Lifelong Learning Systems, integrating dynamic neural architectures, enhanced attention mechanisms, contextual memory management, robust lifelong learning algorithms, multi-modal integration, and interpretable reasoning modules. Key innovations include meta-learning techniques, hierarchical attention models, scalable training methods, and context-aware embeddings, addressing scalability, adaptability, efficiency, and interpretability.",
+      "relation_description": "The subsequent paper builds upon the concept of enhancing logical reasoning in large language models by introducing chain of thought prompting, which complements the Selection-Inference (SI) framework. While the SI framework alternates between selection and inference to generate interpretable reasoning steps, chain of thought prompting leverages a few exemplars to guide the model in generating a series of intermediate reasoning steps. This approach not only improves the model's ability to solve complex reasoning tasks but also achieves state-of-the-art performance on benchmarks, demonstrating a more scalable and effective method for enhancing logical reasoning in large language models."
+    },
+    {
+      "source": "Least-to-most prompting enables complex reasoning in large language models",
+      "target": "Emergent abilities of large language models",
+      "visits": 299,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will be Adaptive Multimodal Lifelong Learning Systems, integrating context-aware neural architectures, enhanced memory mechanisms, meta-learning, explainable AI, and efficient training/inference to improve contextual understanding, data efficiency, and transfer learning.",
+      "relation_score": 0.75,
+      "relation": "The next breakthrough in AI/NLP will be Adaptive Multimodal Lifelong Learning Systems, integrating context-aware neural architectures, enhanced memory mechanisms, meta-learning, explainable AI, and efficient training/inference to improve contextual understanding, data efficiency, and transfer learning.",
+      "relation_description": "The subsequent paper \"Emergent abilities of large language models\" builds upon the concept of improving complex reasoning in large language models as discussed in the preceding paper \"Least-to-most prompting enables complex reasoning in large language models.\" While the former introduces a novel prompting strategy (least-to-most prompting) to enhance the model's ability to generalize from simpler to more complex problems, the latter explores the unexpected capabilities that emerge as language models are scaled up. The emergent abilities discussed in the subsequent paper complement the findings of the preceding paper by suggesting that scaling up models can lead to new, unpredictable capabilities, including potentially more effective generalization and problem-solving skills, which are critical for advancing adaptive multimodal lifelong learning systems."
+    },
+    {
+      "source": "Long Short-Term Memory",
+      "target": "Attention is All you Need",
+      "visits": 331,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Innovations in adaptive and contextual memory mechanisms enhance the model's ability to manage and utilize long-term and short-term information effectively.",
+      "relation_score": 0.75,
+      "relation": "Innovations in adaptive and contextual memory mechanisms enhance the model's ability to manage and utilize long-term and short-term information effectively.",
+      "relation_description": "The 2017 paper \"Attention is All you Need\" builds upon the long short-term memory (LSTM) mechanism introduced in the 1997 paper by enhancing the model's ability to manage and utilize long-term and short-term information. While LSTM addresses the vanishing gradient problem and enables the model to remember information over longer sequences, the Transformer model introduces a novel attention mechanism that allows for more efficient and parallelizable processing of sequences. This attention mechanism effectively captures dependencies regardless of their distance in the input sequence, thus providing a more scalable solution for handling long-term dependencies compared to the sequential processing nature of LSTMs."
+    },
+    {
+      "source": "Emergent abilities of large language models",
+      "target": "Scaling instruction-finetuned language models",
+      "visits": 195,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next AI/NLP breakthrough will feature fully autonomous lifelong learning, context-aware dynamic neural architectures, advanced meta-learning, explainable AI, efficient training and inference, enhanced contextual memory, and emergent abilities in larger models, collectively enhancing robustness, efficiency, and versatility.",
+      "relation_score": 0.85,
+      "relation": "The next AI/NLP breakthrough will feature fully autonomous lifelong learning, context-aware dynamic neural architectures, advanced meta-learning, explainable AI, efficient training and inference, enhanced contextual memory, and emergent abilities in larger models, collectively enhancing robustness, efficiency, and versatility.",
+      "relation_description": "The subsequent paper builds upon the concept of emergent abilities in large language models by focusing on instruction finetuning. It demonstrates that scaling the number of tasks and model size, along with finetuning on chain-of-thought data, significantly enhances model performance and generalization. This approach not only improves the robustness and versatility of the models but also addresses the unpredictability of emergent abilities by providing a structured method to further enhance and control the capabilities of large language models."
+    },
+    {
+      "source": "Least-to-most prompting enables complex reasoning in large language models",
+      "target": "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity",
+      "visits": 136,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will be Adaptive Multimodal Lifelong Learning Systems, integrating context-aware neural architectures, enhanced memory mechanisms, meta-learning, explainable AI, and efficient training/inference to improve contextual understanding, data efficiency, and transfer learning.",
+      "relation_score": 0.75,
+      "relation": "The next breakthrough in AI/NLP will be Adaptive Multimodal Lifelong Learning Systems, integrating context-aware neural architectures, enhanced memory mechanisms, meta-learning, explainable AI, and efficient training/inference to improve contextual understanding, data efficiency, and transfer learning.",
+      "relation_description": "The subsequent paper extends the evaluation of large language models (LLMs) by introducing a comprehensive framework to assess the multitask, multilingual, and multimodal capabilities of ChatGPT, building upon the least-to-most prompting strategy proposed in the preceding paper. While the earlier paper focuses on enhancing the reasoning capabilities of LLMs through a novel prompting method, the later paper evaluates the broader performance of ChatGPT, including its reasoning, hallucination, and interactivity, using a diverse set of datasets. The subsequent paper also highlights the interactive feature of ChatGPT, which can improve performance through human collaboration, further advancing the concept of adaptive and interactive learning systems."
+    },
+    {
+      "source": "Least-to-most prompting enables complex reasoning in large language models",
+      "target": "Why think step-by-step? reasoning emerges from the locality of experience",
+      "visits": 173,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Adaptive Multimodal Lifelong Learning Systems will enhance contextual awareness, integrate advanced memory mechanisms, optimize neural architectures, improve explainability, and increase data efficiency, addressing key challenges in AI/NLP.",
+      "relation_score": 0.75,
+      "relation": "Adaptive Multimodal Lifelong Learning Systems will enhance contextual awareness, integrate advanced memory mechanisms, optimize neural architectures, improve explainability, and increase data efficiency, addressing key challenges in AI/NLP.",
+      "relation_description": "The 2023 paper \"Why think step-by-step? reasoning emerges from the locality of experience\" builds upon the concept of chain-of-thought prompting introduced in the 2022 paper \"Least-to-most prompting enables complex reasoning in large language models\" by exploring why and how step-by-step reasoning is effective in language models. While the 2022 paper proposes a novel prompting strategy (least-to-most prompting) that breaks down complex problems into simpler subproblems to improve generalization, the 2023 paper delves into the underlying mechanisms of reasoning, demonstrating that the effectiveness of step-by-step reasoning is rooted in the local statistical structure of the training data. This provides a theoretical foundation for why strategies like least-to-most prompting can enhance the performance of language models on complex reasoning tasks."
+    },
+    {
+      "source": "Catastrophic Interference in Connectionist Networks: The Sequential Learning Problem",
+      "target": "Long Short-Term Memory",
+      "visits": 130,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in meta-learning, dynamic neural architectures, and enhanced memory mechanisms will enable robust lifelong learning systems, mitigating catastrophic forgetting and improving continuous learning capabilities.",
+      "relation_score": 0.85,
+      "relation": "Advancements in meta-learning, dynamic neural architectures, and enhanced memory mechanisms will enable robust lifelong learning systems, mitigating catastrophic forgetting and improving continuous learning capabilities.",
+      "relation_description": "The 1997 paper \"Long Short-Term Memory\" addresses the issue of catastrophic forgetting, identified in the 1989 paper \"Catastrophic Interference in Connectionist Networks: The Sequential Learning Problem,\" by introducing a novel architecture, LSTM, which mitigates the problem of decaying error backflow and enables the network to learn over extended time intervals. LSTM's design with constant error carousels and multiplicative gate units specifically targets the challenges of sequential learning and long-term memory, thus providing a robust solution to the sequential learning problem."
+    },
+    {
+      "source": "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",
+      "target": "Scalable multi-hop relational reasoning for knowledge-aware question answering",
+      "visits": 124,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in lifelong learning, multimodal integration, scalable architectures, contextual coherence, and model explainability will address key challenges in NLP.",
+      "relation_score": 0.75,
+      "relation": "Advancements in lifelong learning, multimodal integration, scalable architectures, contextual coherence, and model explainability will address key challenges in NLP.",
+      "relation_description": "The follow-up paper extends the capabilities of pre-trained language models (PTLMs) by integrating a multi-hop relational reasoning module, which addresses the limitations of modeling multi-hop relations and improving model transparency. This builds upon the Transformer-XL's advancements in handling longer-term dependencies and maintaining contextual coherence, further enhancing the model's ability to reason over complex, multi-relational data from external knowledge graphs."
+    },
+    {
+      "source": "Emergent abilities of large language models",
+      "target": "Why think step-by-step? reasoning emerges from the locality of experience",
+      "visits": 298,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in AI/NLP, including fully autonomous and self-improving systems, context-aware dynamic architectures, advanced meta-learning, explainable AI, efficient lifelong learning, emergent capabilities in large models, and contextual memory augmentation, will collectively enhance system robustness, efficiency, and versatility.",
+      "relation_score": 0.85,
+      "relation": "Advancements in AI/NLP, including fully autonomous and self-improving systems, context-aware dynamic architectures, advanced meta-learning, explainable AI, efficient lifelong learning, emergent capabilities in large models, and contextual memory augmentation, will collectively enhance system robustness, efficiency, and versatility.",
+      "relation_description": "The subsequent paper builds upon the concept of emergent abilities in large language models by specifically investigating the emergence of chain-of-thought reasoning. It explores why and how this ability, which was observed to emerge in larger models, is effective, particularly when the training data has a local structure. This work provides a deeper understanding of the conditions under which reasoning through intermediate steps enhances the performance of language models, thus expanding the theoretical foundation for the emergent capabilities discussed in the earlier paper."
+    },
+    {
+      "source": "QA-GNN: reasoning with language models and knowledge graphs for question answering",
+      "target": "Selection-inference: Exploiting large language models for interpretable logical reasoning",
+      "visits": 127,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next AI/NLP breakthrough will focus on Advanced Self-Supervised Lifelong Learning Systems, integrating enhanced dynamic neural architectures, multi-modal data integration, robust lifelong learning algorithms, interpretable reasoning mechanisms, and scalable training methods to improve real-world adaptability and continuous learning.",
+      "relation_score": 0.75,
+      "relation": "The next AI/NLP breakthrough will focus on Advanced Self-Supervised Lifelong Learning Systems, integrating enhanced dynamic neural architectures, multi-modal data integration, robust lifelong learning algorithms, interpretable reasoning mechanisms, and scalable training methods to improve real-world adaptability and continuous learning.",
+      "relation_description": "The subsequent paper builds upon the advancements of QA-GNN by extending the capabilities of large language models (LLMs) in logical reasoning. While QA-GNN integrates language models and knowledge graphs for question answering through relevance scoring and joint reasoning, the Selection-Inference (SI) framework in the subsequent paper addresses the limitations of LLMs in multi-step logical reasoning. It introduces a method that alternates between selection and inference to generate interpretable reasoning steps, significantly improving performance on complex logical tasks and providing a causal reasoning trace, thus enhancing the interpretability and trustworthiness of the system."
+    },
+    {
+      "source": "Training language models to follow instructions with human feedback",
+      "target": "Sparks of artificial general intelligence: Early experiments with gpt-4",
+      "visits": 151,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will integrate advanced knowledge fusion, interactive feedback loops, multi-modal contextual embeddings, adaptive meta-learning, and ethical considerations to enhance contextual awareness, user alignment, and robustness.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will integrate advanced knowledge fusion, interactive feedback loops, multi-modal contextual embeddings, adaptive meta-learning, and ethical considerations to enhance contextual awareness, user alignment, and robustness.",
+      "relation_description": "The 2023 paper \"Sparks of artificial general intelligence: Early experiments with gpt-4\" builds upon the advancements in aligning language models with human intent introduced in the 2022 paper \"Training language models to follow instructions with human feedback.\" While the 2022 paper focuses on fine-tuning large language models using human feedback to improve alignment, truthfulness, and reduce toxicity, the 2023 paper explores the broader capabilities of GPT-4, demonstrating its general intelligence across various domains. GPT-4 not only exhibits enhanced performance in language tasks but also shows proficiency in solving complex problems in mathematics, coding, vision, and other fields, often surpassing previous models and approaching human-level performance. The 2023 paper also highlights the limitations and future challenges in advancing towards more comprehensive AGI systems."
+    },
+    {
+      "source": "Emergent abilities of large language models",
+      "target": "Training language models to follow instructions with human feedback",
+      "visits": 126,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in multimodal integration, lifelong learning, explainability, ethics, low-resource learning, and human-AI collaboration will collectively enhance AI/NLP capabilities and address current limitations.",
+      "relation_score": 0.85,
+      "relation": "Advancements in multimodal integration, lifelong learning, explainability, ethics, low-resource learning, and human-AI collaboration will collectively enhance AI/NLP capabilities and address current limitations.",
+      "relation_description": "The subsequent paper builds on the concept of emergent abilities in large language models by addressing the issue of alignment with user intent. It demonstrates that while scaling up models can lead to the emergence of new capabilities, it does not guarantee that these models will be aligned with human values or produce desirable outputs. The paper introduces a method for fine-tuning large language models using human feedback, which improves their ability to follow instructions and reduces issues such as untruthfulness and toxicity. This approach enhances the practical utility and ethical considerations of large language models, expanding their capabilities beyond what is achievable through scaling alone."
+    },
+    {
+      "source": "SpanBERT: Improving Pre-training by Representing and Predicting Spans",
+      "target": "QA-GNN: reasoning with language models and knowledge graphs for question answering",
+      "visits": 62,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in AI/NLP post-BERT and SpanBERT emphasize multimodal integration, lifelong learning, explainability, low-resource learning, ethical considerations, advanced memory, and human-AI collaboration.",
+      "relation_score": 0.75,
+      "relation": "Advancements in AI/NLP post-BERT and SpanBERT emphasize multimodal integration, lifelong learning, explainability, low-resource learning, ethical considerations, advanced memory, and human-AI collaboration.",
+      "relation_description": "SpanBERT improves BERT by focusing on span representation and prediction, which enhances performance on tasks like question answering and coreference resolution. QA-GNN builds upon this by integrating knowledge graphs (KGs) with language models, addressing the challenges of identifying relevant knowledge and performing joint reasoning over QA contexts and KGs. QA-GNN uses relevance scoring and joint graph-based message passing to improve question answering, demonstrating enhanced interpretability and structured reasoning capabilities."
+    },
+    {
+      "source": "Attention is All you Need",
+      "target": "SpanBERT: Improving Pre-training by Representing and Predicting Spans",
+      "visits": 48,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next significant breakthrough in AI/NLP will involve Contextualized Multimodal Pre-training with Enhanced Explainability and Ethical Considerations, integrating advanced multimodal fusion, dynamic contextual adaptation, and scalable training to improve semantic understanding and conversational depth.",
+      "relation_score": 0.75,
+      "relation": "The next significant breakthrough in AI/NLP will involve Contextualized Multimodal Pre-training with Enhanced Explainability and Ethical Considerations, integrating advanced multimodal fusion, dynamic contextual adaptation, and scalable training to improve semantic understanding and conversational depth.",
+      "relation_description": "The Transformer introduced a novel architecture based solely on attention mechanisms, which significantly improved the efficiency and performance of sequence transduction models, particularly in machine translation. SpanBERT built upon the attention-based framework of the Transformer by focusing on the representation and prediction of contiguous spans of text, leading to better performance on span selection tasks such as question answering and coreference resolution."
+    },
+    {
+      "source": "Emergent abilities of large language models",
+      "target": "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity",
+      "visits": 226,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in multimodal integration, lifelong learning, explainability, ethics, low-resource learning, and human-AI collaboration will collectively enhance AI/NLP capabilities and address current limitations.",
+      "relation_score": 0.75,
+      "relation": "Advancements in multimodal integration, lifelong learning, explainability, ethics, low-resource learning, and human-AI collaboration will collectively enhance AI/NLP capabilities and address current limitations.",
+      "relation_description": "The subsequent paper builds on the concept of emergent abilities discussed in the preceding paper by evaluating the advanced capabilities of a specific large language model, ChatGPT. It extends the research by providing a quantitative evaluation framework for interactive LLMs, demonstrating how emergent abilities such as multitask, multilingual, and multimodal capabilities have evolved and improved. The paper also identifies limitations like reasoning accuracy, hallucination issues, and the need for human-AI collaboration to enhance performance, thereby addressing some of the current limitations in LLMs."
+    },
+    {
+      "source": "\"Cloze Procedure\": A New Tool for Measuring Readability",
+      "target": "Long Short-Term Memory",
+      "visits": 57,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advanced contextual understanding and generation through dynamic deep learning architectures, addressing semantic coherence and conversational depth by integrating multi-modal learning, enhanced memory, and sophisticated pre-training.",
+      "relation_score": 0.85,
+      "relation": "Advanced contextual understanding and generation through dynamic deep learning architectures, addressing semantic coherence and conversational depth by integrating multi-modal learning, enhanced memory, and sophisticated pre-training.",
+      "relation_description": "The 1997 \"Long Short-Term Memory\" paper introduced a novel architecture, LSTM, which significantly improved the ability of recurrent neural networks to learn and remember over long sequences by addressing the vanishing gradient problem. This advancement can be seen as a direct extension of the 1953 \"Cloze Procedure\" paper, which laid foundational work in understanding and measuring readability, a precursor to the more sophisticated text processing and contextual understanding capabilities enabled by LSTM. LSTM's enhanced memory and error flow mechanisms allowed for better handling of sequential data, which is crucial for tasks requiring deep contextual understanding and generation, such as those inspired by the cloze test."
+    },
+    {
+      "source": "QA-GNN: reasoning with language models and knowledge graphs for question answering",
+      "target": "Chain of thought prompting elicits reasoning in large language models",
+      "visits": 150,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next significant breakthroughs in AI/NLP will focus on enhancing multimodal integration, advanced few-shot/zero-shot learning, dynamic context adaptation, explainable AI, efficient and scalable architectures, long-term memory and temporal coherence, advanced reasoning and inference, and robustness and fairness.",
+      "relation_score": 0.75,
+      "relation": "The next significant breakthroughs in AI/NLP will focus on enhancing multimodal integration, advanced few-shot/zero-shot learning, dynamic context adaptation, explainable AI, efficient and scalable architectures, long-term memory and temporal coherence, advanced reasoning and inference, and robustness and fairness.",
+      "relation_description": "The subsequent paper builds upon the foundation of integrating language models with external knowledge, as explored in QA-GNN, by introducing a method called chain of thought prompting. This method enhances the reasoning capabilities of large language models, particularly in complex tasks such as arithmetic, commonsense, and symbolic reasoning. While QA-GNN focuses on joint reasoning over question context and knowledge graphs, the chain of thought prompting approach extends this by enabling the model to generate a series of intermediate reasoning steps, thereby improving its ability to solve complex problems and achieve state-of-the-art performance on benchmarks like GSM8K."
+    },
+    {
+      "source": "QA-GNN: reasoning with language models and knowledge graphs for question answering",
+      "target": "Folio: Natural language reasoning with first-order logic",
+      "visits": 86,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next significant breakthrough in AI/NLP will focus on advanced contextual reasoning, multimodal integration, efficient and scalable models, adaptive and lifelong learning, explainability, ethical and fair AI, cross-lingual capabilities, knowledge-enhanced reasoning, and energy efficiency.",
+      "relation_score": 0.65,
+      "relation": "The next significant breakthrough in AI/NLP will focus on advanced contextual reasoning, multimodal integration, efficient and scalable models, adaptive and lifelong learning, explainability, ethical and fair AI, cross-lingual capabilities, knowledge-enhanced reasoning, and energy efficiency.",
+      "relation_description": "The subsequent paper, \"Folio: Natural language reasoning with first-order logic,\" builds upon the advancements in contextual reasoning and knowledge integration introduced by \"QA-GNN: reasoning with language models and knowledge graphs for question answering.\" While QA-GNN focuses on integrating knowledge graphs with language models to improve question answering through relevance scoring and joint reasoning, Folio extends this by introducing a dataset and framework for evaluating complex logical reasoning capabilities using first-order logic. Folio addresses the limitation of existing benchmarks in measuring the logical reasoning abilities of language models, thereby pushing the boundaries of advanced contextual reasoning and explainability in NLP."
+    },
+    {
+      "source": "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity",
+      "target": "A comprehensive overview of large language models",
+      "visits": 90,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in AI/NLP, including enhanced multimodal integration, continuous learning, explainability, energy efficiency, multilingual capabilities, ethical considerations, and human-AI collaboration, will collectively address current challenges and open new possibilities.",
+      "relation_score": 0.75,
+      "relation": "Advancements in AI/NLP, including enhanced multimodal integration, continuous learning, explainability, energy efficiency, multilingual capabilities, ethical considerations, and human-AI collaboration, will collectively address current challenges and open new possibilities.",
+      "relation_description": "The subsequent paper provides a comprehensive overview and systematic survey of the advancements in Large Language Models (LLMs), including architectural innovations, training strategies, and multi-modal capabilities, which builds upon the evaluation framework and findings presented in the preceding paper. The preceding paper evaluates the performance of ChatGPT, a specific LLM, in various NLP tasks, highlighting its strengths and limitations in reasoning, hallucination, and interactivity. The subsequent paper expands on these findings by covering a broader range of LLM-related topics and recent developments, offering a broader context and deeper insights into the evolving landscape of LLMs."
+    },
+    {
+      "source": "Scaling instruction-finetuned language models",
+      "target": "Why think step-by-step? reasoning emerges from the locality of experience",
+      "visits": 163,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in AI/NLP, including multimodal integration, adaptive learning, efficient architectures, enhanced explainability, robustness, and human-AI collaboration, will build upon current trends while addressing key challenges.",
+      "relation_score": 0.85,
+      "relation": "Advancements in AI/NLP, including multimodal integration, adaptive learning, efficient architectures, enhanced explainability, robustness, and human-AI collaboration, will build upon current trends while addressing key challenges.",
+      "relation_description": "The 2023 paper \"Why think step-by-step? reasoning emerges from the locality of experience\" builds upon the 2022 paper \"Scaling instruction-finetuned language models\" by delving deeper into the effectiveness of chain-of-thought (CoT) reasoning in language models. While the 2022 paper demonstrates that instruction finetuning, including CoT data, significantly improves model performance across various benchmarks, the 2023 paper investigates the underlying mechanisms that make CoT reasoning effective. It hypothesizes and empirically tests that CoT reasoning is particularly useful when the training data has a local structure, enabling the chaining of accurate local inferences to estimate relationships not directly observed in training. This work provides a theoretical foundation for why and how CoT reasoning enhances model performance, complementing the empirical findings of the 2022 paper and offering insights into optimizing training data for better reasoning capabilities."
+    },
+    {
+      "source": "Least-to-most prompting enables complex reasoning in large language models",
+      "target": "Lamda: Language models for dialog applications",
+      "visits": 61,
+      "relation_type": "纵向继承",
+      "relation": "The next AI/NLP breakthrough will focus on Contextualized Lifelong Learning and Explainable AI, integrating adaptive multi-modal fusion, hierarchical memory, energy-efficient models, cross-domain adaptation, explainable AI, and robust context-aware dialogues to address long-range dependencies, interpretability, and robustness.",
+      "relation_description": "The follow-up paper \"Lamda: Language models for dialog applications\" builds upon the concept of enhancing model performance through structured prompting as introduced in \"Least-to-most prompting enables complex reasoning in large language models.\" While the former focuses on breaking down complex problems into simpler subproblems to improve reasoning capabilities, the latter extends this idea by applying large-scale language models specifically to dialog applications, emphasizing the importance of safety and factual grounding. The subsequent paper demonstrates that fine-tuning with annotated data and integrating external knowledge sources can significantly improve these aspects, thereby expanding the application scope and practical utility of large language models in real-world dialog systems."
+    },
+    {
+      "source": "Lamda: Language models for dialog applications",
+      "target": "Chain of thought prompting elicits reasoning in large language models",
+      "visits": 91,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next AI/NLP breakthrough will integrate contextualized lifelong learning, adaptive multi-modal fusion, hierarchical memory, energy-efficient models, cross-domain adaptation, explainable AI, and robust context-aware dialogues to enhance interpretability, adaptability, and efficiency.",
+      "relation_score": 0.75,
+      "relation": "The next AI/NLP breakthrough will integrate contextualized lifelong learning, adaptive multi-modal fusion, hierarchical memory, energy-efficient models, cross-domain adaptation, explainable AI, and robust context-aware dialogues to enhance interpretability, adaptability, and efficiency.",
+      "relation_description": "The follow-up paper \"Chain of thought prompting elicits reasoning in large language models\" builds upon the foundational work of LaMDA by enhancing the model's reasoning capabilities. Specifically, it introduces chain of thought prompting, a method that leverages a few exemplars to guide the model through intermediate reasoning steps. This approach significantly improves the model's performance on complex reasoning tasks, such as arithmetic, commonsense, and symbolic reasoning, thereby addressing the limitations of LaMDA in terms of factual grounding and safety by enabling more structured and accurate reasoning."
+    },
+    {
+      "source": "Folio: Natural language reasoning with first-order logic",
+      "target": "Least-to-most prompting enables complex reasoning in large language models",
+      "visits": 87,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancing NLP through enhanced contextual reasoning, multimodal integration, adaptive learning, explainability, ethical considerations, cross-lingual capabilities, knowledge-enhanced reasoning, energy efficiency, scalability, and human-AI collaboration.",
+      "relation_score": 0.75,
+      "relation": "Advancing NLP through enhanced contextual reasoning, multimodal integration, adaptive learning, explainability, ethical considerations, cross-lingual capabilities, knowledge-enhanced reasoning, energy efficiency, scalability, and human-AI collaboration.",
+      "relation_description": "The subsequent paper \"Least-to-most prompting enables complex reasoning in large language models\" builds upon the logical reasoning challenges identified in the prior paper \"Folio: Natural language reasoning with first-order logic\" by introducing a novel prompting strategy, least-to-most prompting. While the prior paper highlights the limitations of existing large language models in handling complex logical reasoning tasks, especially those involving first-order logic, the subsequent paper addresses these limitations by proposing a method that breaks down complex problems into simpler subproblems, thereby enabling better generalization and performance on harder tasks. This approach significantly improves the model's ability to solve tasks that require compositional generalization, such as the SCAN benchmark, demonstrating a substantial improvement over chain-of-thought prompting."
+    },
+    {
+      "source": "Distilbert, a distilled version of bert: smaller, faster, cheaper and lighter",
+      "target": "Scalable multi-hop relational reasoning for knowledge-aware question answering",
+      "visits": 89,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthroughs in AI/NLP will focus on enhancing multimodal integration, creating efficient and scalable models, improving contextual and adaptive learning, increasing explainability and transparency, enhancing robustness and generalization, enabling meta-learning and lifelong learning, and designing energy-efficient models.",
+      "relation_score": 0.75,
+      "relation": "The next breakthroughs in AI/NLP will focus on enhancing multimodal integration, creating efficient and scalable models, improving contextual and adaptive learning, increasing explainability and transparency, enhancing robustness and generalization, enabling meta-learning and lifelong learning, and designing energy-efficient models.",
+      "relation_description": "The subsequent paper builds upon the advancements in model efficiency and scalability introduced by DistilBERT by focusing on enhancing the interpretability and scalability of knowledge-aware question answering models. It introduces a multi-hop relational reasoning module (MHGRN) that leverages pre-trained language models (PTLMs) to perform efficient and transparent multi-hop reasoning over external knowledge graphs, addressing the challenges of efficiency and interpretability in knowledge-aware question answering systems."
+    },
+    {
+      "source": "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity",
+      "target": "Sparks of artificial general intelligence: Early experiments with gpt-4",
+      "visits": 105,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next AI/NLP breakthrough will focus on advanced contextual reasoning, multimodal fusion, robustness and fairness, energy efficiency, and interactive AI, enhancing models' ability to understand complex contexts and integrate diverse data types.",
+      "relation_score": 0.85,
+      "relation": "The next AI/NLP breakthrough will focus on advanced contextual reasoning, multimodal fusion, robustness and fairness, energy efficiency, and interactive AI, enhancing models' ability to understand complex contexts and integrate diverse data types.",
+      "relation_description": "The subsequent paper builds upon the evaluation framework introduced in the preceding paper by assessing a more advanced model, GPT-4, which demonstrates significantly improved capabilities in reasoning, multimodal integration, and interactive performance. It addresses some of the limitations identified in ChatGPT, such as hallucination and reasoning accuracy, and showcases broader and deeper intelligence across multiple domains, moving closer to the concept of artificial general intelligence (AGI)."
+    },
+    {
+      "source": "Measuring massive multitask language understanding",
+      "target": "Selection-inference: Exploiting large language models for interpretable logical reasoning",
+      "visits": 64,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next significant breakthroughs in AI/NLP will focus on advanced multimodal integration, explainable models, efficient training, hierarchical reasoning, bias mitigation, privacy-preserving techniques, cross-domain generalization, and real-time interaction.",
+      "relation_score": 0.85,
+      "relation": "The next significant breakthroughs in AI/NLP will focus on advanced multimodal integration, explainable models, efficient training, hierarchical reasoning, bias mitigation, privacy-preserving techniques, cross-domain generalization, and real-time interaction.",
+      "relation_description": "The subsequent paper builds upon the comprehensive evaluation framework introduced in the earlier paper by focusing on the specific challenge of multi-step logical reasoning, which was identified as a significant shortcoming in large language models. It introduces the Selection-Inference (SI) framework to enhance the models' ability to perform complex logical reasoning tasks, achieving substantial performance improvements and providing interpretable reasoning steps, thus addressing the issues of poor multi-step reasoning and lack of interpretability highlighted in the earlier study."
+    },
+    {
+      "source": "Chain of thought prompting elicits reasoning in large language models",
+      "target": "Sparks of artificial general intelligence: Early experiments with gpt-4",
+      "visits": 104,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will integrate advanced multimodal capabilities with context-aware reasoning, enhancing models' ability to understand complex scenarios, adapt dynamically, and operate efficiently and ethically.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will integrate advanced multimodal capabilities with context-aware reasoning, enhancing models' ability to understand complex scenarios, adapt dynamically, and operate efficiently and ethically.",
+      "relation_description": "The subsequent paper builds upon the concept of chain of thought prompting introduced in the earlier paper, demonstrating that GPT-4 not only benefits from such prompting but also exhibits advanced capabilities across a broader range of tasks without special prompting. It shows that GPT-4, with its larger scale and more sophisticated training, can perform complex reasoning, solve novel problems, and approach human-level performance in various domains, marking a significant step towards artificial general intelligence."
+    },
+    {
+      "source": "Training language models to follow instructions with human feedback",
+      "target": "A multitask, multilingual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity",
+      "visits": 173,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will focus on Adaptive Lifelong Learning with Enhanced Ethical Alignment, featuring dynamic knowledge updates, context-aware attention, explainable AI, few-shot adaptation, energy-efficient architectures, bias mitigation, and multimodal integration.",
+      "relation_score": 0.75,
+      "relation": "The next breakthrough in AI/NLP will focus on Adaptive Lifelong Learning with Enhanced Ethical Alignment, featuring dynamic knowledge updates, context-aware attention, explainable AI, few-shot adaptation, energy-efficient architectures, bias mitigation, and multimodal integration.",
+      "relation_description": "The 2023 paper builds upon the advancements in aligning language models with human intent introduced in the 2022 paper by evaluating the performance and capabilities of a more advanced model, ChatGPT. It extends the focus on alignment by assessing ChatGPT's reasoning, hallucination, and interactivity, demonstrating improvements in multitask, multilingual, and multimodal capabilities. While the 2022 paper primarily addressed alignment through fine-tuning with human feedback, the 2023 paper evaluates how well these aligned models perform in various tasks and identifies areas for further improvement, such as reducing hallucinations and enhancing reasoning accuracy."
+    },
+    {
+      "source": "Least-to-most prompting enables complex reasoning in large language models",
+      "target": "Training language models to follow instructions with human feedback",
+      "visits": 55,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Next-gen AI/NLP systems will feature adaptive and contextualized lifelong learning, enhancing dynamic knowledge updates, interpretability, multimodal integration, ethical fairness, and efficiency through meta-learning, context-aware attention, incremental learning, explainable AI, and energy-efficient architectures.",
+      "relation_score": 0.65,
+      "relation": "Next-gen AI/NLP systems will feature adaptive and contextualized lifelong learning, enhancing dynamic knowledge updates, interpretability, multimodal integration, ethical fairness, and efficiency through meta-learning, context-aware attention, incremental learning, explainable AI, and energy-efficient architectures.",
+      "relation_description": "The follow-up paper extends the capabilities of large language models by addressing the alignment issue, which is not directly tackled in the least-to-most prompting strategy. While least-to-most prompting focuses on improving the model's ability to solve complex problems by breaking them down into simpler subproblems, the follow-up paper introduces a method to align the model's outputs with user intent through fine-tuning with human feedback. This method enhances the model's ability to generate truthful, non-toxic, and helpful responses, thereby addressing the limitations of large language models in understanding and following user intent."
+    },
+    {
+      "source": "Attention is All you Need",
+      "target": "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",
+      "visits": 57,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in Adaptive and Contextualized Neural Architectures, including dynamic contextual attention, hierarchical memory networks, meta-learning for adaptation, neural architecture search, and context-aware embeddings, enhance NLP models' efficiency and adaptability.",
+      "relation_score": 0.85,
+      "relation": "Advancements in Adaptive and Contextualized Neural Architectures, including dynamic contextual attention, hierarchical memory networks, meta-learning for adaptation, neural architecture search, and context-aware embeddings, enhance NLP models' efficiency and adaptability.",
+      "relation_description": "The paper \"Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context\" builds upon the \"Attention is All you Need\" by extending the Transformer model to handle longer-term dependencies and overcome the fixed-length context limitation. It introduces segment-level recurrence and a novel positional encoding scheme, enabling the model to capture dependencies that are significantly longer than those captured by the original Transformer, while maintaining temporal coherence and improving performance on both short and long sequences."
+    },
+    {
+      "source": "Scalable multi-hop relational reasoning for knowledge-aware question answering",
+      "target": "Measuring massive multitask language understanding",
+      "visits": 39,
+      "relation_type": "纵向继承",
+      "relation": "The next significant breakthroughs in AI/NLP will involve advanced memory systems, multimodal integration, bias mitigation, efficient training, interpretable models, meta-learning, hierarchical reasoning, and privacy-preserving techniques.",
+      "relation_description": "The subsequent paper extends the evaluation of language models beyond the specific task of knowledge-aware question answering addressed in the preceding paper. While the 2020 paper introduces a method to improve and interpret multi-hop relational reasoning in QA systems using external knowledge graphs, the 2021 paper proposes a comprehensive test to measure the multitask accuracy and world knowledge of large language models across a wide range of subjects. This broader evaluation highlights the limitations and areas for improvement in current large language models, including their performance on socially important topics."
+    },
+    {
+      "source": "Least-to-most prompting enables complex reasoning in large language models",
+      "target": "Sparks of artificial general intelligence: Early experiments with gpt-4",
+      "visits": 80,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthroughs in AI/NLP will enhance multimodal integration, advanced logical reasoning, adaptive learning, ethical bias mitigation, efficient training, and interpretable AI, collectively pushing the boundaries and addressing current limitations.",
+      "relation_score": 0.75,
+      "relation": "The next breakthroughs in AI/NLP will enhance multimodal integration, advanced logical reasoning, adaptive learning, ethical bias mitigation, efficient training, and interpretable AI, collectively pushing the boundaries and addressing current limitations.",
+      "relation_description": "The 2023 paper \"Sparks of artificial general intelligence: Early experiments with gpt-4\" builds upon the advancements introduced in the 2022 paper \"Least-to-most prompting enables complex reasoning in large language models\" by extending the capabilities of large language models (LLMs) beyond improved reasoning through structured prompting strategies. While the 2022 paper focuses on enhancing the problem-solving ability of LLMs through the least-to-most prompting method, which breaks down complex problems into simpler subproblems, the 2023 paper demonstrates that GPT-4, a more advanced LLM, can solve a broader range of tasks, including those in mathematics, coding, vision, and other domains, without the need for special prompting. This indicates a significant leap in the general intelligence and adaptability of LLMs, moving closer to the concept of artificial general intelligence (AGI). The 2023 paper also highlights the model's human-level performance and discusses the implications and future challenges of such advancements."
+    },
+    {
+      "source": "Greaselm: Graph reasoning enhanced language models",
+      "target": "Selection-inference: Exploiting large language models for interpretable logical reasoning",
+      "visits": 77,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in unified multi-modal frameworks, contextual memory, few-shot learning, hierarchical structures, robust reasoning, interpretability, and energy efficiency will collectively enhance AI/NLP capabilities.",
+      "relation_score": 0.75,
+      "relation": "Advancements in unified multi-modal frameworks, contextual memory, few-shot learning, hierarchical structures, robust reasoning, interpretability, and energy efficiency will collectively enhance AI/NLP capabilities.",
+      "relation_description": "The subsequent paper \"Selection-inference: Exploiting large language models for interpretable logical reasoning\" builds upon the advancements in integrating structured knowledge with language models as seen in \"Greaselm: Graph reasoning enhanced language models.\" While GreaseLM focuses on fusing graph neural networks with pretrained language models to enhance reasoning over both context and structured knowledge, the Selection-Inference (SI) framework extends this by specifically addressing the challenge of multi-step logical reasoning. The SI framework leverages large language models to generate a series of interpretable reasoning steps, improving performance on complex logical tasks and providing a causal reasoning trace, thus enhancing interpretability and trustworthiness."
+    },
+    {
+      "source": "Least-to-most prompting enables complex reasoning in large language models",
+      "target": "Chain of thought prompting elicits reasoning in large language models",
+      "visits": 95,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Integrates advanced multimodal fusion, dynamic contextual embeddings, and enhanced logical reasoning to improve AI/NLP systems' adaptability, transparency, efficiency, and ethical standards.",
+      "relation_score": 0.85,
+      "relation": "Integrates advanced multimodal fusion, dynamic contextual embeddings, and enhanced logical reasoning to improve AI/NLP systems' adaptability, transparency, efficiency, and ethical standards.",
+      "relation_description": "The subsequent paper builds upon the concept of chain-of-thought prompting introduced in the earlier paper, enhancing it to address more complex reasoning tasks. While the earlier paper introduces least-to-most prompting to improve generalization from easy to hard problems, the subsequent paper demonstrates that chain-of-thought prompting itself, when used with large language models, can achieve significant improvements in complex reasoning tasks, including arithmetic, commonsense, and symbolic reasoning. The subsequent paper also shows that chain-of-thought prompting can achieve state-of-the-art performance on benchmarks like GSM8K with fewer exemplars, highlighting the effectiveness and efficiency of this approach in large language models."
+    },
+    {
+      "source": "QA-GNN: reasoning with language models and knowledge graphs for question answering",
+      "target": "Greaselm: Graph reasoning enhanced language models",
+      "visits": 84,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthroughs in AI/NLP will focus on adaptive and contextualized neural architectures, hierarchical temporal abstraction, energy-efficient training algorithms, interpretability, few-shot/zero-shot learning, multimodal integration, real-time performance, and knowledge-enhanced reasoning.",
+      "relation_score": 0.85,
+      "relation": "The next breakthroughs in AI/NLP will focus on adaptive and contextualized neural architectures, hierarchical temporal abstraction, energy-efficient training algorithms, interpretability, few-shot/zero-shot learning, multimodal integration, real-time performance, and knowledge-enhanced reasoning.",
+      "relation_description": "The subsequent paper, GreaseLM, builds upon the QA-GNN by enhancing the fusion and reasoning capabilities between language models and knowledge graphs. Specifically, GreaseLM introduces a multi-layer modality interaction mechanism that allows for deeper integration and mutual updating of representations between the language context and the structured knowledge from the graph. This improvement addresses the challenge of robustly representing latent relationships between concepts and effectively fusing situational nuances with world knowledge, leading to better performance in complex question answering tasks."
+    },
+    {
+      "source": "Emergent abilities of large language models",
+      "target": "A comprehensive overview of large language models",
+      "visits": 97,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will likely integrate advanced neuro-symbolic methods, multi-modal adaptive memory, hierarchical attention, ethical frameworks, rapid meta-learning adaptation, scalable relational reasoning, context-aware hierarchical structures, efficient training, interpretable AI, and emergent abilities in larger models.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will likely integrate advanced neuro-symbolic methods, multi-modal adaptive memory, hierarchical attention, ethical frameworks, rapid meta-learning adaptation, scalable relational reasoning, context-aware hierarchical structures, efficient training, interpretable AI, and emergent abilities in larger models.",
+      "relation_description": "The subsequent paper [2023] \"A comprehensive overview of large language models\" expands on the concept of emergent abilities discussed in the preceding paper [2022] \"Emergent abilities of large language models\" by providing a broader and more detailed overview of the advancements in large language models (LLMs). It covers a wider range of topics including architectural innovations, training strategies, and multi-modal capabilities, thereby offering a comprehensive reference for researchers and practitioners. While the 2022 paper focuses on the unpredictable emergence of new capabilities in larger models, the 2023 paper integrates and contextualizes these findings within the broader landscape of LLM research."
+    },
+    {
+      "source": "Lamda: Language models for dialog applications",
+      "target": "Scaling instruction-finetuned language models",
+      "visits": 72,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthroughs in AI/NLP will enhance multimodal integration, adaptive contextualization, interpretability, energy efficiency, advanced safety mechanisms, and scalable training, addressing current challenges and pushing the technology forward.",
+      "relation_score": 0.85,
+      "relation": "The next breakthroughs in AI/NLP will enhance multimodal integration, adaptive contextualization, interpretability, energy efficiency, advanced safety mechanisms, and scalable training, addressing current challenges and pushing the technology forward.",
+      "relation_description": "The subsequent paper extends the advancements in fine-tuning techniques introduced in the LaMDA paper, focusing on scaling the number of tasks, model size, and incorporating chain-of-thought data. It builds upon the concept of fine-tuning with annotated data to improve model performance and generalization, demonstrating significant improvements in various benchmarks and tasks. While LaMDA addresses safety and factual grounding through fine-tuning and external knowledge sources, the subsequent paper enhances these aspects by scaling instruction fine-tuning, leading to state-of-the-art performance and better usability of pretrained language models."
+    },
+    {
+      "source": "Selection-inference: Exploiting large language models for interpretable logical reasoning",
+      "target": "Lamda: Language models for dialog applications",
+      "visits": 66,
+      "relation_type": "纵向继承",
+      "relation": "Advancements in multimodal integration and adaptive contextualized models enhance AI/NLP by enabling richer interactions, dynamic adjustments, and improved efficiency.",
+      "relation_description": "The subsequent paper on LaMDA builds upon the foundational idea of leveraging large language models for improved performance and interpretability, as explored in the Selection-Inference (SI) framework. While the SI framework focuses on enhancing multi-step logical reasoning through a structured selection and inference process, LaMDA extends this by specializing in dialog applications and addressing key challenges such as safety and factual grounding. LaMDA introduces fine-tuning with annotated data and the integration of external knowledge sources to improve safety and factuality, areas that are also crucial for the trustworthiness and reliability of AI systems, as highlighted in the SI framework."
+    },
+    {
+      "source": "Multi-hop reading comprehension through question decomposition and rescoring",
+      "target": "QA-GNN: reasoning with language models and knowledge graphs for question answering",
+      "visits": 88,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will focus on Adaptive and Contextualized Multimodal Reasoning Systems, integrating advanced multimodal inputs with dynamic contextual embeddings, hierarchical attention mechanisms, causal inference, explainable models, energy-efficient architectures, and ethical fairness.",
+      "relation_score": 0.75,
+      "relation": "The next breakthrough in AI/NLP will focus on Adaptive and Contextualized Multimodal Reasoning Systems, integrating advanced multimodal inputs with dynamic contextual embeddings, hierarchical attention mechanisms, causal inference, explainable models, energy-efficient architectures, and ethical fairness.",
+      "relation_description": "The 2021 paper \"QA-GNN\" builds upon the multi-hop reasoning framework introduced in the 2019 paper by integrating knowledge graphs (KGs) and pre-trained language models (LMs) to enhance question answering. Specifically, it improves the identification of relevant knowledge from large KGs and performs joint reasoning over the QA context and KG, addressing the limitations of relying solely on text-based reasoning. This integration allows for more structured and interpretable reasoning, such as handling negation in questions, and further advances the state-of-the-art in question answering systems."
+    },
+    {
+      "source": "Lamda: Language models for dialog applications",
+      "target": "Training language models to follow instructions with human feedback",
+      "visits": 73,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthroughs in AI/NLP will enhance multimodal integration, adaptive contextualization, interpretability, energy efficiency, advanced safety mechanisms, and scalable training, addressing current challenges and pushing the technology forward.",
+      "relation_score": 0.85,
+      "relation": "The next breakthroughs in AI/NLP will enhance multimodal integration, adaptive contextualization, interpretability, energy efficiency, advanced safety mechanisms, and scalable training, addressing current challenges and pushing the technology forward.",
+      "relation_description": "The subsequent paper builds on the advancements of LaMDA by focusing on aligning language models with user intent through fine-tuning with human feedback. While LaMDA addresses safety and factual grounding through annotated data and external knowledge sources, InstructGPT enhances these aspects by incorporating human preferences and feedback, leading to more truthful and less toxic outputs. InstructGPT also demonstrates that smaller models can outperform larger ones in terms of user alignment, suggesting a more efficient and effective approach to model fine-tuning."
+    },
+    {
+      "source": "Attention is All you Need",
+      "target": "Multi-hop reading comprehension through question decomposition and rescoring",
+      "visits": 36,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Enhanced contextual understanding, reasoning, scalability, efficiency, interpretability, multimodal integration, adaptive learning, and ethical considerations in NLP models.",
+      "relation_score": 0.75,
+      "relation": "Enhanced contextual understanding, reasoning, scalability, efficiency, interpretability, multimodal integration, adaptive learning, and ethical considerations in NLP models.",
+      "relation_description": "The 2019 paper \"Multi-hop reading comprehension through question decomposition and rescoring\" builds upon the attention mechanism introduced in the 2017 paper \"Attention is All you Need\" by leveraging attention-based models for multi-hop reasoning tasks. It improves on the Transformer's capability to handle complex, multi-step reasoning by decomposing questions into simpler sub-questions and using a global rescoring mechanism to enhance the accuracy and interpretability of the answers. This approach addresses the challenge of reasoning across multiple paragraphs and provides explainable evidence for decision-making, extending the Transformer's application to more sophisticated natural language understanding tasks."
+    },
+    {
+      "source": "Long Short-Term Memory",
+      "target": "Efficient Estimation of Word Representations in Vector Space",
+      "visits": 194,
+      "relation_type": "横向衍生",
+      "tvc_relation": "The next breakthrough in AI/NLP will integrate enhanced semantic representation and efficient neural architectures, enabling more sophisticated language understanding through dense vector embeddings, contextual modeling, and scalable computational approaches with adaptive memory mechanisms.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will integrate enhanced semantic representation and efficient neural architectures, enabling more sophisticated language understanding through dense vector embeddings, contextual modeling, and scalable computational approaches with adaptive memory mechanisms.",
+      "relation_description": "Enhanced semantic representation and efficient neural architectures will enable more sophisticated language understanding through dense vector embeddings, contextual modeling, and scalable computational approaches."
+    },
+    {
+      "source": "Efficient Estimation of Word Representations in Vector Space",
+      "target": "Deep contextualized word representations",
+      "visits": 156,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will focus on Dynamic Contextualized Representations, enhancing adaptive word embeddings, bidirectional processing, and context-aware semantic understanding, moving beyond static representations to enable more nuanced language comprehension.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will focus on Dynamic Contextualized Representations, enhancing adaptive word embeddings, bidirectional processing, and context-aware semantic understanding, moving beyond static representations to enable more nuanced language comprehension.",
+      "relation_description": "Dynamic contextualized representations will enhance AI/NLP through adaptive word embeddings, bidirectional processing, and context-aware semantic understanding, moving beyond static representations."
+    },
+    {
+      "source": "Attention is All you Need",
+      "target": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+      "visits": 289,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will revolutionize through Bidirectional Pre-training and Masked Language Modeling, enabling deep contextual understanding, transfer learning, and unified architecture for diverse language tasks with enhanced semantic comprehension.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will revolutionize through Bidirectional Pre-training and Masked Language Modeling, enabling deep contextual understanding, transfer learning, and unified architecture for diverse language tasks with enhanced semantic comprehension.",
+      "relation_description": "Bidirectional pre-training and masked language modeling will revolutionize AI/NLP through deep contextual understanding, transfer learning, and unified architecture for diverse language tasks."
+    },
+    {
+      "source": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+      "target": "Distilbert, a distilled version of bert: smaller, faster, cheaper and lighter",
+      "visits": 178,
+      "relation_type": "横向衍生",
+      "tvc_relation": "The next breakthrough in AI/NLP will enable Efficient Model Compression and Knowledge Distillation, allowing practical deployment of AI/NLP systems through reduced computational requirements while maintaining performance and scalability.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will enable Efficient Model Compression and Knowledge Distillation, allowing practical deployment of AI/NLP systems through reduced computational requirements while maintaining performance and scalability.",
+      "relation_description": "Efficient model compression and knowledge distillation will enable practical deployment of AI/NLP systems through reduced computational requirements while maintaining performance."
+    },
+    {
+      "source": "Improving language understanding by generative pre-training",
+      "target": "Language Models are Few-Shot Learners",
+      "visits": 312,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will transform through Massive Scale and Few-Shot Learning, enabling unprecedented model capabilities, emergent behaviors, and task-agnostic performance without fine-tuning, revolutionizing adaptability and generalization.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will transform through Massive Scale and Few-Shot Learning, enabling unprecedented model capabilities, emergent behaviors, and task-agnostic performance without fine-tuning, revolutionizing adaptability and generalization.",
+      "relation_description": "Massive scale and few-shot learning will transform AI/NLP through unprecedented model capabilities, emergent behaviors, and task-agnostic performance without fine-tuning."
+    },
+    {
+      "source": "Language Models are Few-Shot Learners",
+      "target": "Training language models to follow instructions with human feedback",
+      "visits": 245,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will focus on Human-AI Alignment through Reinforcement Learning from Human Feedback (RLHF), enabling models to better align with human values, generating more helpful and safer responses while maintaining capability.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will focus on Human-AI Alignment through Reinforcement Learning from Human Feedback (RLHF), enabling models to better align with human values, generating more helpful and safer responses while maintaining capability.",
+      "relation_description": "This work (InstructGPT) proved that simply scaling up models does not make them better at following user intent. Fine-tuning with Reinforcement Learning from Human Feedback (RLHF) allows models to align better with human values, generating more helpful and safer responses."
+    },
+    {
+      "source": "Language Models are Few-Shot Learners",
+      "target": "Emergent abilities of large language models",
+      "visits": 203,
+      "relation_type": "横向衍生",
+      "tvc_relation": "The next breakthrough in AI/NLP will systematically explore Emergent Abilities, where complex capabilities like multi-step reasoning suddenly appear once model scale reaches certain thresholds, enabling unpredictable and powerful new functionalities.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will systematically explore Emergent Abilities, where complex capabilities like multi-step reasoning suddenly appear once model scale reaches certain thresholds, enabling unpredictable and powerful new functionalities.",
+      "relation_description": "This paper systematically proposed and discussed the phenomenon of 'emergent abilities,' where complex capabilities (like multi-step reasoning) suddenly appear once model scale reaches a certain threshold, a phenomenon that cannot be predicted by extrapolating from smaller models."
+    },
+    {
+      "source": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+      "target": "Scalable multi-hop relational reasoning for knowledge-aware question answering",
+      "visits": 167,
+      "relation_type": "横向衍生",
+      "tvc_relation": "The next breakthrough in AI/NLP will integrate Knowledge-Aware Reasoning Systems, equipping pre-trained models with multi-hop graph relation networks for scalable and interpretable multi-step relational reasoning over knowledge graphs.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will integrate Knowledge-Aware Reasoning Systems, equipping pre-trained models with multi-hop graph relation networks for scalable and interpretable multi-step relational reasoning over knowledge graphs.",
+      "relation_description": "To enable language models to use external knowledge, this work equipped pre-trained models with a multi-hop graph relation network, allowing for scalable and interpretable multi-step relational reasoning over knowledge graphs."
+    },
+    {
+      "source": "Long Short-Term Memory",
+      "target": "Attention is All you Need",
+      "visits": 276,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will revolutionize through Pure Attention Mechanisms, completely discarding sequential recurrent structures and using only self-attention to dramatically improve parallelization and efficiency in handling long-range dependencies.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will revolutionize through Pure Attention Mechanisms, completely discarding sequential recurrent structures and using only self-attention to dramatically improve parallelization and efficiency in handling long-range dependencies.",
+      "relation_description": "The Transformer architecture completely discards the sequential recurrent structure of models like LSTMs, using only self-attention mechanisms to process all words in a sequence. This dramatically improves parallelization and efficiency in handling long-range dependencies."
+    },
+    {
+      "source": "Attention is All you Need",
+      "target": "Improving language understanding by generative pre-training",
+      "visits": 234,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will demonstrate Large-Scale Unsupervised Generative Pre-training, pioneering the use of Transformer decoder architecture for massive pre-training followed by fine-tuning, establishing the foundation for the GPT series.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will demonstrate Large-Scale Unsupervised Generative Pre-training, pioneering the use of Transformer decoder architecture for massive pre-training followed by fine-tuning, establishing the foundation for the GPT series.",
+      "relation_description": "The GPT model was the first to demonstrate the immense potential of large-scale unsupervised generative pre-training on a Transformer decoder architecture, followed by fine-tuning on downstream tasks, pioneering the GPT series of models."
+    },
+    {
+      "source": "Attention is All you Need",
+      "target": "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",
+      "visits": 189,
+      "relation_type": "横向衍生",
+      "tvc_relation": "The next breakthrough in AI/NLP will address Fixed-Length Context Limitations through segment-level recurrence mechanisms and novel relative positional encoding schemes, enabling models to learn longer-term dependencies and improved contextual understanding.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will address Fixed-Length Context Limitations through segment-level recurrence mechanisms and novel relative positional encoding schemes, enabling models to learn longer-term dependencies and improved contextual understanding.",
+      "relation_description": "By introducing a segment-level recurrence mechanism and a novel relative positional encoding scheme, Transformer-XL addresses the fixed-length context problem of the original Transformer, enabling it to learn longer-term dependencies."
+    },
+    {
+      "source": "Training language models to follow instructions with human feedback",
+      "target": "Chain of thought prompting elicits reasoning in large language models",
+      "visits": 218,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will elicit Complex Reasoning through Chain of Thought Prompting, enabling large language models to solve complex reasoning problems by including intermediate reasoning steps in prompts without modifying the model itself.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will elicit Complex Reasoning through Chain of Thought Prompting, enabling large language models to solve complex reasoning problems by including intermediate reasoning steps in prompts without modifying the model itself.",
+      "relation_description": "CoT proved that by including examples with intermediate reasoning steps in prompts, the ability of large language models to solve complex reasoning problems can be significantly elicited without modifying the model itself."
+    },
+    {
+      "source": "Chain of thought prompting elicits reasoning in large language models",
+      "target": "Least-to-most prompting enables complex reasoning in large language models",
+      "visits": 171,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will enable Hierarchical Problem Decomposition through Least-to-Most Prompting, breaking down complex problems into simpler subproblems and solving them sequentially for better generalization to harder problems.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will enable Hierarchical Problem Decomposition through Least-to-Most Prompting, breaking down complex problems into simpler subproblems and solving them sequentially for better generalization to harder problems.",
+      "relation_description": "Least-to-most prompting breaks down a complex problem into a series of simpler subproblems and solves them sequentially, enabling the model to generalize better to problems harder than the prompt examples."
+    },
+    {
+      "source": "Chain of thought prompting elicits reasoning in large language models",
+      "target": "Why think step-by-step? reasoning emerges from the locality of experience",
+      "visits": 142,
+      "relation_type": "横向衍生",
+      "tvc_relation": "The next breakthrough in AI/NLP will theoretically explore Local Dependency-Based Reasoning, understanding why step-by-step thinking is effective through strong local dependencies in training data, enabling models to chain accurate local inferences for global problem-solving.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will theoretically explore Local Dependency-Based Reasoning, understanding why step-by-step thinking is effective through strong local dependencies in training data, enabling models to chain accurate local inferences for global problem-solving.",
+      "relation_description": "This work theoretically explores why 'step-by-step' thinking is effective, arguing that this ability stems from strong local dependencies between variables in the training data, allowing the model to chain accurate local inferences to solve global problems."
+    },
+    {
+      "source": "Training language models to follow instructions with human feedback",
+      "target": "Sparks of artificial general intelligence: Early experiments with gpt-4",
+      "visits": 295,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will demonstrate Early Artificial General Intelligence capabilities, where new generation LLMs exhibit more general intelligence than previous models and could be viewed as early, yet incomplete, versions of AGI.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will demonstrate Early Artificial General Intelligence capabilities, where new generation LLMs exhibit more general intelligence than previous models and could be viewed as early, yet incomplete, versions of AGI.",
+      "relation_description": "Through extensive experiments on an early version of GPT-4, this paper argues that the new generation of LLMs exhibits more general intelligence than previous models and could be viewed as an early, yet incomplete, version of AGI."
+    },
+    {
+      "source": "Scalable multi-hop relational reasoning for knowledge-aware question answering",
+      "target": "QA-GNN: reasoning with language models and knowledge graphs for question answering",
+      "visits": 183,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will integrate Joint Language-Graph Reasoning, using language models to assess knowledge graph relevance and constructing joint graphs with message passing mechanisms for deeper mutual representation updates and reasoning.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will integrate Joint Language-Graph Reasoning, using language models to assess knowledge graph relevance and constructing joint graphs with message passing mechanisms for deeper mutual representation updates and reasoning.",
+      "relation_description": "QA-GNN uses LMs to assess the relevance of knowledge graph nodes to the question and constructs a joint graph of the question and KG. It uses a graph message passing mechanism to mutually update their representations for deeper joint reasoning."
+    },
+    {
+      "source": "QA-GNN: reasoning with language models and knowledge graphs for question answering",
+      "target": "Greaselm: Graph reasoning enhanced language models",
+      "visits": 154,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will achieve Deep Multi-Modal Fusion, deeply integrating encoded representations from pre-trained language models and graph neural networks through multi-layer modality interaction for grounded and linguistically nuanced reasoning.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will achieve Deep Multi-Modal Fusion, deeply integrating encoded representations from pre-trained language models and graph neural networks through multi-layer modality interaction for grounded and linguistically nuanced reasoning.",
+      "relation_description": "GreaseLM deeply fuses encoded representations from pre-trained LMs and GNNs through multi-layer modality interaction, allowing language context to be 'grounded' by structured knowledge, and graph representations to be influenced by linguistic nuances."
+    },
+    {
+      "source": "Chain of thought prompting elicits reasoning in large language models",
+      "target": "Selection-inference: Exploiting large language models for interpretable logical reasoning",
+      "visits": 187,
+      "relation_type": "纵向继承",
+      "tvc_relation": "The next breakthrough in AI/NLP will focus on Enhanced Interpretable Reasoning Systems, integrating advanced step-by-step reasoning mechanisms, dynamic context-aware inference, adaptive meta-learning, and robust multi-modal integration. These innovations will enhance logical reasoning capabilities, improve interpretability, and enable more accurate causal inference in complex problem-solving scenarios.",
+      "relation_score": 0.85,
+      "relation": "The next breakthrough in AI/NLP will focus on Enhanced Interpretable Reasoning Systems, integrating advanced step-by-step reasoning mechanisms, dynamic context-aware inference, adaptive meta-learning, and robust multi-modal integration. These innovations will enhance logical reasoning capabilities, improve interpretability, and enable more accurate causal inference in complex problem-solving scenarios.",
+      "relation_description": "The SI framework utilizes pre-trained LMs as general processing modules, alternating between 'selection' and 'inference' to generate a series of interpretable, causal, natural-language reasoning steps to solve complex logical problems."
+    }
+  ]
+}
