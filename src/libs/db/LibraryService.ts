@@ -7,7 +7,7 @@
  * - 作为与数据库交互的唯一真实来源 (Single Source of Truth)。
  *
  * ❌ 不负责:
- * - 任何多步骤的业务逻辑或工作流 (请参见 `../library/LibraryWorkflowService.ts`)。
+ * - 任何多步骤的业务逻辑或工作流 (这些逻辑已迁移到后端服务)。
  * - 调用外部服务，如 Mineru 或 PDF 抓取器。
  * - 理解数据状态背后的业务含义 (例如，它只知道更新 `parsingStatus` 字段，但不知道 "parsing" 是什么意思)。
  *
@@ -851,6 +851,37 @@ export class LibraryService {
     } catch (error) {
       console.error('Error creating manual citation link:', error);
       throw new Error('Failed to create manual citation link');
+    }
+  }
+
+  /**
+   * 🔄 同步后端数据到本地缓存
+   * 用于在获取后端数据后，更新本地数据库缓存
+   * @param backendItems - 从后端获取的文献数据数组
+   */
+  async syncItemsFromBackend(backendItems: LibraryItem[]): Promise<void> {
+    try {
+      console.log(`📦 [LibraryService] Syncing ${backendItems.length} items from backend to local cache...`);
+
+      // 清空本地库，然后添加后端数据（完全同步策略）
+      // 注意：这是一个简化的同步策略，生产环境可能需要更复杂的增量同步
+      await this.db.library.clear();
+
+      // 批量添加后端数据
+      for (const item of backendItems) {
+        try {
+          // 验证数据格式
+          const validatedItem = LibraryItemSchema.parse(item);
+          await this.db.library.add(validatedItem as LibraryItem);
+        } catch (validationError) {
+          console.warn(`⚠️ Skipping invalid item during sync: ${item.title}`, validationError);
+        }
+      }
+
+      console.log(`✅ [LibraryService] Successfully synced ${backendItems.length} items to local cache`);
+    } catch (error) {
+      console.error('❌ [LibraryService] Error syncing items from backend:', error);
+      throw new Error('Failed to sync items from backend to local cache');
     }
   }
 }

@@ -6,7 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TreeVisualization } from "@/components/Library/TreeVisualization";
 import { mockDataGenerator } from "@/libs/tree/MockDataGenerator";
+import { SimpleDemoController } from "@/components/Library/SimpleDemoController";
+import { simpleDemoDataProcessor, BuildStep } from "@/components/Library/SimpleDemoDataProcessor";
+import { treeService } from "@/libs/tree/TreeService";
 import { useLibraryStore } from "@/store/libraryStore";
+import { useTree } from "@/hooks/useTree";
 import { toast } from "sonner";
 import { 
   TreePine, 
@@ -21,7 +25,12 @@ import {
 export default function TreeDemoPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [demoTreeId, setDemoTreeId] = useState<string | null>(null);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [currentStep, setCurrentStep] = useState<BuildStep | null>(null);
+
   const { trees, items, initialize } = useLibraryStore();
+  const { createTree, addNode } = useTree(demoTreeId);
 
   // 生成模拟数据
   const handleGenerateMockData = async () => {
@@ -42,6 +51,42 @@ export default function TreeDemoPage() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // 开始演示模式
+  const handleStartDemo = () => {
+    setIsDemoMode(true);
+    toast.info('启动智能演示模式...');
+  };
+
+  // 处理树创建完成
+  const handleTreeCreated = (treeId: string) => {
+    console.log(`🌳 Tree created: ${treeId}`);
+    setDemoTreeId(treeId);
+    toast.success(`智能演示树创建成功！`);
+
+    // 刷新全局状态以确保树被加载
+    initialize();
+  };
+
+  // 处理演示步骤
+  const handleDemoStep = (step: BuildStep, stepIndex: number, totalSteps: number) => {
+    console.log(`🏗️ Step ${stepIndex + 1}/${totalSteps}: Adding ${step.childJsonId} to parent ${step.parentJsonId}`);
+    setCurrentStep(step);
+  };
+
+  // 演示完成
+  const handleDemoComplete = () => {
+    toast.success('🎉 智能演示完成！');
+    console.log('🎉 Tree construction demo completed!');
+  };
+
+  // 重置演示
+  const handleDemoReset = () => {
+    setDemoTreeId(null);
+    setIsDemoMode(false);
+    setCurrentStep(null);
+    toast.info('演示已重置');
   };
 
   // 清理模拟数据
@@ -110,7 +155,7 @@ export default function TreeDemoPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* 数据统计 */}
             <div className="space-y-3">
               <h3 className="font-medium text-gray-900">当前数据统计</h3>
@@ -168,9 +213,41 @@ export default function TreeDemoPage() {
                 </p>
               </div>
             </div>
+
+            {/* 演示控制 */}
+            <div className="space-y-3">
+              <h3 className="font-medium text-gray-900">智能演示</h3>
+              <div className="space-y-2">
+                <Button
+                  onClick={handleStartDemo}
+                  disabled={isDemoMode}
+                  className="w-full flex items-center gap-2"
+                  variant="outline"
+                >
+                  <Play className="h-4 w-4" />
+                  {isDemoMode ? '演示进行中' : '启动智能演示'}
+                </Button>
+                <p className="text-xs text-gray-500">
+                  基于真实论文数据的智能树构建演示
+                </p>
+                <p className="text-xs text-blue-600">
+                  🚀 全新简化架构，更稳定更直观
+                </p>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* 智能演示控制器 */}
+      {isDemoMode && (
+        <SimpleDemoController
+          onTreeCreated={handleTreeCreated}
+          onStepExecuted={handleDemoStep}
+          onDemoComplete={handleDemoComplete}
+          onDemoReset={handleDemoReset}
+        />
+      )}
 
       {/* 可视化演示区域 */}
       <Card>
@@ -178,15 +255,20 @@ export default function TreeDemoPage() {
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
             树形可视化演示
+            {isDemoMode && (
+              <Badge variant="secondary" className="ml-2">
+                演示模式 {demoTreeId ? `(${demoTreeId.slice(0, 8)}...)` : '(准备中)'}
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {trees.length === 0 ? (
+          {(trees.length === 0 && !isDemoMode) ? (
             <div className="text-center py-12">
               <TreePine className="h-16 w-16 mx-auto text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">暂无文献树数据</h3>
               <p className="text-gray-600 mb-4">
-                点击上方"生成经典AI论文树"按钮来创建演示数据
+                点击上方"生成经典AI论文树"按钮或"启动智能演示"来创建演示数据
               </p>
               <Button
                 onClick={handleGenerateMockData}
@@ -199,11 +281,12 @@ export default function TreeDemoPage() {
             </div>
           ) : (
             <TreeVisualization
+              treeId={isDemoMode && demoTreeId ? demoTreeId : (trees.length > 0 ? trees[0].id : undefined)}
               mode="edit"
               height="800px"
               showControls={true}
               showMiniMap={true}
-              showTreeSelector={true}
+              showTreeSelector={!isDemoMode} // 演示模式下隐藏树选择器
               showNodeStats={true}
               enablePhysics={true}
               onNodeSelect={(node) => {

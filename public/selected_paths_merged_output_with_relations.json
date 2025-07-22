@@ -42,6 +42,23 @@
       "title": "Chain of thought prompting elicits reasoning in large language models"
     },
     {
+      "id": "Catastrophic Interference in Connectionist Networks: The Sequential Learning Problem",
+      "visits": 200,
+      "value": 324.034751248468,
+      "average_value": 1.6201737562423402,
+      "children_ids": [
+        "Long Short-Term Memory"
+      ],
+      "type": "paper",
+      "author": "Michael McCloskey and Neal J. Cohen",
+      "year": "1989",
+      "citations": 1595,
+      "abstract": "",
+      "size": 10,
+      "year_int": 1989,
+      "title": "Catastrophic Interference in Connectionist Networks: The Sequential Learning Problem"
+    },
+    {
       "id": "Scalable multi-hop relational reasoning for knowledge-aware question answering",
       "visits": 216,
       "value": 370.98724538860586,
@@ -703,6 +720,16 @@
       "relation_score": 0.75,
       "relation": "Adaptive Multimodal Lifelong Learning Systems will enhance contextual awareness, integrate advanced memory mechanisms, optimize neural architectures, improve explainability, and increase data efficiency, addressing key challenges in AI/NLP.",
       "relation_description": "The 2023 paper \"Why think step-by-step? reasoning emerges from the locality of experience\" builds upon the concept of chain-of-thought prompting introduced in the 2022 paper \"Least-to-most prompting enables complex reasoning in large language models\" by exploring why and how step-by-step reasoning is effective in language models. While the 2022 paper proposes a novel prompting strategy (least-to-most prompting) that breaks down complex problems into simpler subproblems to improve generalization, the 2023 paper delves into the underlying mechanisms of reasoning, demonstrating that the effectiveness of step-by-step reasoning is rooted in the local statistical structure of the training data. This provides a theoretical foundation for why strategies like least-to-most prompting can enhance the performance of language models on complex reasoning tasks."
+    },
+    {
+      "source": "Catastrophic Interference in Connectionist Networks: The Sequential Learning Problem",
+      "target": "Long Short-Term Memory",
+      "visits": 130,
+      "relation_type": "纵向继承",
+      "tvc_relation": "Advancements in meta-learning, dynamic neural architectures, and enhanced memory mechanisms will enable robust lifelong learning systems, mitigating catastrophic forgetting and improving continuous learning capabilities.",
+      "relation_score": 0.85,
+      "relation": "Advancements in meta-learning, dynamic neural architectures, and enhanced memory mechanisms will enable robust lifelong learning systems, mitigating catastrophic forgetting and improving continuous learning capabilities.",
+      "relation_description": "The 1997 paper \"Long Short-Term Memory\" addresses the issue of catastrophic forgetting, identified in the 1989 paper \"Catastrophic Interference in Connectionist Networks: The Sequential Learning Problem,\" by introducing a novel architecture, LSTM, which mitigates the problem of decaying error backflow and enables the network to learn over extended time intervals. LSTM's design with constant error carousels and multiplicative gate units specifically targets the challenges of sequential learning and long-term memory, thus providing a robust solution to the sequential learning problem."
     },
     {
       "source": "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",

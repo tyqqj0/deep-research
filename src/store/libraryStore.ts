@@ -3,7 +3,8 @@ import { liveQuery } from 'dexie';
 import { LibraryItem, LiteratureTree, db } from '../libs/db';
 import { LITERATURE_SOURCES, DEFAULT_LIBRARY_ITEM_SOURCE, LiteratureSource } from '../libs/db/constants';
 import { libraryService } from '../libs/db/LibraryService';
-import { libraryWorkflowService } from '../libs/library/LibraryWorkflowService';
+import { apiClient } from '../libs/api'; // 🚀 新增：使用API Client替代WorkflowService
+import { sseClient, LiteratureStatusUpdate } from '../libs/sse-client'; // 🚀 新增：SSE实时状态更新
 import { TreeController } from '../libs/tree/TreeController';
 import { zoteroService, ZoteroConfig, ZoteroSyncResult } from '../libs/zotero';
 import { generateLibraryItemId } from '../libs/utils/uuid';
@@ -41,6 +42,7 @@ interface LibraryActions {
   // Core actions
   initialize: () => Promise<void>;
   startRealTimeUpdates: () => () => void; // 返回cleanup函数
+  startSSEConnection: () => void; // 🚀 新增：启动SSE连接
   selectTree: (treeId: string) => Promise<void>;
   runMCTS: () => Promise<void>;
   addLibraryItem: (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<{ success: boolean; itemId?: string; duplicate?: LibraryItem[]; error?: string }>;
@@ -128,10 +130,37 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         console.warn('Failed to load autoExtractMetadata setting from localStorage:', error);
       }
 
-      const [items, trees] = await Promise.all([
-        libraryService.getAllLibraryItems(),
-        libraryService.getAllTrees()
-      ]);
+      // 🚀 混合策略：优先从后端获取最新数据，本地数据库作为缓存
+      let items: LibraryItem[] = [];
+      let trees: LiteratureTree[] = [];
+
+      try {
+        // 从后端API获取最新数据
+        console.log('🔄 Fetching latest data from backend API...');
+        const [backendItems, localTrees] = await Promise.all([
+          apiClient.getLibraryItems(), // 从后端获取文献数据
+          libraryService.getAllTrees()  // 本地获取树数据（暂时保持本地）
+        ]);
+
+        items = backendItems;
+        trees = localTrees;
+
+        // 🔄 同步到本地缓存
+        console.log(`📦 Syncing ${items.length} items to local cache...`);
+        await libraryService.syncItemsFromBackend(backendItems);
+
+      } catch (backendError) {
+        console.warn('⚠️ Backend API unavailable, falling back to local cache:', backendError);
+
+        // 后端不可用时，从本地缓存加载
+        const [localItems, localTrees] = await Promise.all([
+          libraryService.getAllLibraryItems(),
+          libraryService.getAllTrees()
+        ]);
+
+        items = localItems;
+        trees = localTrees;
+      }
 
       set({
         items,
@@ -142,6 +171,9 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
       // 自动启动实时更新
       get().startRealTimeUpdates();
+
+      // 🚀 启动SSE连接，接收后端状态更新
+      get().startSSEConnection();
 
     } catch (error) {
       console.error('LibraryStore: Initialization failed:', error);
@@ -182,6 +214,53 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       subscription.unsubscribe();
       console.log('📡 Real-time updates subscription stopped.');
     };
+  },
+
+  // 🚀 启动SSE连接，接收实时状态更新
+  startSSEConnection: () => {
+    console.log('🔌 Starting SSE connection for real-time status updates...');
+
+    // 监听文献状态更新
+    sseClient.subscribe('literature-status', (data: LiteratureStatusUpdate) => {
+      console.log('📨 Received literature status update:', data);
+
+      // 更新本地文献项的状态
+      const { items } = get();
+      const updatedItems = items.map(item => {
+        if (item.id === data.itemId && data.updatedItem) {
+          return { ...item, ...data.updatedItem, updatedAt: new Date() };
+        }
+        return item;
+      });
+
+      set({ items: updatedItems });
+
+      // 同步到本地缓存
+      if (data.updatedItem) {
+        libraryService.updateLibraryItem(data.itemId, data.updatedItem).catch(error => {
+          console.error('Failed to sync status update to local cache:', error);
+        });
+      }
+    });
+
+    // 监听解析进度更新  
+    sseClient.subscribe('parsing-progress', (data: any) => {
+      console.log('📊 Received parsing progress:', data);
+
+      // 可以在这里处理进度更新，比如显示进度条
+      // 暂时只打印日志，具体UI更新逻辑可以根据需要实现
+    });
+
+    // 监听错误信息
+    sseClient.subscribe('error', (data: any) => {
+      console.error('❌ Received SSE error:', data);
+      set({ error: data.message || 'Unknown error from server' });
+    });
+
+    // 启动连接
+    sseClient.connect();
+
+    console.log('✅ SSE connection started successfully');
   },
 
   // Select tree action
@@ -240,7 +319,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     }
   },
 
-  // Add multiple library items in batch using createFromMetadata
+  // Add multiple library items in batch - 🚀 重构为使用后端API
   addLibraryItems: async (itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]) => {
     try {
       set({ isLoading: true, error: null });
@@ -248,25 +327,30 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       const results = [];
       const totalFiles = itemsData.length;
 
+      console.log(`📤 Batch creating ${totalFiles} literature items via backend API...`);
+
       for (let i = 0; i < totalFiles; i++) {
         const itemData = itemsData[i];
 
         try {
-          // Use createFromMetadata to enable background processing for each item
-          const itemId = await libraryWorkflowService.createFromMetadata({
+          // 🚀 调用后端API创建每个文献条目
+          const createdItem = await apiClient.createLibraryItem({
             ...itemData,
             source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE
           });
 
+          // 同步到本地缓存
+          await libraryService.addLibraryItem(createdItem);
+
           results.push({
             success: true,
-            itemId,
-            title: itemData.title
+            itemId: createdItem.id,
+            title: createdItem.title
           });
 
-          console.log(`[LibraryStore] Created item ${i + 1}/${totalFiles}: ${itemData.title}`);
+          console.log(`✅ [${i + 1}/${totalFiles}] Created: ${createdItem.title}`);
         } catch (error) {
-          console.error(`[LibraryStore] Failed to create item: ${itemData.title}`, error);
+          console.error(`❌ [${i + 1}/${totalFiles}] Failed to create: ${itemData.title}`, error);
           results.push({
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error',
@@ -275,7 +359,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         }
       }
 
-      // Refresh the items list once after all additions
+      // 🔄 刷新状态列表 (从本地缓存，因为已同步)
       const updatedItems = await libraryService.getAllLibraryItems();
 
       console.log('[LibraryStore] addLibraryItems completed, refreshed with', updatedItems.length, 'total items');
@@ -312,29 +396,38 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     }
   },
 
-  // Add library item action
+  // Add library item action - 🚀 重构为使用后端API
   addLibraryItem: async (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       set({ isLoading: true, error: null });
 
-      // Use createFromMetadata to enable background processing
-      const itemId = await libraryWorkflowService.createFromMetadata({
+      // 🚀 直接调用后端API创建文献，业务逻辑已移到后端
+      console.log('📤 Creating literature item via backend API...');
+      const createdItem = await apiClient.createLibraryItem({
         ...itemData,
         source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE
       });
 
-      // Refresh the items list
-      const updatedItems = await libraryService.getAllLibraryItems();
+      // 🔄 更新本地缓存和状态
+      const { items } = get();
+      const updatedItems = [...items, createdItem];
+
+      // 同步到本地缓存
+      await libraryService.addLibraryItem(createdItem);
 
       set({
         items: updatedItems,
         isLoading: false
       });
 
-      return { success: true, itemId };
+      console.log('✅ Literature item created successfully:', createdItem.title);
+      return { success: true, itemId: createdItem.id };
+
     } catch (error) {
-      // Handle duplicate case (thrown by createFromMetadata)
-      if (error instanceof Error && error.message.includes('Duplicate item found')) {
+      console.error('❌ Failed to create literature item:', error);
+
+      // Handle duplicate case (后端返回的错误信息)
+      if (error instanceof Error && error.message.includes('duplicate')) {
         set({
           isLoading: false,
           error: error.message
@@ -350,7 +443,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     }
   },
 
-  // Update library item action
+  // Update library item action - 🚀 重构为使用后端API
   updateLibraryItem: async (id: string, itemData: Partial<LibraryItem>) => {
     try {
       set({ isLoading: true, error: null });
@@ -362,12 +455,11 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         throw new Error(`Library item with id ${id} not found`);
       }
 
-      const updatedItem: LibraryItem = {
-        ...existingItem,
-        ...itemData,
-        updatedAt: new Date()
-      };
+      // 🚀 调用后端API更新文献
+      console.log('📤 Updating literature item via backend API...', id);
+      const updatedItem = await apiClient.updateLibraryItem(id, itemData);
 
+      // 🔄 更新本地缓存和状态
       await libraryService.updateLibraryItem(id, itemData);
 
       // Update items list
@@ -379,7 +471,10 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         items: updatedItems,
         isLoading: false
       });
+
+      console.log('✅ Literature item updated successfully:', updatedItem.title);
     } catch (error) {
+      console.error('❌ Failed to update literature item:', error);
       set({
         isLoading: false,
         error: error instanceof Error ? error.message : 'Failed to update library item'
@@ -387,11 +482,16 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     }
   },
 
-  // Delete library item action
+  // Delete library item action - 🚀 重构为使用后端API
   deleteLibraryItem: async (id: string) => {
     try {
       set({ isLoading: true, error: null });
 
+      // 🚀 调用后端API删除文献
+      console.log('🗑️ Deleting literature item via backend API...', id);
+      await apiClient.deleteLibraryItem(id);
+
+      // 🔄 更新本地缓存和状态
       await libraryService.deleteLibraryItem(id);
 
       // Update local state
@@ -558,7 +658,11 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     try {
       set({ isUploadingPdf: true, error: null });
 
-      await libraryWorkflowService.uploadPdfForExistingItem(itemId, file);
+      // 🚀 使用API客户端上传PDF
+      console.log('📤 Uploading PDF for item via API client...', itemId);
+      const formData = new FormData();
+      formData.append('file', file);
+      await apiClient.uploadPdf(itemId, formData);
 
       // Refresh the items list
       const updatedItems = await libraryService.getAllLibraryItems();
@@ -566,7 +670,10 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         items: updatedItems,
         isUploadingPdf: false
       });
+
+      console.log('✅ PDF uploaded successfully');
     } catch (error) {
+      console.error('❌ Failed to upload PDF:', error);
       set({
         isUploadingPdf: false,
         error: error instanceof Error ? error.message : 'Failed to upload PDF'
@@ -593,7 +700,19 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
           }
         });
 
-        await libraryWorkflowService.createFromPdfUpload(file);
+        // 🚀 使用API客户端创建文献并上传PDF
+        const fileName = file.name.replace('.pdf', '');
+        const newItem = await apiClient.createLibraryItem({
+          title: fileName,
+          authors: ['Unknown'],
+          year: new Date().getFullYear(),
+          source: 'manual'
+        });
+
+        // 上传PDF
+        const formData = new FormData();
+        formData.append('file', file);
+        await apiClient.uploadPdf(newItem.id, formData);
       }
 
       // Refresh the items list

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { libraryWorkflowService } from "@/libs/library/LibraryWorkflowService";
+import { apiClient } from "@/libs/api"; // 🚀 使用新的API Client
 import { useLibraryStore } from "@/store/libraryStore";
 import { toast } from "sonner";
 
@@ -17,11 +17,11 @@ interface PdfUploadDialogProps {
   onUploadSuccess?: () => void;
 }
 
-export function PdfUploadDialog({ 
-  open, 
-  onClose, 
-  itemId, 
-  onUploadSuccess 
+export function PdfUploadDialog({
+  open,
+  onClose,
+  itemId,
+  onUploadSuccess
 }: PdfUploadDialogProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -33,17 +33,17 @@ export function PdfUploadDialog({
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     const pdfFiles = files.filter(file => file.type === 'application/pdf');
-    
+
     if (pdfFiles.length !== files.length) {
       setError("Only PDF files are allowed");
       return;
     }
-    
+
     if (itemId && pdfFiles.length > 1) {
       setError("Only one PDF file can be uploaded for a specific item");
       return;
     }
-    
+
     setSelectedFiles(pdfFiles);
     setError(null);
   };
@@ -56,20 +56,20 @@ export function PdfUploadDialog({
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    
+
     const files = Array.from(event.dataTransfer.files);
     const pdfFiles = files.filter(file => file.type === 'application/pdf');
-    
+
     if (pdfFiles.length !== files.length) {
       setError("Only PDF files are allowed");
       return;
     }
-    
+
     if (itemId && pdfFiles.length > 1) {
       setError("Only one PDF file can be uploaded for a specific item");
       return;
     }
-    
+
     setSelectedFiles(pdfFiles);
     setError(null);
   };
@@ -90,33 +90,58 @@ export function PdfUploadDialog({
 
     try {
       if (itemId) {
-        // Upload for specific item
-        await libraryWorkflowService.uploadPdfForExistingItem(itemId, selectedFiles[0]);
-        toast.success("PDF uploaded and saved to library! Automatic processing will begin shortly.");
+        // 🚀 为特定文献上传PDF - 直接调用后端API
+        console.log('📤 Uploading PDF for existing item via backend API...', itemId);
+        const formData = new FormData();
+        formData.append('file', selectedFiles[0]);
+
+        await apiClient.uploadPdf(itemId, formData);
+        toast.success("PDF uploaded successfully! Automatic processing will begin shortly.");
+
       } else {
-        // Bulk upload - create new items
+        // 🚀 批量上传 - 创建新文献条目
+        console.log(`📤 Batch uploading ${selectedFiles.length} PDFs via backend API...`);
         const totalFiles = selectedFiles.length;
+
         for (let i = 0; i < totalFiles; i++) {
           const file = selectedFiles[i];
-          await libraryWorkflowService.createFromPdfUpload(file);
+
+          // 先创建文献条目（使用文件名作为临时标题）
+          const fileName = file.name.replace('.pdf', '');
+          const newItem = await apiClient.createLibraryItem({
+            title: fileName,
+            authors: ['Unknown'], // 临时作者，后端处理时会被AI提取的真实数据替换
+            year: new Date().getFullYear(),
+            source: 'manual'
+          });
+
+          // 为新创建的条目上传PDF
+          const formData = new FormData();
+          formData.append('file', file);
+          await apiClient.uploadPdf(newItem.id, formData);
+
+          // 更新进度
           setUploadProgress(((i + 1) / totalFiles) * 100);
+          console.log(`✅ [${i + 1}/${totalFiles}] Uploaded: ${fileName}`);
         }
-        toast.success(`${totalFiles} PDF${totalFiles > 1 ? 's' : ''} uploaded and saved to library! Automatic processing will begin shortly.`);
+
+        toast.success(`${totalFiles} PDF${totalFiles > 1 ? 's' : ''} uploaded successfully! Automatic processing will begin shortly.`);
       }
 
-      // Refresh the library store
+      // 🔄 刷新文献库状态
+      console.log('🔄 Refreshing library state...');
       await initialize();
-      
+
       // Call success callback
       onUploadSuccess?.();
-      
+
       // Close dialog and reset state
       onClose();
       setSelectedFiles([]);
       setUploadProgress(0);
-      
+
     } catch (error) {
-      console.error('Error uploading PDF:', error);
+      console.error('❌ Error uploading PDF:', error);
       setError(error instanceof Error ? error.message : 'Failed to upload PDF');
       toast.error("Failed to upload PDF");
     } finally {
@@ -141,7 +166,7 @@ export function PdfUploadDialog({
             {itemId ? 'Upload PDF' : 'Import PDF Files'}
           </DialogTitle>
           <DialogDescription>
-            {itemId 
+            {itemId
               ? 'Upload a PDF file for this literature item'
               : 'Select one or more PDF files to import as new literature items'
             }

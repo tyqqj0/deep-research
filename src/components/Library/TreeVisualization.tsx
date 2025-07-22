@@ -1009,7 +1009,7 @@ const TreeVisualizationInner = memo((props: TreeVisualizationProps) => {
         >
           <TreeViewportMonitor />
           {/* 层级调试信息 */}
-          {usePhysicsLayout && <LayerDebugInfo />}
+          {/* {usePhysicsLayout && <LayerDebugInfo />} */}
           {showControls && !isEmbedded && <Controls />}
           {showMiniMap && !isEmbedded && (
             <MiniMap
