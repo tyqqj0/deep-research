@@ -142,31 +142,11 @@ function UnlinkedReferences({ references, onLink, onAddToLibrary, addingToLibrar
                         <span>{ref.year}</span>
                       </div>
                     )}
-                  </div>
-
-                  {ref.publication && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <BookOpen className="h-3 w-3" />
-                      <span className="truncate">{ref.publication}</span>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onLink(ref, index)}
-                      className="flex-1 h-7 text-xs"
-                      disabled={addingToLibrary.has(index)}
-                    >
-                      <Search className="h-3 w-3 mr-1" />
-                      搜索并链接
-                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onAddToLibrary(ref, index)}
-                      className="flex-1 h-7 text-xs"
+                      className=" h-7 w-34 text-xs ml-auto"
                       disabled={addingToLibrary.has(index)}
                     >
                       {addingToLibrary.has(index) ? (
@@ -182,6 +162,28 @@ function UnlinkedReferences({ references, onLink, onAddToLibrary, addingToLibrar
                       )}
                     </Button>
                   </div>
+
+                  {ref.publication && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <BookOpen className="h-3 w-3" />
+                      <span className="truncate">{ref.publication}</span>
+                    </div>
+                  )}
+
+
+                  {/* <div className="flex gap-2 pt-2"> */}
+                    {/* <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onLink(ref, index)}
+                      className="flex-1 h-7 text-xs"
+                      disabled={addingToLibrary.has(index)}
+                    >
+                      <Search className="h-3 w-3 mr-1" />
+                      搜索并链接
+                    </Button> */}
+
+                  {/* </div> */}
                 </div>
               </div>
             ))}
@@ -375,7 +377,7 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
   } = useCitations(item.id);
 
   // 使用 LibraryStore 来添加新文献
-  const { addLibraryItem } = useLibraryStore();
+  const { masterAddLiterature } = useLibraryStore();
 
   // 自动链接功能
   const handleAutoLink = async () => {
@@ -401,7 +403,7 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
     toast.info('搜索功能即将推出');
   };
 
-  // 处理添加到文献库
+  // 处理添加到文献库 - 使用新的统一工作流
   const handleAddToLibrary = async (referenceData: any, referenceIndex: number) => {
     try {
       // 提取引文数据
@@ -418,8 +420,8 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
       // 标记该引文正在添加中
       setAddingToLibrary(prev => new Set(prev).add(referenceIndex));
 
-      // 调用 addLibraryItem
-      const result = await addLibraryItem({
+      // 🚀 使用新的统一主函数，带有完整的生命周期回调和精确的链接策略
+      const result = await masterAddLiterature({
         title: literatureData.title,
         authors: literatureData.authors,
         year: literatureData.year,
@@ -428,21 +430,51 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
         publication: literatureData.publication,
         abstract: literatureData.abstract,
         source: 'import' // 标记为从引文导入
+      }, {
+        onProgress: (stage, progress) => {
+          console.log(`📈 [AddToLibrary] ${stage} (${progress}%)`);
+          // 可以在这里更新UI进度条
+        },
+        onTaskCreated: (taskId, itemId) => {
+          console.log(`🚀 [AddToLibrary] Task created: ${taskId} for item: ${itemId}`);
+          toast.success(`文献"${literatureData.title}"已添加到文献库，正在后台解析...`);
+        },
+        onComplete: (itemId, resultType) => {
+          console.log(`✅ [AddToLibrary] Complete: ${itemId} (${resultType})`);
+
+          if (resultType === 'duplicate') {
+            toast.success(`文献"${literatureData.title}"已添加到文献库！`);
+          } else {
+            toast.success(`文献"${literatureData.title}"解析完成！`);
+          }
+
+          // 刷新引文数据，以便重新检查链接状态
+          setTimeout(() => {
+            refresh();
+          }, 1000);
+        },
+        onError: (error) => {
+          console.error('🔴 [AddToLibrary] Error:', error);
+          toast.error(`添加文献失败: ${error.message}`);
+        },
+        // 🎯 精确的链接策略：从当前文献指向新添加的文献
+        linkingStrategy: {
+          mode: 'source-to-target',
+          sourceItemId: item.id // 当前正在查看的文献ID
+        }
       });
 
-      if (result.success && result.itemId) {
-        toast.success(`文献"${literatureData.title}"已添加到文献库，正在后台解析...`);
-
-        // 刷新引文数据，以便重新检查链接状态
-        setTimeout(() => {
-          refresh();
-        }, 1000);
+      // 处理立即返回的结果（主要是本地条目或重复检测）
+      if (result.success) {
+        if (result.processingMode === 'local') {
+          toast.success(`文献"${literatureData.title}"已添加到文献库！`);
+          setTimeout(() => {
+            refresh();
+          }, 1000);
+        }
+        // 后端处理模式的反馈已在 onTaskCreated 回调中处理
       } else if (result.duplicate && result.duplicate.length > 0) {
-        // 🎯 统一处理：无论是本地重复还是后端缓存命中，都显示相同的成功信息
-        // 用户不需要知道后端是否命中缓存，只需要知道文献已经在库中
         toast.success(`文献"${literatureData.title}"已添加到文献库！`);
-
-        // 同样刷新引文数据
         setTimeout(() => {
           refresh();
         }, 1000);

@@ -190,6 +190,7 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
         items: allItems,
         isLoading: isItemsLoading,
         isInitialized: isStoreInitialized,
+        citationVersion, // 🎯 监听citation版本变化
         initialize,
         createManualCitationLink,
         deleteCitationLink
@@ -204,6 +205,9 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
     const [edgeToDelete, setEdgeToDelete] = useState<{ edge: Edge, sourceItem: LibraryItem, targetItem: LibraryItem } | null>(null);
 
     const physicsRef = useRef<CitationGraphPhysics | null>(null);
+
+    // 🎯 缓存上次的数据特征，避免不必要的重新计算
+    const lastDataSignatureRef = useRef<string>('');
 
     useEffect(() => {
         if (!isStoreInitialized) {
@@ -245,16 +249,29 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
         setIsLayouting(true);
 
         try {
-            console.log('[Graph] Fetching latest data...');
-            const items = await libraryService.getAllLibraryItems();
+            console.log(`[Graph] 🔄 Updating layout - Items: ${allItems.length}, Citation Version: ${citationVersion}`);
+
+            // 🎯 优先使用store中的数据，确保数据一致性
+            const items = allItems.length > 0 ? allItems : await libraryService.getAllLibraryItems();
             if (items.length === 0) {
+                console.log('[Graph] ⚠️ No items found, clearing graph');
                 setNodes([]);
                 setEdges([]);
                 return;
             }
 
             const citations = await libraryService.getAllCitations();
-            console.log(`[Graph] Found ${citations.length} citations`);
+            console.log(`[Graph] 📊 Data loaded - ${items.length} items, ${citations.length} citations`);
+
+            // 🎯 生成数据特征签名，检查是否真的需要重新布局
+            const dataSignature = `${items.length}-${citations.length}-${citationVersion}`;
+            if (dataSignature === lastDataSignatureRef.current) {
+                console.log('[Graph] ⏭️ Data signature unchanged, skipping layout recalculation');
+                setIsLayouting(false);
+                return;
+            }
+            lastDataSignatureRef.current = dataSignature;
+            console.log(`[Graph] 🔄 Data signature changed: ${dataSignature}`);
 
             const nodeIds = new Set(items.map(item => item.id));
 
@@ -281,7 +298,7 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
                     markerEnd: { type: MarkerType.ArrowClosed, color: '#3b82f6' },
                 }));
 
-            console.log(`[Graph] Created ${graphEdges.length} edges`);
+            // console.log(`[Graph] Created ${graphEdges.length} edges`);
 
             if (isPhysicsEnabled && physicsRef.current && graphNodes.length > 0) {
                 // 使用物理引擎布局
@@ -302,9 +319,11 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
         } finally {
             setIsLayouting(false);
         }
-    }, [isStoreInitialized, setNodes, setEdges, isPhysicsEnabled, onNodeClick]);
+    }, [isStoreInitialized, setNodes, setEdges, isPhysicsEnabled, onNodeClick, allItems.length, citationVersion]);
 
+    // 🎯 响应式更新：监听文献数量和citation版本变化
     useEffect(() => {
+        console.log(`[Graph] Triggering layout update: ${allItems.length} items, citation version: ${citationVersion}`);
         fetchDataAndLayout();
     }, [fetchDataAndLayout]);
 
@@ -361,10 +380,8 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
 
             if (success) {
                 toast.success(`已创建链接：${sourceItem.title} → ${targetItem.title}`);
-                console.log(`[Graph] Connection created successfully, refreshing graph...`);
-                // 刷新图谱
-                await fetchDataAndLayout();
-                console.log(`[Graph] Graph refreshed after connection`);
+                console.log(`[Graph] Connection created successfully, graph will auto-refresh via version change`);
+                // 🎯 不需要手动刷新，citationVersion变化会自动触发重新布局
             } else {
                 toast.info("链接已存在");
                 console.log(`[Graph] Connection already exists`);
@@ -400,11 +417,9 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
             await deleteCitationLink(edge.source, edge.target);
 
             toast.success(`已删除引用关系：${sourceItem.title} → ${targetItem.title}`);
-            console.log(`[Graph] Edge deleted successfully, refreshing graph...`);
+            console.log(`[Graph] Edge deleted successfully, graph will auto-refresh via version change`);
 
-            // 刷新图谱
-            await fetchDataAndLayout();
-            console.log(`[Graph] Graph refreshed after edge deletion`);
+            // 🎯 不需要手动刷新，citationVersion变化会自动触发重新布局
         } catch (error) {
             console.error("Error deleting edge:", error);
             toast.error("删除引用关系失败");

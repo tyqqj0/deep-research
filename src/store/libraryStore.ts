@@ -16,6 +16,7 @@ interface LibraryState {
   isLoading: boolean;
   error: string | null;
   treeVersion: number; // Version number to trigger UI updates
+  citationVersion: number; // 🎯 Citation变化版本号，用于触发图谱刷新
   isInitialized: boolean;
 
   // Filtering and search
@@ -44,12 +45,23 @@ interface LibraryState {
   }>; // 正在轮询的任务
   pollingInterval: NodeJS.Timeout | null; // 轮询定时器
   pollingActive: boolean; // 轮询是否激活
+
+  // 🎯 任务回调注册系统
+  taskCallbacks: Map<string, {
+    onComplete?: (itemId: string, result: 'created' | 'duplicate') => void;
+    onError?: (error: Error) => void;
+    linkingStrategy?: {
+      mode: 'bidirectional' | 'unidirectional' | 'source-to-target';
+      sourceItemId?: string;
+    };
+  }>;
 }
 
 // Define Actions interface
 interface LibraryActions {
   // Core actions
   initialize: () => Promise<void>;
+  _hasSignificantItemsChange: (currentItems: LibraryItem[], newItems: LibraryItem[]) => boolean; // 🎯 智能状态比较（内部方法）
   startRealTimeUpdates: () => () => void; // 返回cleanup函数
   startPolling: () => void; // 🚀 启动全局轮询器
   stopPolling: () => void; // 🚀 停止轮询
@@ -60,6 +72,19 @@ interface LibraryActions {
   _syncFinalLiteratureData: (literatureId: string, response: BackendTaskResponse) => Promise<void>; // 🚀 同步最终文献数据（内部方法）
   selectTree: (treeId: string) => Promise<void>;
   runMCTS: () => Promise<void>;
+  masterAddLiterature: (
+    itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>,
+    options?: {
+      onProgress?: (stage: string, progress: number) => void;
+      onTaskCreated?: (taskId: string, itemId: string) => void;
+      onComplete?: (itemId: string, result: 'created' | 'duplicate') => void;
+      onError?: (error: Error) => void;
+      linkingStrategy?: {
+        mode: 'bidirectional' | 'unidirectional' | 'source-to-target';
+        sourceItemId?: string; // 当mode为'source-to-target'时必需
+      };
+    }
+  ) => Promise<{ success: boolean; itemId?: string; taskId?: string; processingMode?: string; duplicate?: LibraryItem[]; error?: string }>;
   addLibraryItem: (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<{ success: boolean; itemId?: string; duplicate?: LibraryItem[]; error?: string }>;
   addLibraryItems: (itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]) => Promise<any>;
   updateLibraryItem: (id: string, itemData: Partial<LibraryItem>) => Promise<void>;
@@ -105,6 +130,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   isLoading: false,
   error: null,
   treeVersion: 0,
+  citationVersion: 0, // 🎯 初始化citation版本号
   isInitialized: false,
 
   // Filtering and search
@@ -128,6 +154,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   activeTasks: new Map(),
   pollingInterval: null,
   pollingActive: false,
+  taskCallbacks: new Map(),
 
   // Clear error action
   clearError: () => {
@@ -205,20 +232,83 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     }
   },
 
-  // 启动实时数据更新监听
+  // 🎯 智能状态比较函数 - 检查是否有实际变化
+  _hasSignificantItemsChange: (currentItems: LibraryItem[], newItems: LibraryItem[]): boolean => {
+    // 快速检查：数量变化
+    if (currentItems.length !== newItems.length) {
+      console.log(`📊 Items count changed: ${currentItems.length} → ${newItems.length}`);
+      return true;
+    }
+
+    // 如果数量相同但为空，无需更新
+    if (newItems.length === 0) {
+      return false;
+    }
+
+    // 创建ID到updatedAt的映射，用于快速比较
+    const currentMap = new Map(currentItems.map(item => [item.id, item.updatedAt?.getTime() || 0]));
+    const newMap = new Map(newItems.map(item => [item.id, item.updatedAt?.getTime() || 0]));
+
+    // 检查是否有新增或删除的项目
+    if (currentMap.size !== newMap.size) {
+      console.log(`📊 Items set changed: ${currentMap.size} → ${newMap.size} unique items`);
+      return true;
+    }
+
+    // 检查每个项目的更新时间
+    for (const [id, newTime] of newMap) {
+      const currentTime = currentMap.get(id);
+      if (currentTime === undefined || currentTime !== newTime) {
+        console.log(`📊 Item ${id} updated: ${currentTime} → ${newTime}`);
+        return true;
+      }
+    }
+
+    // 没有发现显著变化
+    return false;
+  },
+
+  // 启动实时数据更新监听 - 🚀 优化版本
   startRealTimeUpdates: () => {
-    console.log('📡 Subscribing to real-time library updates with liveQuery...');
+    console.log('📡 Subscribing to real-time library updates with liveQuery (optimized)...');
 
     const observable = liveQuery(() => libraryService.getAllLibraryItems());
 
+    // 🎯 防抖机制状态
+    let updateTimeout: NodeJS.Timeout | null = null;
+    let lastUpdateTime = 0;
+    const MIN_UPDATE_INTERVAL = 300; // 最小更新间隔300ms
+    const DEBOUNCE_DELAY = 100; // 防抖延迟100ms
+
     const subscription = observable.subscribe({
       next: (updatedItems) => {
-        // liveQuery is efficient and only triggers on actual data changes in Dexie.
-        // It's better than polling as it avoids unnecessary checks and provides
-        // instant updates. We no longer need to check for "processing items"
-        // because any relevant change (like status update) will be caught.
-        console.log(`🔄 Library updated via liveQuery. Total items: ${updatedItems.length}`);
-        set({ items: updatedItems });
+        const now = Date.now();
+
+        // 🚀 智能状态比较
+        const { items: currentItems } = get();
+        const hasSignificantChange = get()._hasSignificantItemsChange(currentItems, updatedItems);
+
+        if (!hasSignificantChange) {
+          console.log('⏭️ No significant changes detected, skipping UI update');
+          return;
+        }
+
+        // 🎯 防抖机制 - 避免频繁更新
+        if (updateTimeout) {
+          clearTimeout(updateTimeout);
+        }
+
+        // 如果距离上次更新时间太短，延迟更新
+        const timeSinceLastUpdate = now - lastUpdateTime;
+        const shouldDelay = timeSinceLastUpdate < MIN_UPDATE_INTERVAL;
+        const delayTime = shouldDelay ? DEBOUNCE_DELAY : 0;
+
+        updateTimeout = setTimeout(() => {
+          console.log(`🔄 Library updated via liveQuery (optimized). Total items: ${updatedItems.length}`);
+          lastUpdateTime = Date.now();
+          set({ items: updatedItems });
+          updateTimeout = null;
+        }, delayTime);
       },
       error: (error) => {
         console.error('Error in real-time library subscription:', error);
@@ -316,7 +406,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     console.log(`📋 Added task to polling: ${taskId} (${title})`);
   },
 
-  // 🚀 处理任务状态更新（内部方法） - 重构为新API结构
+  // 🚀 处理任务状态更新（内部方法） - 重构为新API结构 + 优化轮询刷新
   handleTaskStatusUpdate: async (taskInfo: any, response: BackendTaskResponse) => {
     const { activeTasks, items } = get();
 
@@ -324,19 +414,39 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
     // 🔄 处理进行中的任务
     if (response.execution_status === 'processing' || response.execution_status === 'pending') {
-      const updatedItems = items.map(item => {
-        if (item.id === taskInfo.literatureId) {
-          return {
-            ...item,
-            // 🚀 更新backendTask字段为完整的响应数据
-            backendTask: response,
-            updatedAt: new Date()
-          };
-        }
-        return item;
-      });
+      // 🎯 优化：只在状态真正改变时才更新UI
+      const targetItem = items.find(item => item.id === taskInfo.literatureId);
+      if (!targetItem) {
+        console.warn(`⚠️ Target item not found: ${taskInfo.literatureId}`);
+        return;
+      }
 
-      set({ items: updatedItems });
+      // 🔍 检查是否有实际变化（深度比较关键字段）
+      const hasSignificantChange = !targetItem.backendTask ||
+        targetItem.backendTask.execution_status !== response.execution_status ||
+        targetItem.backendTask.overall_progress !== response.overall_progress ||
+        targetItem.backendTask.current_stage !== response.current_stage ||
+        JSON.stringify(targetItem.backendTask.literature_status) !== JSON.stringify(response.literature_status);
+
+      if (hasSignificantChange) {
+        console.log(`📈 Significant change detected for task ${taskInfo.taskId}, updating UI...`);
+
+        const updatedItems = items.map(item => {
+          if (item.id === taskInfo.literatureId) {
+            return {
+              ...item,
+              // 🚀 更新backendTask字段为完整的响应数据
+              backendTask: response,
+              updatedAt: new Date() // 只在有实际变化时才更新时间戳
+            };
+          }
+          return item;
+        });
+
+        set({ items: updatedItems });
+      } else {
+        console.log(`⏭️ No significant change for task ${taskInfo.taskId}, skipping UI update`);
+      }
 
       // 🚀 检查元数据是否已完成，如果是则立即更新本地数据
       if (response.literature_status?.component_status?.metadata?.status === 'success') {
@@ -531,22 +641,88 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
           console.log('✅ New literature data synced successfully');
         }
 
-        // 🔗 自动触发引文链接流程
+        // 🎯 触发任务完成回调
+        const { activeTasks, taskCallbacks } = get();
+        const taskInfo = activeTasks.get(response.task_id);
+        if (taskInfo) {
+          const callbacks = taskCallbacks.get(response.task_id);
+          if (callbacks?.onComplete) {
+            try {
+              callbacks.onComplete(literatureId, response.result_type as 'created' | 'duplicate');
+            } catch (callbackError) {
+              console.error('❌ Error in onComplete callback:', callbackError);
+            }
+          }
+
+          // 清理回调
+          const newCallbacks = new Map(taskCallbacks);
+          newCallbacks.delete(response.task_id);
+          set({ taskCallbacks: newCallbacks });
+        }
+
+        // 🔗 自动触发引文链接流程 - 使用新的链接策略
         if (finalLiterature.references && finalLiterature.references.length > 0) {
           console.log(`🔗 Auto-linking ${finalLiterature.references.length} references...`);
 
           try {
-            if (response.result_type === 'created') {
-              // 新创建的文献，使用双向链接
-              console.log('🔄 Triggering bidirectional linking for new literature...');
-              const linkResult = await libraryService.linkNewItemBidirectionally(literatureId);
-              console.log(`✅ Bidirectional linking completed: ${linkResult.forwardLinks} forward, ${linkResult.backwardLinks} backward`);
+            // 🎯 获取链接策略
+            const { activeTasks, taskCallbacks } = get();
+            const taskInfo = activeTasks.get(response.task_id);
+            const callbacks = taskCallbacks.get(response.task_id);
+            const linkingStrategy = callbacks?.linkingStrategy;
+
+            if (linkingStrategy) {
+              console.log(`🎯 Using custom linking strategy: ${linkingStrategy.mode}`);
+
+              switch (linkingStrategy.mode) {
+                case 'bidirectional':
+                  console.log('🔄 Triggering bidirectional linking...');
+                  const biResult = await libraryService.linkNewItemBidirectionally(literatureId);
+                  console.log(`✅ Bidirectional linking completed: ${biResult.forwardLinks} forward, ${biResult.backwardLinks} backward`);
+                  break;
+
+                case 'unidirectional':
+                  console.log('➡️ Triggering unidirectional linking...');
+                  const uniResult = await libraryService.linkCitationsForItem(literatureId);
+                  console.log(`✅ Unidirectional linking completed: ${uniResult.linkedCount}/${uniResult.totalReferences} linked`);
+                  break;
+
+                case 'source-to-target':
+                  if (linkingStrategy.sourceItemId) {
+                    console.log(`🎯 Triggering source-to-target linking: ${linkingStrategy.sourceItemId} → ${literatureId}`);
+
+                    // 第一步：建立源文献 → 目标文献的链接
+                    const sourceToTargetResult = await libraryService.linkCitationsForItem(linkingStrategy.sourceItemId);
+                    console.log(`✅ Source-to-target linking completed: ${sourceToTargetResult.linkedCount} links from source`);
+
+                    // 第二步：建立目标文献 → 源文献的反向链接（如果目标文献的引文中包含源文献）
+                    const targetToSourceResult = await libraryService.linkCitationsForItem(literatureId);
+                    console.log(`✅ Target-to-source linking completed: ${targetToSourceResult.linkedCount} links from target`);
+                  } else {
+                    console.warn('⚠️ source-to-target mode requires sourceItemId');
+                    // 降级为双向链接
+                    const fallbackResult = await libraryService.linkNewItemBidirectionally(literatureId);
+                    console.log(`✅ Fallback bidirectional linking completed: ${fallbackResult.forwardLinks} forward, ${fallbackResult.backwardLinks} backward`);
+                  }
+                  break;
+
+                default:
+                  console.warn(`⚠️ Unknown linking strategy: ${linkingStrategy.mode}, using bidirectional`);
+                  const defaultResult = await libraryService.linkNewItemBidirectionally(literatureId);
+                  console.log(`✅ Default bidirectional linking completed: ${defaultResult.forwardLinks} forward, ${defaultResult.backwardLinks} backward`);
+              }
             } else {
-              // 重复文献，使用单向链接
-              console.log('➡️ Triggering unidirectional linking for duplicate literature...');
-              const linkResult = await libraryService.linkCitationsForItem(literatureId);
-              console.log(`✅ Citation linking completed: ${linkResult.linkedCount}/${linkResult.totalReferences} linked`);
+              // 🔄 默认策略：不再基于 result_type，统一使用双向链接
+              console.log('🔄 Using default bidirectional linking strategy...');
+              const defaultResult = await libraryService.linkNewItemBidirectionally(literatureId);
+              console.log(`✅ Default bidirectional linking completed: ${defaultResult.forwardLinks} forward, ${defaultResult.backwardLinks} backward`);
             }
+
+            // 🎯 更新citation版本号，通知图谱刷新
+            const { citationVersion } = get();
+            set({ citationVersion: citationVersion + 1 });
+            console.log(`🔄 Citation version updated: ${citationVersion} → ${citationVersion + 1}`);
+
           } catch (linkError) {
             console.error('❌ Auto-linking failed:', linkError);
             // 不抛出错误，因为数据同步已经成功，链接失败不应该影响主流程
@@ -717,27 +893,44 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     }
   },
 
-  // Add library item action - 🚀 重构为支持异步任务流程
-  addLibraryItem: async (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
+  // 🎯 统一的添加文献主函数 - 整合所有添加流程
+  masterAddLiterature: async (
+    itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>,
+    options?: {
+      onProgress?: (stage: string, progress: number) => void;
+      onTaskCreated?: (taskId: string, itemId: string) => void;
+      onComplete?: (itemId: string, result: 'created' | 'duplicate') => void;
+      onError?: (error: Error) => void;
+      linkingStrategy?: {
+        mode: 'bidirectional' | 'unidirectional' | 'source-to-target';
+        sourceItemId?: string; // 当mode为'source-to-target'时必需
+      };
+    }
+  ) => {
+    const { onProgress, onTaskCreated, onComplete, onError, linkingStrategy } = options || {};
+
     try {
       set({ isLoading: true, error: null });
+      onProgress?.('开始处理...', 0);
 
       const { items } = get();
       const itemId = generateLibraryItemId();
 
       // 🔍 统一查重检查 - 无论是否有DOI/URL都要先检查重复
+      onProgress?.('检查重复文献...', 10);
       if (itemData.title && itemData.title.trim() !== '') {
-        console.log('🔍 Checking for duplicates:', itemData.title);
+        console.log('🔍 [Master] Checking for duplicates:', itemData.title);
         const duplicates = await libraryService.checkDuplicateByTitle(itemData.title.trim());
         if (duplicates.length > 0) {
-          console.log('❌ Duplicate found:', duplicates[0].title);
+          console.log('❌ [Master] Duplicate found:', duplicates[0].title);
           set({
             isLoading: false,
             error: 'Duplicate literature found'
           });
-          return { success: false, duplicate: duplicates };
+          onComplete?.(duplicates[0].id, 'duplicate');
+          return { success: false, duplicate: duplicates, itemId: duplicates[0].id };
         }
-        console.log('✅ No duplicates found, proceeding...');
+        console.log('✅ [Master] No duplicates found, proceeding...');
       }
 
       // 检查是否有可以让后端处理的信息 (DOI 或 URL)
@@ -745,7 +938,8 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
       if (canBeProcessedByBackend) {
         // 🚀 有DOI或URL，提交给后端进行异步处理
-        console.log('📤 Submitting literature for backend processing...', itemData.title);
+        onProgress?.('提交后端处理...', 20);
+        console.log('📤 [Master] Submitting literature for backend processing...', itemData.title);
 
         const taskId = await apiClient.submitLiterature({
           source: {
@@ -789,9 +983,10 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         };
 
         // 添加到本地状态和缓存
+        onProgress?.('创建本地条目...', 40);
         try {
           await libraryService.addLibraryItem(temporaryItem);
-          console.log('✅ [Store] Temporary item added to local cache successfully');
+          console.log('✅ [Master] Temporary item added to local cache successfully');
 
           const updatedItems = [...items, temporaryItem];
           set({
@@ -799,19 +994,33 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
             isLoading: false
           });
         } catch (cacheError) {
-          console.error('❌ [Store] Failed to add temporary item to local cache:', cacheError);
-          throw new Error(`Failed to cache literature item: ${cacheError instanceof Error ? cacheError.message : 'Unknown error'}`);
+          console.error('❌ [Master] Failed to add temporary item to local cache:', cacheError);
+          const error = new Error(`Failed to cache literature item: ${cacheError instanceof Error ? cacheError.message : 'Unknown error'}`);
+          onError?.(error);
+          throw error;
         }
 
         // 🚀 将任务添加到轮询列表
         get().addTaskToPolling(taskId, itemId, itemData.title);
 
-        console.log(`✅ Literature submitted for processing, task_id: ${taskId}`);
-        return { success: true, itemId };
+        // 🎯 注册任务完成回调
+        if (onComplete || onError || linkingStrategy) {
+          const { taskCallbacks } = get();
+          const newCallbacks = new Map(taskCallbacks);
+          newCallbacks.set(taskId, { onComplete, onError, linkingStrategy });
+          set({ taskCallbacks: newCallbacks });
+        }
+
+        onTaskCreated?.(taskId, itemId);
+        onProgress?.('任务已提交，等待处理完成...', 60);
+
+        console.log(`✅ [Master] Literature submitted for processing, task_id: ${taskId}`);
+        return { success: true, itemId, taskId, processingMode: 'backend' };
 
       } else {
         // 📝 仅有元数据，直接创建本地条目（不发送后端处理）
-        console.log('📝 Creating local literature item (metadata only)...', itemData.title);
+        onProgress?.('创建本地条目...', 50);
+        console.log('📝 [Master] Creating local literature item (metadata only)...', itemData.title);
 
         const localItem: LibraryItem = {
           id: itemId,
@@ -836,7 +1045,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         // 添加到本地状态和缓存
         try {
           await libraryService.addLibraryItem(localItem);
-          console.log('✅ [Store] Local item added to cache successfully');
+          console.log('✅ [Master] Local item added to cache successfully');
 
           const updatedItems = [...items, localItem];
           set({
@@ -844,23 +1053,37 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
             isLoading: false
           });
         } catch (cacheError) {
-          console.error('❌ [Store] Failed to add local item to cache:', cacheError);
-          throw new Error(`Failed to cache literature item: ${cacheError instanceof Error ? cacheError.message : 'Unknown error'}`);
+          console.error('❌ [Master] Failed to add local item to cache:', cacheError);
+          const error = new Error(`Failed to cache literature item: ${cacheError instanceof Error ? cacheError.message : 'Unknown error'}`);
+          onError?.(error);
+          throw error;
         }
 
-        console.log('✅ Local literature item created successfully:', localItem.title);
-        return { success: true, itemId };
+        onProgress?.('完成', 100);
+        onComplete?.(itemId, 'created');
+        console.log('✅ [Master] Local literature item created successfully:', localItem.title);
+        return { success: true, itemId, processingMode: 'local' };
       }
 
     } catch (error) {
-      console.error('❌ Failed to add literature item:', error);
+      console.error('❌ [Master] Failed to add literature item:', error);
+      const errorObj = error instanceof Error ? error : new Error('Failed to add literature item');
 
       set({
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to add literature item'
+        error: errorObj.message
       });
-      return { success: false, error: error instanceof Error ? error.message : 'Failed to add literature item' };
+
+      onError?.(errorObj);
+      return { success: false, error: errorObj.message };
     }
+  },
+
+  // Add library item action - 🚀 重构为支持异步任务流程 (保持向后兼容)
+  addLibraryItem: async (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
+    // 🔄 直接调用新的统一函数，保持向后兼容
+    console.log('📞 [Compat] Calling masterAddLiterature via legacy addLibraryItem');
+    return await get().masterAddLiterature(itemData);
   },
 
   // Update library item action - 📝 前端本地数据管理
@@ -1301,11 +1524,14 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
       const success = await libraryService.createManualCitationLink(sourceItemId, targetItemId);
 
-      set({ isLoading: false });
-
+      // 🎯 更新citation版本号，通知图谱刷新
       if (success) {
+        const { citationVersion } = get();
+        set({ citationVersion: citationVersion + 1, isLoading: false });
         console.log(`[LibraryStore] Created manual citation link: ${sourceItemId} -> ${targetItemId}`);
+        console.log(`🔄 Citation version updated after manual link: ${citationVersion} → ${citationVersion + 1}`);
       } else {
+        set({ isLoading: false });
         console.log(`[LibraryStore] Citation link already exists: ${sourceItemId} -> ${targetItemId}`);
       }
 
@@ -1326,9 +1552,12 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
       await libraryService.deleteCitationLink(sourceItemId, targetItemId);
 
-      set({ isLoading: false });
+      // 🎯 更新citation版本号，通知图谱刷新
+      const { citationVersion } = get();
+      set({ citationVersion: citationVersion + 1, isLoading: false });
 
       console.log(`[LibraryStore] Deleted manual citation link: ${sourceItemId} -> ${targetItemId}`);
+      console.log(`🔄 Citation version updated after link deletion: ${citationVersion} → ${citationVersion + 1}`);
 
     } catch (error) {
       set({
