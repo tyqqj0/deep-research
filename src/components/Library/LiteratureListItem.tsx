@@ -83,6 +83,14 @@ export function LiteratureListItem({
     return text.substring(0, maxLength) + '...';
   };
 
+  const formatAuthors = (authors: string[], viewMode: 'list' | 'grid') => {
+    const maxAuthors = viewMode === 'list' ? 3 : 1;
+    if (authors.length <= maxAuthors) {
+      return authors.join(', ');
+    }
+    return authors.slice(0, maxAuthors).join(', ') + '等';
+  };
+
   return (
     <>
       <Card className={`transition-all duration-200 hover:shadow-md ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
@@ -105,9 +113,7 @@ export function LiteratureListItem({
                   <div className="flex items-center gap-1 text-sm text-muted-foreground">
                     <User className="h-3 w-3" />
                     <span>
-                      {viewMode === 'grid' && item.authors.length > 1
-                        ? `${item.authors[0]}...`
-                        : item.authors.join(', ')}
+                      {formatAuthors(item.authors, viewMode)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 text-sm text-muted-foreground">

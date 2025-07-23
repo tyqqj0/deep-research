@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useCitations } from "@/hooks/useCitations";
+import { useLibraryStore } from "@/store/libraryStore";
 import { toast } from "sonner";
 
 interface CitationManagerProps {
@@ -49,8 +50,9 @@ interface CitationListProps {
 
 interface UnlinkedReferencesProps {
   references: any[];
-  onLink: (referenceData: any) => void;
-  onAddToLibrary: (referenceData: any) => void;
+  onLink: (referenceData: any, referenceIndex: number) => void;
+  onAddToLibrary: (referenceData: any, referenceIndex: number) => void;
+  addingToLibrary: Set<number>;
 }
 
 interface StatsCardProps {
@@ -85,7 +87,7 @@ function StatsCard({ title, value, icon, gradient, iconColor }: StatsCardProps) 
   );
 }
 
-function UnlinkedReferences({ references, onLink, onAddToLibrary }: UnlinkedReferencesProps) {
+function UnlinkedReferences({ references, onLink, onAddToLibrary, addingToLibrary }: UnlinkedReferencesProps) {
   if (references.length === 0) {
     return (
       <Card>
@@ -153,8 +155,9 @@ function UnlinkedReferences({ references, onLink, onAddToLibrary }: UnlinkedRefe
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onLink(ref)}
+                      onClick={() => onLink(ref, index)}
                       className="flex-1 h-7 text-xs"
+                      disabled={addingToLibrary.has(index)}
                     >
                       <Search className="h-3 w-3 mr-1" />
                       搜索并链接
@@ -162,11 +165,21 @@ function UnlinkedReferences({ references, onLink, onAddToLibrary }: UnlinkedRefe
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onAddToLibrary(ref)}
+                      onClick={() => onAddToLibrary(ref, index)}
                       className="flex-1 h-7 text-xs"
+                      disabled={addingToLibrary.has(index)}
                     >
-                      <Plus className="h-3 w-3 mr-1" />
-                      添加到文献库
+                      {addingToLibrary.has(index) ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          添加中...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-3 w-3 mr-1" />
+                          添加到文献库
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -292,9 +305,62 @@ function CitationList({ title, icon, items, onNavigateToItem, emptyMessage, onUn
   );
 }
 
+// 🔍 从引文数据中提取用于创建新文献的信息
+function extractLiteratureDataFromReference(referenceData: any): {
+  title: string;
+  authors: string[];
+  year: number;
+  doi?: string;
+  url?: string;
+  publication?: string;
+  abstract?: string;
+} {
+  // 处理嵌套结构的引文数据
+  let extractedData: any = {};
+
+  if (referenceData.parsed && typeof referenceData.parsed === 'object') {
+    // 使用 parsed 中的结构化数据
+    extractedData = {
+      title: referenceData.parsed.title || referenceData.raw_text || '未知标题',
+      authors: referenceData.parsed.authors?.map((author: any) =>
+        typeof author === 'string' ? author : (author.name || author.author || String(author))
+      ) || ['Unknown Author'],
+      year: referenceData.parsed.year ||
+        (referenceData.parsed.publicationDate ? new Date(referenceData.parsed.publicationDate).getFullYear() : new Date().getFullYear()),
+      doi: referenceData.parsed.doi || referenceData.parsed.externalIds?.DOI,
+      url: referenceData.parsed.url,
+      publication: referenceData.parsed.venue || referenceData.parsed.journal,
+      abstract: referenceData.parsed.abstract
+    };
+  } else {
+    // 使用扁平结构或已处理的数据
+    extractedData = {
+      title: referenceData.title || referenceData.raw_text || '未知标题',
+      authors: referenceData.authors || ['Unknown Author'],
+      year: referenceData.year || new Date().getFullYear(),
+      doi: referenceData.doi,
+      url: referenceData.url,
+      publication: referenceData.publication || referenceData.journal,
+      abstract: referenceData.abstract
+    };
+  }
+
+  // 确保数据类型正确
+  return {
+    title: String(extractedData.title),
+    authors: Array.isArray(extractedData.authors) ? extractedData.authors : [String(extractedData.authors)],
+    year: Number(extractedData.year) || new Date().getFullYear(),
+    doi: extractedData.doi || undefined,
+    url: extractedData.url || undefined,
+    publication: extractedData.publication || undefined,
+    abstract: extractedData.abstract || undefined
+  };
+}
+
 export function CitationManager({ item, onNavigateToItem }: CitationManagerProps) {
   const [showPdfUpload, setShowPdfUpload] = useState(false);
   const [isAutoLinking, setIsAutoLinking] = useState(false);
+  const [addingToLibrary, setAddingToLibrary] = useState<Set<number>>(new Set()); // 跟踪正在添加的引文
 
   // 使用新的 useCitations Hook
   const {
@@ -307,6 +373,9 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
     unlinkCitation,
     autoLinkCitations
   } = useCitations(item.id);
+
+  // 使用 LibraryStore 来添加新文献
+  const { addLibraryItem } = useLibraryStore();
 
   // 自动链接功能
   const handleAutoLink = async () => {
@@ -327,15 +396,71 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
   };
 
   // 处理手动链接
-  const handleLinkReference = async (referenceData: any) => {
+  const handleLinkReference = async (referenceData: any, referenceIndex: number) => {
     // TODO: 实现搜索对话框，让用户选择要链接的文献
     toast.info('搜索功能即将推出');
   };
 
   // 处理添加到文献库
-  const handleAddToLibrary = async (referenceData: any) => {
-    // TODO: 实现预填充的添加文献表单
-    toast.info('添加功能即将推出');
+  const handleAddToLibrary = async (referenceData: any, referenceIndex: number) => {
+    try {
+      // 提取引文数据
+      const literatureData = extractLiteratureDataFromReference(referenceData);
+
+      console.log('🔍 [DEBUG] Extracted literature data for adding:', literatureData);
+
+      // 检查是否有足够的信息进行解析
+      if (!literatureData.doi && !literatureData.url && literatureData.title === '未知标题') {
+        toast.error('引文信息不足，无法添加到文献库。需要至少包含标题、DOI或URL。');
+        return;
+      }
+
+      // 标记该引文正在添加中
+      setAddingToLibrary(prev => new Set(prev).add(referenceIndex));
+
+      // 调用 addLibraryItem
+      const result = await addLibraryItem({
+        title: literatureData.title,
+        authors: literatureData.authors,
+        year: literatureData.year,
+        doi: literatureData.doi,
+        url: literatureData.url,
+        publication: literatureData.publication,
+        abstract: literatureData.abstract,
+        source: 'import' // 标记为从引文导入
+      });
+
+      if (result.success && result.itemId) {
+        toast.success(`文献"${literatureData.title}"已添加到文献库，正在后台解析...`);
+
+        // 刷新引文数据，以便重新检查链接状态
+        setTimeout(() => {
+          refresh();
+        }, 1000);
+      } else if (result.duplicate && result.duplicate.length > 0) {
+        // 🎯 统一处理：无论是本地重复还是后端缓存命中，都显示相同的成功信息
+        // 用户不需要知道后端是否命中缓存，只需要知道文献已经在库中
+        toast.success(`文献"${literatureData.title}"已添加到文献库！`);
+
+        // 同样刷新引文数据
+        setTimeout(() => {
+          refresh();
+        }, 1000);
+      } else {
+        throw new Error(result.error || '添加文献失败');
+      }
+
+    } catch (error) {
+      console.error('Error adding reference to library:', error);
+      toast.error(`添加文献失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      // 移除加载状态
+      setAddingToLibrary(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(referenceIndex);
+        return newSet;
+      });
+    }
   };
 
   if (isLoading) {
@@ -472,6 +597,7 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
         references={unlinkedReferences}
         onLink={handleLinkReference}
         onAddToLibrary={handleAddToLibrary}
+        addingToLibrary={addingToLibrary}
       />
 
       {/* PDF Upload Dialog */}

@@ -97,12 +97,19 @@ export function useCitations(itemId: string | null): CitationData & CitationActi
     }
   }, [refresh]);
 
-  // 自动链接引文
+  // 自动链接引文 - 使用双向链接逻辑
   const autoLinkCitations = useCallback(async (itemId: string) => {
     try {
-      const result = await libraryService.linkCitationsForItem(itemId);
+      const result = await libraryService.linkNewItemBidirectionally(itemId);
       await refresh(); // 刷新数据
-      return result;
+
+      // 转换返回格式以保持兼容性
+      return {
+        totalReferences: result.forwardLinks + result.backwardLinks,
+        linkedCount: result.forwardLinks + result.backwardLinks,
+        unlinkedCount: 0, // 双向链接函数不返回未链接数量
+        linkedItems: []
+      };
     } catch (error) {
       console.error('Error auto-linking citations:', error);
       throw error;

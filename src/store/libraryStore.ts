@@ -469,10 +469,21 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
         console.log('📖 Retrieved literature data from backend:', finalLiterature.title);
 
+        // 🔍 调试后端返回的数据
+        console.log('🔍 [DEBUG] Raw backend literature data:', {
+          title: finalLiterature.title,
+          authors: finalLiterature.authors,
+          authorsLength: finalLiterature.authors?.length,
+          authorsType: typeof finalLiterature.authors,
+          isAuthorsArray: Array.isArray(finalLiterature.authors)
+        });
+
         // 合并后端提取的真实数据到本地条目
         const updates: Partial<LibraryItem> = {
-          title: finalLiterature.title,
-          authors: finalLiterature.authors || ['Unknown Author'],
+          title: finalLiterature.title || 'Processing...',
+          authors: (finalLiterature.authors && finalLiterature.authors.length > 0)
+            ? finalLiterature.authors
+            : ['Unknown Author'], // 确保作者数组不为空
           year: finalLiterature.year || new Date().getFullYear(),
           doi: finalLiterature.doi || undefined, // 将 null 转换为 undefined
           publication: finalLiterature.journal || undefined, // 同样处理 journal
@@ -714,6 +725,21 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       const { items } = get();
       const itemId = generateLibraryItemId();
 
+      // 🔍 统一查重检查 - 无论是否有DOI/URL都要先检查重复
+      if (itemData.title && itemData.title.trim() !== '') {
+        console.log('🔍 Checking for duplicates:', itemData.title);
+        const duplicates = await libraryService.checkDuplicateByTitle(itemData.title.trim());
+        if (duplicates.length > 0) {
+          console.log('❌ Duplicate found:', duplicates[0].title);
+          set({
+            isLoading: false,
+            error: 'Duplicate literature found'
+          });
+          return { success: false, duplicate: duplicates };
+        }
+        console.log('✅ No duplicates found, proceeding...');
+      }
+
       // 检查是否有可以让后端处理的信息 (DOI 或 URL)
       const canBeProcessedByBackend = Boolean(itemData.doi || itemData.url);
 
@@ -805,15 +831,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
           updatedAt: new Date()
         };
 
-        // 检查重复
-        const duplicates = await libraryService.checkDuplicateByTitle(localItem.title);
-        if (duplicates.length > 0) {
-          set({
-            isLoading: false,
-            error: 'Duplicate literature found'
-          });
-          return { success: false, duplicate: duplicates };
-        }
+        // 查重检查已在函数开头统一处理
 
         // 添加到本地状态和缓存
         try {

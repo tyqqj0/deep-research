@@ -132,14 +132,28 @@ export class LibraryService {
   }
 
   /**
-   * Delete library item
+   * Delete library item and all related citations
    */
   async deleteLibraryItem(id: string): Promise<void> {
     try {
+      // 🗑️ 首先删除所有相关的引用关系
+      console.log(`🗑️ Deleting all citations related to item: ${id}`);
+
+      // 删除该文献作为源头的引用 (sourceItemId)
+      const sourceCount = await this.db.citations.where('sourceItemId').equals(id).delete();
+      console.log(`🗑️ Deleted ${sourceCount} citations where this item was the source`);
+
+      // 删除该文献作为目标的引用 (targetItemId)
+      const targetCount = await this.db.citations.where('targetItemId').equals(id).delete();
+      console.log(`🗑️ Deleted ${targetCount} citations where this item was the target`);
+
+      // 🗑️ 最后删除文献本身
       const count = await this.db.library.where('id').equals(id).delete();
       if (count === 0) {
         throw new Error(`Library item with ID ${id} not found`);
       }
+
+      console.log(`✅ Successfully deleted literature item and ${sourceCount + targetCount} related citations`);
     } catch (error) {
       console.error('Error deleting library item:', error);
       throw new Error('Failed to delete library item');
@@ -447,18 +461,18 @@ export class LibraryService {
 
         // 调试每个引文的结构
         if (i < 3) { // 只打印前3个引文的详细信息，避免日志过多
+          const extractedData = this.extractReferenceData(reference);
           console.log(`🔍 [DEBUG] Reference ${i + 1}/${references.length}:`, {
             referenceType: typeof reference,
             referenceKeys: Object.keys(reference || {}),
-            referenceStructure: reference,
-            hasTitle: !!reference?.title,
-            hasAuthors: !!reference?.authors,
-            hasYear: !!reference?.year,
-            hasDoi: !!reference?.doi
+            extractedTitle: extractedData.title?.substring(0, 50) + '...',
+            extractedAuthors: extractedData.authors?.length || 0,
+            extractedYear: extractedData.year,
+            extractedDoi: extractedData.doi
           });
         }
 
-        const matchedItem = await this.findMatchingLiterature(reference);
+        const matchedItem = await this.findMatchingLiterature(reference, item.id);
 
         if (i < 3) {
           console.log(`🔍 [DEBUG] Match result for reference ${i + 1}:`, {
@@ -513,17 +527,37 @@ export class LibraryService {
   } {
     if (!reference) return {};
 
+    // // 🔍 添加详细的调试信息
+    // console.log('🔍 [DEBUG] Extracting reference data:', {
+    //   referenceType: typeof reference,
+    //   hasParsed: !!reference.parsed,
+    //   parsedType: typeof reference.parsed,
+    //   parsedKeys: reference.parsed ? Object.keys(reference.parsed) : [],
+    //   rawText: reference.raw_text?.substring(0, 100) + '...',
+    //   fullParsed: reference.parsed
+    // });
+
     // 如果有 parsed 字段，优先使用 parsed 中的数据
     if (reference.parsed && typeof reference.parsed === 'object') {
-      return {
+      const extracted = {
         title: reference.parsed.title || reference.raw_text,
         authors: reference.parsed.authors?.map((author: any) =>
           typeof author === 'string' ? author : author.name || author.author
         ) || [],
-        year: reference.parsed.year || reference.parsed.publicationDate ?
-          new Date(reference.parsed.publicationDate).getFullYear() : undefined,
+        year: reference.parsed.year ||
+          (reference.parsed.publicationDate ? new Date(reference.parsed.publicationDate).getFullYear() : undefined) ||
+          (reference.parsed.publication_date ? new Date(reference.parsed.publication_date).getFullYear() : undefined),
         doi: reference.parsed.doi || reference.parsed.externalIds?.DOI
       };
+
+      // console.log('🔍 [DEBUG] Extracted data from parsed:', extracted);
+      // console.log('🔍 [DEBUG] Year extraction details:', {
+      //   parsedYear: reference.parsed.year,
+      //   publicationDate: reference.parsed.publicationDate,
+      //   publication_date: reference.parsed.publication_date,
+      //   finalYear: extracted.year
+      // });
+      return extracted;
     }
 
     // 否则使用扁平结构
@@ -541,47 +575,80 @@ export class LibraryService {
    * 1. DOI 精确匹配（优先级最高）
    * 2. 标题 + 作者 + 年份模糊匹配
    */
-  async findMatchingLiterature(reference: any): Promise<LibraryItem | null> {
+  async findMatchingLiterature(reference: any, sourceItemId?: string): Promise<LibraryItem | null> {
     try {
       // 🔍 提取引文数据 - 处理嵌套结构
       const extractedRef = this.extractReferenceData(reference);
 
-      console.log(`🔍 [DEBUG] Extracted reference data:`, {
-        originalKeys: Object.keys(reference || {}),
-        extractedTitle: extractedRef.title,
-        extractedAuthors: extractedRef.authors,
-        extractedYear: extractedRef.year,
-        extractedDoi: extractedRef.doi
-      });
+      // console.log(`🔍 [DEBUG] Extracted reference data:`, {
+      //   originalKeys: Object.keys(reference || {}),
+      //   extractedTitle: extractedRef.title,
+      //   extractedAuthors: extractedRef.authors,
+      //   extractedYear: extractedRef.year,
+      //   extractedDoi: extractedRef.doi
+      // });
 
       // 策略一：DOI 精确匹配
       if (extractedRef.doi) {
+        console.log(`🔍 [DOI] Checking DOI: ${extractedRef.doi}`);
         const doiMatch = await this.db.library
           .where('doi')
           .equals(extractedRef.doi.trim())
           .first();
+
         if (doiMatch) {
-          console.log(`✅ [DEBUG] DOI match found: ${doiMatch.title}`);
-          return doiMatch;
+          // 检查自我引用
+          if (sourceItemId && doiMatch.id === sourceItemId) {
+            console.log(`🚫 [DOI] Self-reference detected, ignoring`);
+          } else {
+            console.log(`✅ [DOI] Match found: ${doiMatch.title}`);
+            return doiMatch;
+          }
+        } else {
+          console.log(`❌ [DOI] No match found`);
         }
       }
 
-      // 策略二：模糊匹配
+      // 策略二：带守门员的综合匹配
       if (extractedRef.title) {
         const allItems = await this.db.library.toArray();
-        const scoredMatches = allItems
-          .map(item => ({
-            item,
-            score: this.calculateMatchScore(extractedRef, item)
-          }))
-          .filter(match => match.score > 0.7) // 只考虑相似度超过70%的匹配
-          .sort((a, b) => b.score - a.score);
+        console.log(`🔍 [MATCH] Checking against ${allItems.length} library items`);
 
-        if (scoredMatches.length > 0) {
-          console.log(`✅ [DEBUG] Title match found: ${scoredMatches[0].item.title} (score: ${scoredMatches[0].score})`);
-          return scoredMatches[0].item;
+        const candidates = [];
+
+        for (const item of allItems) {
+          // 🚪 守门员：最低标题相似度检查
+          const titleSimilarity = this.calculateStringSimilarity(
+            extractedRef.title.toLowerCase().trim(),
+            item.title.toLowerCase().trim()
+          );
+
+          if (titleSimilarity < 0.3) {
+            continue; // 标题相似度太低，直接跳过
+          }
+
+          // 通过守门员检查，计算综合得分
+          const totalScore = this.calculateMatchScore(extractedRef, item);
+          candidates.push({
+            item,
+            titleSimilarity,
+            totalScore
+          });
+        }
+
+        // 按总分排序，筛选高质量匹配
+        const qualifiedMatches = candidates
+          .filter(candidate => candidate.totalScore > 0.45) // 提高阈值到45%
+          .sort((a, b) => b.totalScore - a.totalScore);
+
+        console.log(`🔍 [MATCH] Found ${qualifiedMatches.length} qualified matches (threshold: 0.45)`);
+
+        if (qualifiedMatches.length > 0) {
+          const bestMatch = qualifiedMatches[0];
+          console.log(`✅ [MATCH] Best match: "${bestMatch.item.title}" (score: ${bestMatch.totalScore.toFixed(3)})`);
+          return bestMatch.item;
         } else {
-          console.log(`❌ [DEBUG] No title match found for: ${extractedRef.title.substring(0, 50)}...`);
+          console.log(`❌ [MATCH] No qualified matches found`);
         }
       }
 
@@ -600,35 +667,35 @@ export class LibraryService {
     let score = 0;
     let factors = 0;
 
-    // 标题相似度（权重：0.5）
+    // 标题相似度（权重：0.7）- 核心中的核心
     if (reference.title && item.title) {
       const titleSimilarity = this.calculateStringSimilarity(
         reference.title.toLowerCase().trim(),
         item.title.toLowerCase().trim()
       );
-      score += titleSimilarity * 0.5;
-      factors += 0.5;
+      score += titleSimilarity * 0.7;
+      factors += 0.7;
     }
 
-    // 作者相似度（权重：0.3）
+    // 作者相似度（权重：0.2）- 重要的辅助判断
     if (reference.authors && item.authors && reference.authors.length > 0) {
       const authorSimilarity = this.calculateAuthorSimilarity(reference.authors, item.authors);
-      score += authorSimilarity * 0.3;
-      factors += 0.3;
+      score += authorSimilarity * 0.2;
+      factors += 0.2;
     }
 
-    // 年份匹配（权重：0.2）
+    // 年份匹配（权重：0.1）- 仅作为微调和加分项
     if (reference.year && item.year) {
       const yearMatch = Math.abs(reference.year - item.year) <= 1 ? 1 : 0;
-      score += yearMatch * 0.2;
-      factors += 0.2;
+      score += yearMatch * 0.1;
+      factors += 0.1;
     }
 
     return factors > 0 ? score / factors : 0;
   }
 
   /**
-   * 📝 计算两个字符串的相似度（简化版 Jaro-Winkler）
+   * 📝 计算两个字符串的相似度（优化版，针对学术标题）
    */
   private calculateStringSimilarity(str1: string, str2: string): number {
     if (str1 === str2) return 1;
@@ -641,10 +708,19 @@ export class LibraryService {
 
     if (s1 === s2) return 1;
 
-    // 计算最长公共子序列的长度比例
+    // 🎯 多种相似度算法组合
+    // 1. 词汇重叠率（对学术标题很有效）
+    const words1 = s1.toLowerCase().split(' ').filter(w => w.length > 2); // 忽略短词
+    const words2 = s2.toLowerCase().split(' ').filter(w => w.length > 2);
+    const commonWords = words1.filter(w => words2.includes(w));
+    const wordOverlap = commonWords.length / Math.max(words1.length, words2.length);
+
+    // 2. 最长公共子序列
     const lcs = this.longestCommonSubsequence(s1, s2);
-    const maxLength = Math.max(s1.length, s2.length);
-    return lcs / maxLength;
+    const lcsRatio = lcs / Math.max(s1.length, s2.length);
+
+    // 3. 组合评分（词汇重叠权重更高）
+    return wordOverlap * 0.7 + lcsRatio * 0.3;
   }
 
   /**
@@ -788,7 +864,7 @@ export class LibraryService {
     // 1. 正向链接 (新文献 -> 引用 -> 旧文献)
     if (newItem.parsedContent?.extractedReferences) {
       for (const reference of newItem.parsedContent.extractedReferences) {
-        const matchedItem = await this.findMatchingLiterature(reference);
+        const matchedItem = await this.findMatchingLiterature(reference, newItem.id);
         if (matchedItem) {
           const created = await this.createCitationLink(newItem.id, matchedItem.id);
           if (created) forwardLinks++;
@@ -803,8 +879,22 @@ export class LibraryService {
       if (existingItem.parsedContent?.extractedReferences) {
         for (const reference of existingItem.parsedContent.extractedReferences) {
           // 使用我们强大的匹配算法，检查旧文献的引文是否与新文献匹配
-          const score = this.calculateMatchScore(reference, newItem);
-          if (score > 0.7) { // 使用和 findMatchingLiterature 相同的阈值
+          const extractedRef = this.extractReferenceData(reference);
+
+          // 🚪 守门员：最低标题相似度检查
+          if (extractedRef.title && newItem.title) {
+            const titleSimilarity = this.calculateStringSimilarity(
+              extractedRef.title.toLowerCase().trim(),
+              newItem.title.toLowerCase().trim()
+            );
+
+            if (titleSimilarity < 0.3) {
+              continue; // 标题相似度太低，直接跳过
+            }
+          }
+
+          const score = this.calculateMatchScore(extractedRef, newItem);
+          if (score > 0.45) { // 使用和 findMatchingLiterature 相同的阈值
             const created = await this.createCitationLink(existingItem.id, newItem.id);
             if (created) backwardLinks++;
           }
