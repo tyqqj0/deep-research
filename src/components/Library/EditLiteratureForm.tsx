@@ -90,40 +90,75 @@ const formatAuthors = (authors: any): string => {
 };
 
 const ReferenceItem = ({ reference, index, onEdit }: ReferenceItemProps) => {
-  if (typeof reference === 'string') {
-    return (
-      <div className="text-sm p-2 bg-white dark:bg-gray-700 rounded border group relative">
-        <div className="pr-8">
-          {reference}
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={() => onEdit(index, reference)}
-        >
-          <Edit className="h-3 w-3" />
-        </Button>
-      </div>
-    );
-  }
+  // 提取引文数据 - 处理嵌套结构
+  const extractReferenceData = (ref: any) => {
+    if (typeof ref === 'string') {
+      return { title: ref, raw_text: ref };
+    }
 
-  // A more structured display for reference objects
-  const { title, authors, year, journal, doi } = reference;
+    // 如果有 parsed 字段，优先使用 parsed 中的数据
+    if (ref.parsed && typeof ref.parsed === 'object') {
+      return {
+        title: ref.parsed.title || ref.raw_text || '未知标题',
+        authors: ref.parsed.authors || [],
+        year: ref.parsed.year || ref.parsed.publicationDate ? 
+          new Date(ref.parsed.publicationDate).getFullYear() : undefined,
+        journal: ref.parsed.venue || ref.parsed.journal,
+        doi: ref.parsed.doi || ref.parsed.externalIds?.DOI,
+        raw_text: ref.raw_text,
+        source: ref.source
+      };
+    }
+
+    // 否则使用扁平结构或已经处理过的数据
+    return {
+      title: ref.title || ref.raw_text || '未知标题',
+      authors: ref.authors || [],
+      year: ref.year,
+      journal: ref.journal || ref.publication,
+      doi: ref.doi,
+      raw_text: ref.raw_text,
+      source: ref.source
+    };
+  };
+
+  const extractedData = extractReferenceData(reference);
 
   return (
     <div className="text-sm p-2 bg-white dark:bg-gray-700 rounded border group relative">
       <div className="pr-8">
-        <p className="font-semibold">{index + 1}. {title}</p>
-        {authors && (
+        <p className="font-semibold">{index + 1}. {extractedData.title}</p>
+        
+        {extractedData.authors && extractedData.authors.length > 0 && (
           <p className="text-xs text-gray-600 dark:text-gray-300">
-            Authors: {formatAuthors(authors)}
+            Authors: {formatAuthors(extractedData.authors)}
           </p>
         )}
-        {year && <p className="text-xs text-gray-600 dark:text-gray-300">Year: {year}</p>}
-        {journal && <p className="text-xs text-gray-600 dark:text-gray-300">Journal: {journal}</p>}
-        {doi && <p className="text-xs text-gray-600 dark:text-gray-300">DOI: {doi}</p>}
+        
+        {extractedData.year && (
+          <p className="text-xs text-gray-600 dark:text-gray-300">Year: {extractedData.year}</p>
+        )}
+        
+        {extractedData.journal && (
+          <p className="text-xs text-gray-600 dark:text-gray-300">Journal: {extractedData.journal}</p>
+        )}
+        
+        {extractedData.doi && (
+          <p className="text-xs text-gray-600 dark:text-gray-300">DOI: {extractedData.doi}</p>
+        )}
+
+        {extractedData.source && (
+          <p className="text-xs text-blue-600 dark:text-blue-400">Source: {extractedData.source}</p>
+        )}
+
+        {/* 如果有原始文本且与标题不同，也显示出来 */}
+        {extractedData.raw_text && extractedData.raw_text !== extractedData.title && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
+            Raw: {extractedData.raw_text.substring(0, 100)}{extractedData.raw_text.length > 100 ? '...' : ''}
+          </p>
+        )}
       </div>
+      
       <Button
         variant="ghost"
         size="sm"
@@ -357,7 +392,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                     value={authorInput}
                     onChange={(e) => setAuthorInput(e.target.value)}
                     onKeyPress={handleAuthorKeyPress}
-                      placeholder={t('library.editLiteratureForm.enterAuthorName')}
+                    placeholder={t('library.editLiteratureForm.enterAuthorName')}
                     className="flex-1"
                   />
                   <Button
@@ -600,7 +635,13 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                       <span className="font-medium">{t('library.editLiteratureForm.contentSuccessfullyParsed')}</span>
                     </div>
                     <p className="text-sm text-green-600 dark:text-green-300 mt-1">
-                      {t('library.editLiteratureForm.parsedOn')}: {new Date(item.parsedContent.parsedAt || '').toLocaleString()}
+                      {t('library.editLiteratureForm.parsedOn')}: {
+                        item.backendTask?.literature_status?.updated_at
+                          ? new Date(item.backendTask.literature_status.updated_at).toLocaleString()
+                          : item.updatedAt
+                            ? new Date(item.updatedAt).toLocaleString()
+                            : new Date(item.createdAt).toLocaleString()
+                      }
                     </p>
                   </div>
 

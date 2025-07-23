@@ -90,42 +90,77 @@ export function PdfUploadDialog({
 
     try {
       if (itemId) {
-        // 🚀 为特定文献上传PDF - 直接调用后端API
-        console.log('📤 Uploading PDF for existing item via backend API...', itemId);
-        const formData = new FormData();
-        formData.append('file', selectedFiles[0]);
-
-        await apiClient.uploadPdf(itemId, formData);
-        toast.success("PDF uploaded successfully! Automatic processing will begin shortly.");
-
+        // 🚀 为特定文献上传PDF - 暂时不支持，因为后端还没有该功能
+        setError("Uploading PDF for existing items is not yet supported. Please create a new literature item instead.");
+        toast.error("Feature not yet available");
+        return;
       } else {
-        // 🚀 批量上传 - 创建新文献条目
-        console.log(`📤 Batch uploading ${selectedFiles.length} PDFs via backend API...`);
+        // 🚀 批量上传 - 新的OSS直传流程
+        console.log(`📤 Starting OSS direct upload for ${selectedFiles.length} PDF files...`);
         const totalFiles = selectedFiles.length;
+        const totalSteps = totalFiles * 3; // 每个文件3个步骤：请求URL + 上传OSS + 提交后端
+        let completedSteps = 0;
 
         for (let i = 0; i < totalFiles; i++) {
           const file = selectedFiles[i];
+          const fileName = file.name.replace(/\.pdf$/i, ''); // 移除.pdf后缀作为临时标题
 
-          // 先创建文献条目（使用文件名作为临时标题）
-          const fileName = file.name.replace('.pdf', '');
-          const newItem = await apiClient.createLibraryItem({
-            title: fileName,
-            authors: ['Unknown'], // 临时作者，后端处理时会被AI提取的真实数据替换
-            year: new Date().getFullYear(),
-            source: 'manual'
-          });
+          try {
+            console.log(`🔄 [${i + 1}/${totalFiles}] Processing: ${file.name}`);
 
-          // 为新创建的条目上传PDF
-          const formData = new FormData();
-          formData.append('file', file);
-          await apiClient.uploadPdf(newItem.id, formData);
+            // 【步骤1】请求上传许可
+            console.log(`📤 [${i + 1}/${totalFiles}] Step 1: Requesting upload permission...`);
+            const { uploadUrl, publicUrl } = await apiClient.requestUploadUrl(file.name, file.type);
+            
+            completedSteps++;
+            setUploadProgress((completedSteps / totalSteps) * 100);
 
-          // 更新进度
-          setUploadProgress(((i + 1) / totalFiles) * 100);
-          console.log(`✅ [${i + 1}/${totalFiles}] Uploaded: ${fileName}`);
+            // 【步骤2】直传到OSS
+            console.log(`☁️ [${i + 1}/${totalFiles}] Step 2: Uploading to OSS...`);
+            await apiClient.uploadFileToOSS(uploadUrl, file);
+            
+            completedSteps++;
+            setUploadProgress((completedSteps / totalSteps) * 100);
+
+            // 【步骤3】提交到后端进行异步处理
+            console.log(`📚 [${i + 1}/${totalFiles}] Step 3: Submitting for processing...`);
+            
+            const taskId = await apiClient.submitLiterature({
+              source: {
+                title: fileName, // 使用文件名作为临时标题
+                authors: ['Unknown Author'], // 临时作者，后端AI会提取真实信息
+                url: publicUrl, // OSS上的PDF文件URL
+                year: new Date().getFullYear() // 当前年份作为临时年份
+              }
+            });
+
+            console.log(`✅ [${i + 1}/${totalFiles}] Task submitted successfully, task_id: ${taskId}`);
+            
+            completedSteps++;
+            setUploadProgress((completedSteps / totalSteps) * 100);
+
+          } catch (fileError) {
+            console.error(`❌ [${i + 1}/${totalFiles}] Failed to process ${file.name}:`, fileError);
+            
+            // 单个文件失败不中断整个流程
+            toast.error(`Failed to process ${file.name}: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`);
+            
+            // 跳过剩余步骤，继续下一个文件
+            completedSteps += (3 - (completedSteps % 3)); // 补齐当前文件的剩余步骤
+            setUploadProgress((completedSteps / totalSteps) * 100);
+          }
         }
 
-        toast.success(`${totalFiles} PDF${totalFiles > 1 ? 's' : ''} uploaded successfully! Automatic processing will begin shortly.`);
+        const successCount = Math.floor(completedSteps / 3);
+        const failedCount = totalFiles - successCount;
+
+        if (successCount > 0) {
+          toast.success(`${successCount} PDF${successCount > 1 ? 's' : ''} uploaded successfully! Processing will begin shortly.`);
+        }
+        
+        if (failedCount > 0) {
+          toast.warning(`${failedCount} file${failedCount > 1 ? 's' : ''} failed to upload.`);
+        }
       }
 
       // 🔄 刷新文献库状态
@@ -141,9 +176,9 @@ export function PdfUploadDialog({
       setUploadProgress(0);
 
     } catch (error) {
-      console.error('❌ Error uploading PDF:', error);
-      setError(error instanceof Error ? error.message : 'Failed to upload PDF');
-      toast.error("Failed to upload PDF");
+      console.error('❌ Error during upload process:', error);
+      setError(error instanceof Error ? error.message : 'Upload process failed');
+      toast.error("Upload process failed");
     } finally {
       setIsUploading(false);
     }

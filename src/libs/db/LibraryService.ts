@@ -15,10 +15,11 @@
  */
 
 import { db, LibraryItem, LiteratureTree } from './index';
-import { LibraryItemSchema, ParsingStatusEnum } from './schema';
+import { LibraryItemSchema } from './schema';
 import { generateLibraryItemId } from '../utils/uuid';
+import { z } from 'zod';
 
-type ParsingStatus = typeof ParsingStatusEnum[number];
+// type ParsingStatus = typeof ParsingStatusEnum[number]; // 已废弃
 
 export class LibraryService {
   private db = db;
@@ -68,27 +69,38 @@ export class LibraryService {
   /**
    * Add new library item with duplicate check
    */
-  async addLibraryItem(item: LibraryItem): Promise<{ success: boolean; duplicate?: LibraryItem[] }> {
+  async addLibraryItem(item: LibraryItem): Promise<string> {
     try {
-      // Validate the item
+      // ✅ 添加调试信息和详细的Zod验证错误处理
+      console.log('📝 [LibraryService] Validating item before adding:', {
+        id: item.id,
+        title: item.title,
+        authors: item.authors,
+        authorsLength: item.authors?.length,
+        year: item.year,
+        url: item.url,
+        createdAt: item.createdAt,
+        hasRequiredFields: Boolean(item.id && item.title && item.authors && item.year && item.createdAt)
+      });
+
       const validatedItem = LibraryItemSchema.parse(item);
-
-      // Check for duplicates
-      const duplicates = await this.checkDuplicateByTitle(validatedItem.title);
-
-      if (duplicates.length > 0) {
-        return {
-          success: false,
-          duplicate: duplicates
-        };
+      const id = await this.db.library.add(validatedItem as LibraryItem);
+      console.log('[LibraryService] Added literature item:', validatedItem.title);
+      return String(id);
+    } catch (error) {
+      // 🐞 详细的Zod错误处理
+      if (error instanceof z.ZodError) {
+        console.error('❌ [LibraryService] Zod validation error:', {
+          issues: error.issues,
+          formattedErrors: error.format(),
+          path: error.issues.map(issue => issue.path),
+          messages: error.issues.map(issue => issue.message)
+        });
+        throw new Error(`Data validation failed: ${error.issues.map(issue => `${issue.path.join('.')} - ${issue.message}`).join('; ')}`);
       }
 
-      // Add to database
-      await this.db.library.add(validatedItem as LibraryItem);
-      return { success: true };
-    } catch (error) {
-      console.error('Error adding library item:', error);
-      throw new Error('Failed to add library item');
+      console.error('[LibraryService] Failed to add library item:', error);
+      throw error;
     }
   }
 
@@ -404,7 +416,23 @@ export class LibraryService {
   }> {
     try {
       const item = await this.getLibraryItemById(itemId);
+
+      // 🔍 详细调试引文链接数据
+      console.log(`🔍 [DEBUG] LinkCitationsForItem - Item data:`, {
+        itemExists: !!item,
+        itemId: item?.id,
+        itemTitle: item?.title,
+        hasParsedContent: !!item?.parsedContent,
+        hasExtractedReferences: !!item?.parsedContent?.extractedReferences,
+        extractedReferencesType: typeof item?.parsedContent?.extractedReferences,
+        extractedReferencesLength: item?.parsedContent?.extractedReferences?.length || 0,
+        isArray: Array.isArray(item?.parsedContent?.extractedReferences),
+        firstReference: item?.parsedContent?.extractedReferences?.[0],
+        firstReferenceKeys: item?.parsedContent?.extractedReferences?.[0] ? Object.keys(item.parsedContent.extractedReferences[0]) : []
+      });
+
       if (!item || !item.parsedContent?.extractedReferences) {
+        console.log(`⚠️ [DEBUG] No item or no extracted references found for itemId: ${itemId}`);
         return { totalReferences: 0, linkedCount: 0, unlinkedCount: 0, linkedItems: [] };
       }
 
@@ -412,8 +440,34 @@ export class LibraryService {
       const linkedItems: Array<{ reference: any; linkedItem: LibraryItem }> = [];
       let linkedCount = 0;
 
-      for (const reference of references) {
+      console.log(`🔍 [DEBUG] Starting to process ${references.length} references for linking...`);
+
+      for (let i = 0; i < references.length; i++) {
+        const reference = references[i];
+
+        // 调试每个引文的结构
+        if (i < 3) { // 只打印前3个引文的详细信息，避免日志过多
+          console.log(`🔍 [DEBUG] Reference ${i + 1}/${references.length}:`, {
+            referenceType: typeof reference,
+            referenceKeys: Object.keys(reference || {}),
+            referenceStructure: reference,
+            hasTitle: !!reference?.title,
+            hasAuthors: !!reference?.authors,
+            hasYear: !!reference?.year,
+            hasDoi: !!reference?.doi
+          });
+        }
+
         const matchedItem = await this.findMatchingLiterature(reference);
+
+        if (i < 3) {
+          console.log(`🔍 [DEBUG] Match result for reference ${i + 1}:`, {
+            hasMatch: !!matchedItem,
+            matchedTitle: matchedItem?.title,
+            matchedId: matchedItem?.id
+          });
+        }
+
         if (matchedItem) {
           // 检查是否已存在链接，避免重复
           const existingLink = await this.db.citations
@@ -446,6 +500,42 @@ export class LibraryService {
   }
 
   /**
+   * 🔍 提取引文数据 - 处理不同的数据结构
+   * 支持多种引文数据格式：
+   * 1. 扁平结构：{ title, authors, year, doi }
+   * 2. 嵌套结构：{ parsed: { title, authors, year, doi }, raw_text, source }
+   */
+  private extractReferenceData(reference: any): {
+    title?: string;
+    authors?: string[];
+    year?: number;
+    doi?: string;
+  } {
+    if (!reference) return {};
+
+    // 如果有 parsed 字段，优先使用 parsed 中的数据
+    if (reference.parsed && typeof reference.parsed === 'object') {
+      return {
+        title: reference.parsed.title || reference.raw_text,
+        authors: reference.parsed.authors?.map((author: any) =>
+          typeof author === 'string' ? author : author.name || author.author
+        ) || [],
+        year: reference.parsed.year || reference.parsed.publicationDate ?
+          new Date(reference.parsed.publicationDate).getFullYear() : undefined,
+        doi: reference.parsed.doi || reference.parsed.externalIds?.DOI
+      };
+    }
+
+    // 否则使用扁平结构
+    return {
+      title: reference.title,
+      authors: reference.authors,
+      year: reference.year,
+      doi: reference.doi
+    };
+  }
+
+  /**
    * 🔍 智能匹配：在文献库中查找与给定引文匹配的条目
    * 匹配策略：
    * 1. DOI 精确匹配（优先级最高）
@@ -453,30 +543,45 @@ export class LibraryService {
    */
   async findMatchingLiterature(reference: any): Promise<LibraryItem | null> {
     try {
+      // 🔍 提取引文数据 - 处理嵌套结构
+      const extractedRef = this.extractReferenceData(reference);
+
+      console.log(`🔍 [DEBUG] Extracted reference data:`, {
+        originalKeys: Object.keys(reference || {}),
+        extractedTitle: extractedRef.title,
+        extractedAuthors: extractedRef.authors,
+        extractedYear: extractedRef.year,
+        extractedDoi: extractedRef.doi
+      });
+
       // 策略一：DOI 精确匹配
-      if (reference.doi) {
+      if (extractedRef.doi) {
         const doiMatch = await this.db.library
           .where('doi')
-          .equals(reference.doi.trim())
+          .equals(extractedRef.doi.trim())
           .first();
         if (doiMatch) {
+          console.log(`✅ [DEBUG] DOI match found: ${doiMatch.title}`);
           return doiMatch;
         }
       }
 
       // 策略二：模糊匹配
-      if (reference.title) {
+      if (extractedRef.title) {
         const allItems = await this.db.library.toArray();
         const scoredMatches = allItems
           .map(item => ({
             item,
-            score: this.calculateMatchScore(reference, item)
+            score: this.calculateMatchScore(extractedRef, item)
           }))
           .filter(match => match.score > 0.7) // 只考虑相似度超过70%的匹配
           .sort((a, b) => b.score - a.score);
 
         if (scoredMatches.length > 0) {
+          console.log(`✅ [DEBUG] Title match found: ${scoredMatches[0].item.title} (score: ${scoredMatches[0].score})`);
           return scoredMatches[0].item;
+        } else {
+          console.log(`❌ [DEBUG] No title match found for: ${extractedRef.title.substring(0, 50)}...`);
         }
       }
 
@@ -596,11 +701,23 @@ export class LibraryService {
       const { references: linkedReferences } = await this.getCitationRelationships(itemId);
       const linkedTitles = new Set(linkedReferences.map(ref => ref.title.toLowerCase().trim()));
 
-      // 返回尚未链接的引文
-      return item.parsedContent.extractedReferences.filter(ref => {
-        if (!ref.title) return true;
-        return !linkedTitles.has(ref.title.toLowerCase().trim());
-      });
+      // 🔍 处理嵌套结构的引文数据，返回格式化的未链接引文
+      return item.parsedContent.extractedReferences
+        .map(ref => {
+          const extractedData = this.extractReferenceData(ref);
+          return {
+            ...ref, // 保留原始数据
+            // 添加提取的扁平化数据，便于UI显示
+            title: extractedData.title,
+            authors: extractedData.authors,
+            year: extractedData.year,
+            doi: extractedData.doi
+          };
+        })
+        .filter(ref => {
+          if (!ref.title) return true;
+          return !linkedTitles.has(ref.title.toLowerCase().trim());
+        });
     } catch (error) {
       console.error('Error getting unlinked references:', error);
       throw new Error('Failed to get unlinked references');

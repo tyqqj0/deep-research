@@ -3,8 +3,7 @@ import { liveQuery } from 'dexie';
 import { LibraryItem, LiteratureTree, db } from '../libs/db';
 import { LITERATURE_SOURCES, DEFAULT_LIBRARY_ITEM_SOURCE, LiteratureSource } from '../libs/db/constants';
 import { libraryService } from '../libs/db/LibraryService';
-import { apiClient } from '../libs/api'; // 🚀 新增：使用API Client替代WorkflowService
-import { sseClient, LiteratureStatusUpdate } from '../libs/sse-client'; // 🚀 新增：SSE实时状态更新
+import { apiClient, BackendTaskResponse, Literature } from '../libs/api'; // 🚀 使用新的API Client和类型
 import { TreeController } from '../libs/tree/TreeController';
 import { zoteroService, ZoteroConfig, ZoteroSyncResult } from '../libs/zotero';
 import { generateLibraryItemId } from '../libs/utils/uuid';
@@ -35,6 +34,16 @@ interface LibraryState {
 
   // Auto-metadata extraction settings
   autoExtractMetadata: boolean;
+
+  // 🔄 轮询管理状态
+  activeTasks: Map<string, {
+    taskId: string;
+    literatureId: string; // 本地临时文献ID
+    title: string;
+    startTime: Date;
+  }>; // 正在轮询的任务
+  pollingInterval: NodeJS.Timeout | null; // 轮询定时器
+  pollingActive: boolean; // 轮询是否激活
 }
 
 // Define Actions interface
@@ -42,7 +51,13 @@ interface LibraryActions {
   // Core actions
   initialize: () => Promise<void>;
   startRealTimeUpdates: () => () => void; // 返回cleanup函数
-  startSSEConnection: () => void; // 🚀 新增：启动SSE连接
+  startPolling: () => void; // 🚀 启动全局轮询器
+  stopPolling: () => void; // 🚀 停止轮询
+  addTaskToPolling: (taskId: string, literatureId: string, title: string) => void; // 🚀 添加任务到轮询列表
+  handleTaskStatusUpdate: (taskInfo: any, response: BackendTaskResponse) => Promise<void>; // 🚀 处理任务状态更新（内部方法）
+  handleTaskError: (taskInfo: any, error: any) => Promise<void>; // 🚀 处理任务错误（内部方法）
+  _updateMetadataFromBackend: (literatureId: string, literatureStatus: any) => Promise<void>; // 🚀 从后端更新元数据（内部方法）
+  _syncFinalLiteratureData: (literatureId: string, response: BackendTaskResponse) => Promise<void>; // 🚀 同步最终文献数据（内部方法）
   selectTree: (treeId: string) => Promise<void>;
   runMCTS: () => Promise<void>;
   addLibraryItem: (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<{ success: boolean; itemId?: string; duplicate?: LibraryItem[]; error?: string }>;
@@ -109,6 +124,11 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   // Auto-metadata extraction settings
   autoExtractMetadata: true, // 默认启用
 
+  // 🔄 轮询管理状态初始值
+  activeTasks: new Map(),
+  pollingInterval: null,
+  pollingActive: false,
+
   // Clear error action
   clearError: () => {
     set({ error: null });
@@ -172,8 +192,8 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       // 自动启动实时更新
       get().startRealTimeUpdates();
 
-      // 🚀 启动SSE连接，接收后端状态更新
-      get().startSSEConnection();
+      // 🚀 启动全局轮询器，监听异步任务状态
+      get().startPolling();
 
     } catch (error) {
       console.error('LibraryStore: Initialization failed:', error);
@@ -216,51 +236,341 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     };
   },
 
-  // 🚀 启动SSE连接，接收实时状态更新
-  startSSEConnection: () => {
-    console.log('🔌 Starting SSE connection for real-time status updates...');
+  // 🚀 启动全局轮询器
+  startPolling: () => {
+    const { pollingActive, pollingInterval } = get();
 
-    // 监听文献状态更新
-    sseClient.subscribe('literature-status', (data: LiteratureStatusUpdate) => {
-      console.log('📨 Received literature status update:', data);
+    if (pollingActive || pollingInterval) {
+      console.log('🔄 Polling already active, skipping...');
+      return;
+    }
 
-      // 更新本地文献项的状态
-      const { items } = get();
+    console.log('🚀 Starting global task polling...');
+
+    const interval = setInterval(async () => {
+      const { activeTasks } = get();
+
+      if (activeTasks.size === 0) {
+        return; // 没有任务需要轮询
+      }
+
+      // 并行查询所有活跃任务的状态
+      const taskPromises = Array.from(activeTasks.values()).map(async (taskInfo) => {
+        try {
+          const status = await apiClient.getTaskStatus(taskInfo.taskId);
+          return { taskInfo, status };
+        } catch (error) {
+          console.error(`❌ Failed to poll task ${taskInfo.taskId}:`, error);
+          return { taskInfo, status: null, error };
+        }
+      });
+
+      const results = await Promise.allSettled(taskPromises);
+
+      // 处理轮询结果
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value.status) {
+          await get().handleTaskStatusUpdate(result.value.taskInfo, result.value.status);
+        } else if (result.status === 'fulfilled' && result.value.error) {
+          // 处理轮询错误
+          await get().handleTaskError(result.value.taskInfo, result.value.error);
+        }
+      }
+    }, 3000); // 每3秒轮询一次
+
+    set({
+      pollingInterval: interval,
+      pollingActive: true
+    });
+
+    console.log('✅ Global polling started (interval: 3s)');
+  },
+
+  // 🚀 停止轮询
+  stopPolling: () => {
+    const { pollingInterval } = get();
+
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      set({
+        pollingInterval: null,
+        pollingActive: false
+      });
+      console.log('🔌 Global polling stopped');
+    }
+  },
+
+  // 🚀 添加任务到轮询列表
+  addTaskToPolling: (taskId: string, literatureId: string, title: string) => {
+    const { activeTasks } = get();
+    const newTasks = new Map(activeTasks);
+
+    newTasks.set(taskId, {
+      taskId,
+      literatureId,
+      title,
+      startTime: new Date()
+    });
+
+    set({ activeTasks: newTasks });
+    console.log(`📋 Added task to polling: ${taskId} (${title})`);
+  },
+
+  // 🚀 处理任务状态更新（内部方法） - 重构为新API结构
+  handleTaskStatusUpdate: async (taskInfo: any, response: BackendTaskResponse) => {
+    const { activeTasks, items } = get();
+
+    console.log(`🔄 Processing task update: ${taskInfo.taskId} - execution_status: ${response.execution_status}`);
+
+    // 🔄 处理进行中的任务
+    if (response.execution_status === 'processing' || response.execution_status === 'pending') {
       const updatedItems = items.map(item => {
-        if (item.id === data.itemId && data.updatedItem) {
-          return { ...item, ...data.updatedItem, updatedAt: new Date() };
+        if (item.id === taskInfo.literatureId) {
+          return {
+            ...item,
+            // 🚀 更新backendTask字段为完整的响应数据
+            backendTask: response,
+            updatedAt: new Date()
+          };
         }
         return item;
       });
 
       set({ items: updatedItems });
 
-      // 同步到本地缓存
-      if (data.updatedItem) {
-        libraryService.updateLibraryItem(data.itemId, data.updatedItem).catch(error => {
-          console.error('Failed to sync status update to local cache:', error);
-        });
+      // 🚀 检查元数据是否已完成，如果是则立即更新本地数据
+      if (response.literature_status?.component_status?.metadata?.status === 'success') {
+        await get()._updateMetadataFromBackend(taskInfo.literatureId, response.literature_status);
       }
+
+    } else if (response.execution_status === 'completed') {
+      // ✅ 任务完成
+      console.log(`✅ Task completed: ${taskInfo.taskId} (${taskInfo.title}) - result_type: ${response.result_type}`);
+
+      try {
+        // 从activeTasks中移除这个任务
+        const newTasks = new Map(activeTasks);
+        newTasks.delete(taskInfo.taskId);
+        set({ activeTasks: newTasks });
+
+        // 最终更新本地数据
+        const updatedItems = items.map(item => {
+          if (item.id === taskInfo.literatureId) {
+            return {
+              ...item,
+              backendTask: response,
+              updatedAt: new Date()
+            };
+          }
+          return item;
+        });
+
+        set({ items: updatedItems });
+
+        // 🚀 如果有完整的文献数据，进行最终同步
+        if (response.literature_id && response.literature_status) {
+          await get()._syncFinalLiteratureData(taskInfo.literatureId, response);
+        }
+
+      } catch (error) {
+        console.error(`❌ Error processing completed task ${taskInfo.taskId}:`, error);
+        await get().handleTaskError(taskInfo, error);
+      }
+
+    } else if (response.execution_status === 'failed') {
+      // 任务失败
+      await get().handleTaskError(taskInfo, new Error(response.current_stage || 'Task failed'));
+    }
+  },
+
+  // 🚀 处理任务错误（内部方法）
+  handleTaskError: async (taskInfo: any, error: any) => {
+    const { activeTasks, items } = get();
+
+    console.error(`❌ Task failed: ${taskInfo.taskId} (${taskInfo.title})`, error);
+
+    // 从activeTasks中移除失败的任务
+    const newTasks = new Map(activeTasks);
+    newTasks.delete(taskInfo.taskId);
+    set({ activeTasks: newTasks });
+
+    // 更新文献状态为失败
+    const updatedItems = items.map(item => {
+      if (item.id === taskInfo.literatureId) {
+        return {
+          ...item,
+          parsingStatus: 'FAILED' as const,
+          error: error instanceof Error ? error.message : 'Processing failed',
+          updatedAt: new Date()
+        };
+      }
+      return item;
     });
 
-    // 监听解析进度更新  
-    sseClient.subscribe('parsing-progress', (data: any) => {
-      console.log('📊 Received parsing progress:', data);
+    set({ items: updatedItems });
 
-      // 可以在这里处理进度更新，比如显示进度条
-      // 暂时只打印日志，具体UI更新逻辑可以根据需要实现
-    });
+    // 同步到本地缓存
+    try {
+      await libraryService.updateLibraryItem(taskInfo.literatureId, {
+        backendTask: {
+          execution_status: 'failed',
+          error_info: { message: error instanceof Error ? error.message : 'Processing failed' }
+        }
+      });
+    } catch (cacheError) {
+      console.error('Failed to update failed status in cache:', cacheError);
+    }
+  },
 
-    // 监听错误信息
-    sseClient.subscribe('error', (data: any) => {
-      console.error('❌ Received SSE error:', data);
-      set({ error: data.message || 'Unknown error from server' });
-    });
+  // 🚀 从后端更新元数据（内部方法）
+  _updateMetadataFromBackend: async (literatureId: string, literatureStatus: any) => {
+    const { items } = get();
 
-    // 启动连接
-    sseClient.connect();
+    console.log(`📝 Updating metadata from backend for item: ${literatureId}`);
 
-    console.log('✅ SSE connection started successfully');
+    try {
+      // 从后端状态中提取元数据
+      // 注意：这里需要根据实际的API响应结构来提取数据
+      const metadataUpdates: Partial<LibraryItem> = {};
+
+      // 如果有可用的元数据，更新到顶层字段
+      if (literatureStatus.component_status?.metadata?.status === 'success') {
+        // 这里需要根据实际API返回的结构来提取元数据
+        // 暂时保持现有数据不变，只更新backendTask
+      }
+
+      // 更新本地数据库
+      await libraryService.updateLibraryItem(literatureId, metadataUpdates);
+
+      // 更新Zustand store
+      const updatedItems = items.map(item => {
+        if (item.id === literatureId) {
+          return { ...item, ...metadataUpdates, updatedAt: new Date() };
+        }
+        return item;
+      });
+
+      set({ items: updatedItems });
+
+      console.log('✅ Metadata updated successfully from backend');
+    } catch (error) {
+      console.error('❌ Failed to update metadata from backend:', error);
+    }
+  },
+
+  // 🚀 同步最终文献数据（内部方法）
+  _syncFinalLiteratureData: async (literatureId: string, response: BackendTaskResponse) => {
+    console.log(`🔄 Syncing final literature data for: ${literatureId} - result_type: ${response.result_type}`);
+
+    try {
+      if (response.literature_id) {
+        // 无论是新创建还是重复的文献，都获取后端的完整数据
+        const finalLiterature = await apiClient.getLiterature(response.literature_id);
+
+        console.log('📖 Retrieved literature data from backend:', finalLiterature.title);
+
+        // 合并后端提取的真实数据到本地条目
+        const updates: Partial<LibraryItem> = {
+          title: finalLiterature.title,
+          authors: finalLiterature.authors || ['Unknown Author'],
+          year: finalLiterature.year || new Date().getFullYear(),
+          doi: finalLiterature.doi || undefined, // 将 null 转换为 undefined
+          publication: finalLiterature.journal || undefined, // 同样处理 journal
+
+          // 🔗 同步引文数据到 parsedContent
+          parsedContent: (() => {
+            console.log(`🔍 [DEBUG] Processing references for parsedContent:`, {
+              hasReferences: !!finalLiterature.references,
+              referencesLength: finalLiterature.references?.length || 0,
+              referencesType: typeof finalLiterature.references,
+              isArray: Array.isArray(finalLiterature.references),
+              firstReference: finalLiterature.references?.[0],
+              firstReferenceKeys: finalLiterature.references?.[0] ? Object.keys(finalLiterature.references[0]) : [],
+              sampleReferences: finalLiterature.references?.slice(0, 2)
+            });
+
+            return finalLiterature.references && finalLiterature.references.length > 0 ? {
+              extractedReferences: finalLiterature.references
+            } : undefined;
+          })(),
+
+          backendTask: response,
+          updatedAt: new Date()
+        };
+
+        console.log(`🔗 Syncing ${finalLiterature.references?.length || 0} references for literature: ${finalLiterature.title}`);
+
+        // 更新本地数据库
+        await libraryService.updateLibraryItem(literatureId, updates);
+
+        // 更新Zustand store
+        const { items } = get();
+        const updatedItems = items.map(item => {
+          if (item.id === literatureId) {
+            return { ...item, ...updates };
+          }
+          return item;
+        });
+
+        set({ items: updatedItems });
+
+        if (response.result_type === 'duplicate') {
+          console.log('✅ Duplicate literature data synced with backend information');
+        } else {
+          console.log('✅ New literature data synced successfully');
+        }
+
+        // 🔗 自动触发引文链接流程
+        if (finalLiterature.references && finalLiterature.references.length > 0) {
+          console.log(`🔗 Auto-linking ${finalLiterature.references.length} references...`);
+
+          try {
+            if (response.result_type === 'created') {
+              // 新创建的文献，使用双向链接
+              console.log('🔄 Triggering bidirectional linking for new literature...');
+              const linkResult = await libraryService.linkNewItemBidirectionally(literatureId);
+              console.log(`✅ Bidirectional linking completed: ${linkResult.forwardLinks} forward, ${linkResult.backwardLinks} backward`);
+            } else {
+              // 重复文献，使用单向链接
+              console.log('➡️ Triggering unidirectional linking for duplicate literature...');
+              const linkResult = await libraryService.linkCitationsForItem(literatureId);
+              console.log(`✅ Citation linking completed: ${linkResult.linkedCount}/${linkResult.totalReferences} linked`);
+            }
+          } catch (linkError) {
+            console.error('❌ Auto-linking failed:', linkError);
+            // 不抛出错误，因为数据同步已经成功，链接失败不应该影响主流程
+          }
+        } else {
+          console.log('ℹ️ No references to link for this literature');
+        }
+      } else {
+        // 没有literature_id，只更新任务状态
+        console.log('⚠️ No literature_id in response, only updating task status');
+
+        const { items } = get();
+        const updatedItems = items.map(item => {
+          if (item.id === literatureId) {
+            return {
+              ...item,
+              backendTask: response,
+              updatedAt: new Date()
+            };
+          }
+          return item;
+        });
+
+        set({ items: updatedItems });
+
+        await libraryService.updateLibraryItem(literatureId, {
+          backendTask: response,
+          updatedAt: new Date()
+        });
+
+        console.log('✅ Task status updated without literature data');
+      }
+    } catch (error) {
+      console.error('❌ Failed to sync final literature data:', error);
+    }
   },
 
   // Select tree action
@@ -396,54 +706,146 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     }
   },
 
-  // Add library item action - 🚀 重构为使用后端API
+  // Add library item action - 🚀 重构为支持异步任务流程
   addLibraryItem: async (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       set({ isLoading: true, error: null });
 
-      // 🚀 直接调用后端API创建文献，业务逻辑已移到后端
-      console.log('📤 Creating literature item via backend API...');
-      const createdItem = await apiClient.createLibraryItem({
-        ...itemData,
-        source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE
-      });
-
-      // 🔄 更新本地缓存和状态
       const { items } = get();
-      const updatedItems = [...items, createdItem];
+      const itemId = generateLibraryItemId();
 
-      // 同步到本地缓存
-      await libraryService.addLibraryItem(createdItem);
+      // 检查是否有可以让后端处理的信息 (DOI 或 URL)
+      const canBeProcessedByBackend = Boolean(itemData.doi || itemData.url);
 
-      set({
-        items: updatedItems,
-        isLoading: false
-      });
+      if (canBeProcessedByBackend) {
+        // 🚀 有DOI或URL，提交给后端进行异步处理
+        console.log('📤 Submitting literature for backend processing...', itemData.title);
 
-      console.log('✅ Literature item created successfully:', createdItem.title);
-      return { success: true, itemId: createdItem.id };
+        const taskId = await apiClient.submitLiterature({
+          source: {
+            title: itemData.title,
+            authors: itemData.authors,
+            doi: itemData.doi,
+            url: itemData.url,
+            year: itemData.year,
+            journal: itemData.publication
+          }
+        });
+
+        // 创建本地临时文献条目（状态为PROCESSING）
+        const temporaryItem: LibraryItem = {
+          id: itemId,
+          title: itemData.title || 'Untitled Literature',
+          authors: itemData.authors && itemData.authors.length > 0 ? itemData.authors : ['Unknown Author'],
+          year: itemData.year,
+          source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE,
+          publication: itemData.publication,
+          abstract: itemData.abstract,
+          summary: itemData.summary,
+          zoteroKey: itemData.zoteroKey,
+          doi: itemData.doi,
+          url: itemData.url || undefined, // 确保空字符串被转为undefined
+          pdfPath: itemData.pdfPath,
+          backendTask: {
+            task_id: taskId,
+            execution_status: 'processing',
+            result_type: 'created',
+            literature_id: null,
+            literature_status: null,
+            status: 'processing',
+            overall_progress: 0,
+            current_stage: '正在提交处理任务',
+            resource_url: null,
+            error_info: null
+          }, // 保存完整的后端任务状态
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+
+        // 添加到本地状态和缓存
+        try {
+          await libraryService.addLibraryItem(temporaryItem);
+          console.log('✅ [Store] Temporary item added to local cache successfully');
+
+          const updatedItems = [...items, temporaryItem];
+          set({
+            items: updatedItems,
+            isLoading: false
+          });
+        } catch (cacheError) {
+          console.error('❌ [Store] Failed to add temporary item to local cache:', cacheError);
+          throw new Error(`Failed to cache literature item: ${cacheError instanceof Error ? cacheError.message : 'Unknown error'}`);
+        }
+
+        // 🚀 将任务添加到轮询列表
+        get().addTaskToPolling(taskId, itemId, itemData.title);
+
+        console.log(`✅ Literature submitted for processing, task_id: ${taskId}`);
+        return { success: true, itemId };
+
+      } else {
+        // 📝 仅有元数据，直接创建本地条目（不发送后端处理）
+        console.log('📝 Creating local literature item (metadata only)...', itemData.title);
+
+        const localItem: LibraryItem = {
+          id: itemId,
+          title: itemData.title || 'Untitled Literature',
+          authors: itemData.authors && itemData.authors.length > 0 ? itemData.authors : ['Unknown Author'],
+          year: itemData.year,
+          source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE,
+          publication: itemData.publication,
+          abstract: itemData.abstract,
+          summary: itemData.summary,
+          zoteroKey: itemData.zoteroKey,
+          doi: itemData.doi,
+          url: itemData.url || undefined, // 确保空字符串被转为undefined
+          pdfPath: itemData.pdfPath,
+          parsingStatus: 'IDLE', // 无需处理，状态为空闲
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+
+        // 检查重复
+        const duplicates = await libraryService.checkDuplicateByTitle(localItem.title);
+        if (duplicates.length > 0) {
+          set({
+            isLoading: false,
+            error: 'Duplicate literature found'
+          });
+          return { success: false, duplicate: duplicates };
+        }
+
+        // 添加到本地状态和缓存
+        try {
+          await libraryService.addLibraryItem(localItem);
+          console.log('✅ [Store] Local item added to cache successfully');
+
+          const updatedItems = [...items, localItem];
+          set({
+            items: updatedItems,
+            isLoading: false
+          });
+        } catch (cacheError) {
+          console.error('❌ [Store] Failed to add local item to cache:', cacheError);
+          throw new Error(`Failed to cache literature item: ${cacheError instanceof Error ? cacheError.message : 'Unknown error'}`);
+        }
+
+        console.log('✅ Local literature item created successfully:', localItem.title);
+        return { success: true, itemId };
+      }
 
     } catch (error) {
-      console.error('❌ Failed to create literature item:', error);
-
-      // Handle duplicate case (后端返回的错误信息)
-      if (error instanceof Error && error.message.includes('duplicate')) {
-        set({
-          isLoading: false,
-          error: error.message
-        });
-        return { success: false, duplicate: [] };
-      }
+      console.error('❌ Failed to add literature item:', error);
 
       set({
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to add library item'
+        error: error instanceof Error ? error.message : 'Failed to add literature item'
       });
-      return { success: false, error: error instanceof Error ? error.message : 'Failed to add library item' };
+      return { success: false, error: error instanceof Error ? error.message : 'Failed to add literature item' };
     }
   },
 
-  // Update library item action - 🚀 重构为使用后端API
+  // Update library item action - 📝 前端本地数据管理
   updateLibraryItem: async (id: string, itemData: Partial<LibraryItem>) => {
     try {
       set({ isLoading: true, error: null });
@@ -455,24 +857,107 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         throw new Error(`Library item with id ${id} not found`);
       }
 
-      // 🚀 调用后端API更新文献
-      console.log('📤 Updating literature item via backend API...', id);
-      const updatedItem = await apiClient.updateLibraryItem(id, itemData);
-
-      // 🔄 更新本地缓存和状态
-      await libraryService.updateLibraryItem(id, itemData);
-
-      // Update items list
-      const updatedItems = items.map(item =>
-        item.id === id ? updatedItem : item
+      // 🔍 检查是否新增了可解析信息 (URL/DOI)
+      const oldCanBeProcessed = Boolean(existingItem.doi || existingItem.url);
+      const newCanBeProcessed = Boolean(
+        (itemData.doi !== undefined ? itemData.doi : existingItem.doi) ||
+        (itemData.url !== undefined ? itemData.url : existingItem.url)
       );
+      const shouldTriggerBackendProcessing = !oldCanBeProcessed && newCanBeProcessed;
 
-      set({
-        items: updatedItems,
-        isLoading: false
-      });
+      // 📝 直接更新本地数据库 (前端自治管理)
+      console.log('📝 Updating literature item in local database...', id);
+      const updateData = { ...itemData, updatedAt: new Date() };
+      await libraryService.updateLibraryItem(id, updateData);
 
-      console.log('✅ Literature item updated successfully:', updatedItem.title);
+      // 🔄 更新本地状态 (UI刷新)
+      const updatedItem = { ...existingItem, ...updateData };
+
+      // 🚀 如果新增了可解析信息，提交给后端处理
+      if (shouldTriggerBackendProcessing) {
+        console.log('🚀 New parseable info detected, submitting to backend...', updatedItem.title);
+        try {
+          const taskId = await apiClient.submitLiterature({
+            source: {
+              title: updatedItem.title,
+              authors: updatedItem.authors,
+              doi: updatedItem.doi,
+              url: updatedItem.url,
+              year: updatedItem.year,
+              journal: updatedItem.publication
+            }
+          });
+
+          // 更新条目状态为"处理中"并保存任务ID
+          const processingItem = {
+            ...updatedItem,
+            backendTask: {
+              task_id: taskId,
+              execution_status: 'processing',
+              result_type: 'created',
+              literature_id: null,
+              literature_status: null,
+              status: 'processing',
+              overall_progress: 0,
+              current_stage: '正在提交处理任务',
+              resource_url: null,
+              error_info: null
+            }
+          };
+
+          await libraryService.updateLibraryItem(id, {
+            backendTask: {
+              task_id: taskId,
+              execution_status: 'processing',
+              result_type: 'created',
+              literature_id: null,
+              literature_status: null,
+              status: 'processing',
+              overall_progress: 0,
+              current_stage: '正在提交处理任务',
+              resource_url: null,
+              error_info: null
+            }
+          });
+
+          // 添加到轮询列表
+          get().addTaskToPolling(taskId, id, updatedItem.title);
+
+          const updatedItems = items.map(item =>
+            item.id === id ? processingItem : item
+          );
+
+          set({
+            items: updatedItems,
+            isLoading: false
+          });
+
+          console.log(`✅ Literature updated and submitted for backend processing, task_id: ${taskId}`);
+        } catch (backendError) {
+          console.error('❌ Failed to submit to backend, but local update succeeded:', backendError);
+          // 即使后端提交失败，本地更新也已成功，继续正常流程
+          const updatedItems = items.map(item =>
+            item.id === id ? updatedItem : item
+          );
+
+          set({
+            items: updatedItems,
+            isLoading: false
+          });
+        }
+      } else {
+        // 没有新增可解析信息，只是常规更新
+        const updatedItems = items.map(item =>
+          item.id === id ? updatedItem : item
+        );
+
+        set({
+          items: updatedItems,
+          isLoading: false
+        });
+
+        console.log('✅ Literature item updated successfully in local database:', updatedItem.title);
+      }
     } catch (error) {
       console.error('❌ Failed to update literature item:', error);
       set({
@@ -482,19 +967,16 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     }
   },
 
-  // Delete library item action - 🚀 重构为使用后端API
+  // Delete library item action - 🗑️ 前端本地数据管理
   deleteLibraryItem: async (id: string) => {
     try {
       set({ isLoading: true, error: null });
 
-      // 🚀 调用后端API删除文献
-      console.log('🗑️ Deleting literature item via backend API...', id);
-      await apiClient.deleteLibraryItem(id);
-
-      // 🔄 更新本地缓存和状态
+      // 🗑️ 直接删除本地数据库记录 (前端自治管理)
+      console.log('🗑️ Deleting literature item from local database...', id);
       await libraryService.deleteLibraryItem(id);
 
-      // Update local state
+      // 🔄 更新本地状态 (UI刷新)
       const { items } = get();
       const updatedItems = items.filter(item => item.id !== id);
 
@@ -502,7 +984,10 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         items: updatedItems,
         isLoading: false
       });
+
+      console.log('✅ Literature item deleted successfully from local database');
     } catch (error) {
+      console.error('❌ Failed to delete literature item:', error);
       set({
         isLoading: false,
         error: error instanceof Error ? error.message : 'Failed to delete library item'

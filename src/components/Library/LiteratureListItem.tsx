@@ -114,16 +114,13 @@ export function LiteratureListItem({
                     <Calendar className="h-3 w-3" />
                     <span>{item.year}</span>
                   </div>
-                  {/* Parsing Status - 放在同一行 */}
-                  {item.parsingStatus && (
-                    <ParsingStatusIndicator
-                      status={item.parsingStatus}
-                      onUploadPdf={() => setShowPdfUpload(true)}
-                      showUploadButton={item.parsingStatus === 'AWAITING_MANUAL_UPLOAD'}
-                      viewMode={viewMode}
-                      parsingProgress={item.parsingProgress}
-                    />
-                  )}
+                  {/* 🚀 Backend Task Status */}
+                  <ParsingStatusIndicator
+                    backendTask={item.backendTask}
+                    onUploadPdf={() => setShowPdfUpload(true)}
+                    showUploadButton={!item.backendTask || item.backendTask.execution_status === 'failed'}
+                    viewMode={viewMode}
+                  />
                 </div>
               </div>
             </div>

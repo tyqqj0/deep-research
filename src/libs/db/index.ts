@@ -1,61 +1,27 @@
 import Dexie, { Table } from 'dexie';
 import { LiteratureSource } from './constants';
 
-// TypeScript Interfaces
-export interface LibraryItem {
-  id: string; // UUID
-  title: string;
-  authors: string[];
-  year: number;
-  source?: LiteratureSource; // 来源类型
-  publication?: string;
-  abstract?: string;
-  summary?: string;
-  zoteroKey?: string;
-  doi?: string;
-  url?: string;
-  pdfPath?: string;
-  mineruTaskId?: string;
-  parsingStatus?: 'IDLE' | 'PENDING_PDF_FETCH' | 'PENDING_PARSE' | 'AWAITING_MANUAL_UPLOAD' | 'PENDING_MINERU_SUBMISSION' | 'PARSING_IN_MINERU' | 'SUCCESS' | 'PENDING_REFERENCE_EXTRACTION' | 'PENDING_METADATA_EXTRACTION' | 'EXTRACTING_REFERENCES' | 'PARTIAL_SUCCESS' | 'FAILED' | 'PARSING_FAILED';
-  parsingProgress?: {
-    extractedPages?: number;
-    totalPages?: number;
-    startTime?: string;
-  };
-  // 解析结果内容
-  parsedContent?: {
-    extractedText?: string; // 提取的文本内容（Markdown格式）
-    extractedMetadata?: Record<string, any>; // 提取的元数据
-    extractedReferences?: any[]; // 提取的引用
-    parsedAt?: Date; // 解析时间
-    fullZipUrl?: string; // 完整ZIP文件的URL（用于下载）
-  };
-  createdAt: Date;
-  updatedAt?: Date; // 添加更新时间
-}
+// 🚀 导入新的类型定义用于本地使用
+import type {
+  LibraryItem,
+  MCTSNode,
+  LiteratureTree,
+  Citation,
+  BackendTask,
+  LiteratureStatus,
+  ComponentStatus
+} from './schema';
 
-export interface MCTSNode {
-  id: string; // UUID
-  parentId: string | null;
-  libraryItemId: string; // References LibraryItem.id
-  visits: number;
-  wins: number; // Represents simulation "value" or "score"
-}
-
-export interface LiteratureTree {
-  id: string; // UUID
-  name: string;
-  rootNodeId: string;
-  nodes: { [nodeId: string]: MCTSNode }; // Object with nodeId as key and MCTSNode as value
-  createdAt: Date;
-}
-
-export interface Citation {
-  id?: number; // Auto-increment ID
-  sourceItemId: string; // UUID
-  targetItemId: string; // UUID
-  createdAt: Date;
-}
+// 🚀 重新导出类型定义
+export type {
+  LibraryItem,
+  MCTSNode,
+  LiteratureTree,
+  Citation,
+  BackendTask,
+  LiteratureStatus,
+  ComponentStatus
+};
 
 // Dexie Database Class
 export class MyDatabase extends Dexie {
@@ -79,47 +45,64 @@ export class MyDatabase extends Dexie {
       literatureTrees: '++id, name, createdAt',
       citations: '++id, [sourceItemId+targetItemId], sourceItemId, targetItemId' // New citations table
     }).upgrade(trans => {
-      // Upgrade existing library items to have default parsingStatus
-      return trans.table('library').toCollection().modify((item: LibraryItem) => {
-        if (!item.parsingStatus) {
-          item.parsingStatus = 'IDLE';
-        }
-      });
+      // 🗑️ 旧的升级逻辑，保持兼容性
+      return Promise.resolve();
     });
 
-    // Version 3 - Add mineruTaskId field
+    // Version 3 - Add mineruTaskId field (Legacy)
     this.version(3).stores({
       library: '++id, title, *authors, year, source, publication, zoteroKey, doi, url, pdfPath, mineruTaskId, parsingStatus, createdAt', // Added mineruTaskId
       literatureTrees: '++id, name, createdAt',
       citations: '++id, [sourceItemId+targetItemId], sourceItemId, targetItemId'
     }).upgrade(trans => {
-      // Upgrade existing library items to have default parsingStatus
-      return trans.table('library').toCollection().modify((item: LibraryItem) => {
-        if (!item.parsingStatus) {
-          item.parsingStatus = 'IDLE';
-        }
-      });
+      // 🗑️ 旧的升级逻辑，保持兼容性
+      return Promise.resolve();
     });
 
-    // Version 4 - Add backend integration fields
+    // Version 4 - Add backend integration fields (Legacy)
     this.version(4).stores({
       library: '++id, title, *authors, year, source, publication, zoteroKey, doi, url, pdfPath, mineruTaskId, backendTaskId, backendLiteratureId, parsingStatus, createdAt', // Added backend fields
       literatureTrees: '++id, name, createdAt',
       citations: '++id, [sourceItemId+targetItemId], sourceItemId, targetItemId'
     }).upgrade(trans => {
-      // Initialize backend fields for existing items
-      return trans.table('library').toCollection().modify((item: LibraryItem) => {
-        // 为现有条目添加默认的后端字段
-        if (!item.backendTaskId) {
-          item.backendTaskId = undefined;
-        }
-        if (!item.backendLiteratureId) {
-          item.backendLiteratureId = undefined;
-        }
-        if (!item.backendStatus) {
-          item.backendStatus = undefined;
+      // 🗑️ 旧的升级逻辑，保持兼容性
+      return Promise.resolve();
+    });
+
+    // Version 5 - 🚀 新的后端集成架构 (重构版)
+    this.version(5).stores({
+      library: '++id, title, *authors, year, source, publication, zoteroKey, doi, url, pdfPath, createdAt', // 移除旧字段，使用新的backendTask结构
+      literatureTrees: '++id, name, createdAt',
+      citations: '++id, [sourceItemId+targetItemId], sourceItemId, targetItemId'
+    }).upgrade(trans => {
+      // 🚀 迁移到新的数据结构
+      return trans.table('library').toCollection().modify((item: any) => {
+        // 清理旧字段
+        delete item.parsingStatus;
+        delete item.parsingProgress;
+        delete item.mineruTaskId;
+        delete item.backendTaskId;
+        delete item.backendLiteratureId;
+        delete item.backendStatus;
+        delete item.parsedContent;
+
+        // 确保有必需字段
+        if (!item.createdAt) {
+          item.createdAt = new Date();
         }
       });
+    });
+
+    // Version 6 - 🔗 恢复引文管理功能 (引文数据支持)
+    this.version(6).stores({
+      library: '++id, title, *authors, year, source, publication, zoteroKey, doi, url, pdfPath, createdAt', // 保持相同的索引结构
+      literatureTrees: '++id, name, createdAt',
+      citations: '++id, [sourceItemId+targetItemId], sourceItemId, targetItemId'
+    }).upgrade(trans => {
+      // 🔗 为引文管理系统做准备，不删除任何现有数据
+      // parsedContent 字段将在后端数据同步时填充
+      console.log('🔗 Database upgraded to version 6 - Citation management ready');
+      return Promise.resolve();
     });
   }
 }

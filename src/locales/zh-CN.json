@@ -59,7 +59,9 @@
       "doi": "DOI",
       "url": "URL",
       "source": "来源",
-      "sourceDescription": "来源描述"
+      "sourceDescription": "来源描述",
+      "deleteSelected": "删除已选文献",
+      "clearSelection": "清空选择"
     },
     "editLiteratureForm": {
       "referenceUpdated": "引文已更新，可以重新运行自动链接",
@@ -156,7 +158,12 @@
       "year": "年份",
       "enterYear": "请输入年份",
       "source": "来源",
-      "selectSource": "请选择来源"
+      "selectSource": "请选择来源",
+      "publication": "出版物",
+      "enterPublication": "请输入出版物",
+      "doi": "DOI",
+      "enterDoi": "请输入DOI",
+      "addLiterature": "添加文献"
     },
     "zoteroImportEnhanced": {
       "autoConnectedToZotero": "已自动连接到 Zotero！",
