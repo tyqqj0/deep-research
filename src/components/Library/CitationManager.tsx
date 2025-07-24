@@ -33,6 +33,7 @@ import { useState } from "react";
 import { useCitations } from "@/hooks/useCitations";
 import { useLibraryStore } from "@/store/libraryStore";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 interface CitationManagerProps {
   item: LibraryItem;
@@ -62,25 +63,25 @@ interface StatsCardProps {
   gradient: string;
   iconColor: string;
 }
-
 function StatsCard({ title, value, icon, gradient, iconColor }: StatsCardProps) {
+  const { t } = useTranslation();
   return (
     <Card className="relative overflow-hidden">
       <div className={`absolute inset-0 ${gradient} opacity-10`} />
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
-        <CardTitle className="text-sm font-medium text-gray-700 dark:text-gray-300">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 relative z-10">
+        <CardTitle className="text-xs font-medium text-gray-700 dark:text-gray-300">
           {title}
         </CardTitle>
-        <div className={`p-2 rounded-full ${iconColor} bg-opacity-20`}>
+        <div className={`p-1 rounded-full ${iconColor} bg-opacity-20`}>
           {icon}
         </div>
       </CardHeader>
-      <CardContent className="relative z-10">
-        <div className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
+      <CardContent className="relative z-10 pt-0 pb-2">
+        <div className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
           {value}
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          {value === 0 ? 'None found' : value === 1 ? '1 item' : `${value} items`}
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          {value === 0 ? t('library.citationManager.noneFound') : value === 1 ? t('library.citationManager.oneItem') : `${value} ${t('library.citationManager.items')}`}
         </p>
       </CardContent>
     </Card>
@@ -88,20 +89,21 @@ function StatsCard({ title, value, icon, gradient, iconColor }: StatsCardProps) 
 }
 
 function UnlinkedReferences({ references, onLink, onAddToLibrary, addingToLibrary }: UnlinkedReferencesProps) {
+  const { t } = useTranslation();
   if (references.length === 0) {
     return (
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-orange-500" />
-            未链接的引文
+            {t('library.citationManager.unlinkedReferences')}
             <Badge variant="outline" className="ml-auto text-xs">0</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center text-muted-foreground py-6">
             <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-green-500" />
-            <p className="text-sm">所有引文都已链接</p>
+            <p className="text-sm">{t('library.citationManager.allReferencesAreLinked')}</p>
           </div>
         </CardContent>
       </Card>
@@ -113,20 +115,20 @@ function UnlinkedReferences({ references, onLink, onAddToLibrary, addingToLibrar
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <AlertCircle className="h-4 w-4 text-orange-500" />
-          未链接的引文
+          {t('library.citationManager.unlinkedReferences')}
           <Badge variant="outline" className="ml-auto text-xs">
             {references.length}
           </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[300px]">
+        <ScrollArea className="h-[45vh] min-h-[100px] max-h-[250px]">
           <div className="space-y-3">
             {references.map((ref, index) => (
               <div key={index} className="border rounded-lg p-3 bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800">
                 <div className="space-y-2">
                   <h4 className="font-medium text-sm text-gray-900 dark:text-gray-100">
-                    {ref.title || '未知标题'}
+                    {ref.title || t('library.citationManager.unknownTitle')}
                   </h4>
 
                   <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -152,12 +154,12 @@ function UnlinkedReferences({ references, onLink, onAddToLibrary, addingToLibrar
                       {addingToLibrary.has(index) ? (
                         <>
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          添加中...
+                          {t('library.citationManager.adding')}
                         </>
                       ) : (
                         <>
                           <Plus className="h-3 w-3 mr-1" />
-                          添加到文献库
+                          {t('library.citationManager.addToLibrary')}
                         </>
                       )}
                     </Button>
@@ -172,7 +174,7 @@ function UnlinkedReferences({ references, onLink, onAddToLibrary, addingToLibrar
 
 
                   {/* <div className="flex gap-2 pt-2"> */}
-                    {/* <Button
+                  {/* <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onLink(ref, index)}
@@ -195,6 +197,7 @@ function UnlinkedReferences({ references, onLink, onAddToLibrary, addingToLibrar
 }
 
 function CitationList({ title, icon, items, onNavigateToItem, emptyMessage, onUnlink }: CitationListProps) {
+  const { t } = useTranslation();
   const [showPdfUpload, setShowPdfUpload] = useState(false);
   const [uploadItemId, setUploadItemId] = useState<string | null>(null);
 
@@ -207,9 +210,9 @@ function CitationList({ title, icon, items, onNavigateToItem, emptyMessage, onUn
     if (onUnlink) {
       try {
         await onUnlink(targetId);
-        toast.success('已取消链接');
+        toast.success(t('library.citationManager.unlinkSuccess'));
       } catch (error) {
-        toast.error('取消链接失败');
+        toast.error(t('library.citationManager.unlinkFailed'));
       }
     }
   };
@@ -227,7 +230,7 @@ function CitationList({ title, icon, items, onNavigateToItem, emptyMessage, onUn
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[250px]">
+          <ScrollArea className="h-[40vh] min-h-[100px] max-h-[250px]">
             {items.length === 0 ? (
               <div className="text-center text-muted-foreground py-6">
                 <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -247,7 +250,7 @@ function CitationList({ title, icon, items, onNavigateToItem, emptyMessage, onUn
                         </h4>
                         <div className="flex gap-1">
                           <Badge variant="default" className="text-xs bg-green-100 text-green-800">
-                            已链接
+                            {t('library.citationManager.linked')}
                           </Badge>
                           {onUnlink && (
                             <Button
@@ -255,7 +258,7 @@ function CitationList({ title, icon, items, onNavigateToItem, emptyMessage, onUn
                               size="sm"
                               onClick={() => handleUnlink(citedItem.id)}
                               className="h-5 w-5 p-0 text-red-500 hover:text-red-700"
-                              title="取消链接"
+                              title={t('library.citationManager.unlink')}
                             >
                               <Unlink className="h-3 w-3" />
                             </Button>
@@ -360,6 +363,7 @@ function extractLiteratureDataFromReference(referenceData: any): {
 }
 
 export function CitationManager({ item, onNavigateToItem }: CitationManagerProps) {
+  const { t } = useTranslation();
   const [showPdfUpload, setShowPdfUpload] = useState(false);
   const [isAutoLinking, setIsAutoLinking] = useState(false);
   const [addingToLibrary, setAddingToLibrary] = useState<Set<number>>(new Set()); // 跟踪正在添加的引文
@@ -384,9 +388,9 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
     setIsAutoLinking(true);
     try {
       const result = await autoLinkCitations(item.id);
-      toast.success(`自动链接完成！已链接 ${result.linkedCount} 个引文，剩余 ${result.unlinkedCount} 个未链接`);
+      toast.success(t('library.citationManager.autoLinkCompleted', { count: result.linkedCount, unlinkedCount: result.unlinkedCount }));
     } catch (error) {
-      toast.error('自动链接失败');
+      toast.error(t('library.citationManager.autoLinkFailed'));
     } finally {
       setIsAutoLinking(false);
     }
@@ -400,7 +404,7 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
   // 处理手动链接
   const handleLinkReference = async (referenceData: any, referenceIndex: number) => {
     // TODO: 实现搜索对话框，让用户选择要链接的文献
-    toast.info('搜索功能即将推出');
+    toast.info(t('library.citationManager.searchFeatureComingSoon'));
   };
 
   // 处理添加到文献库 - 使用新的统一工作流
@@ -413,7 +417,7 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
 
       // 检查是否有足够的信息进行解析
       if (!literatureData.doi && !literatureData.url && literatureData.title === '未知标题') {
-        toast.error('引文信息不足，无法添加到文献库。需要至少包含标题、DOI或URL。');
+        toast.error(t('library.citationManager.referenceInformationIsInsufficient'));
         return;
       }
 
@@ -437,15 +441,15 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
         },
         onTaskCreated: (taskId, itemId) => {
           console.log(`🚀 [AddToLibrary] Task created: ${taskId} for item: ${itemId}`);
-          toast.success(`文献"${literatureData.title}"已添加到文献库，正在后台解析...`);
+          toast.success(t('library.citationManager.literatureParsingCompleted', { title: literatureData.title }));
         },
         onComplete: (itemId, resultType) => {
           console.log(`✅ [AddToLibrary] Complete: ${itemId} (${resultType})`);
 
           if (resultType === 'duplicate') {
-            toast.success(`文献"${literatureData.title}"已添加到文献库！`);
+            toast.success(t('library.citationManager.literatureParsingCompleted', { title: literatureData.title }));
           } else {
-            toast.success(`文献"${literatureData.title}"解析完成！`);
+            toast.success(t('library.citationManager.literatureParsingCompleted', { title: literatureData.title }));
           }
 
           // 刷新引文数据，以便重新检查链接状态
@@ -455,7 +459,7 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
         },
         onError: (error) => {
           console.error('🔴 [AddToLibrary] Error:', error);
-          toast.error(`添加文献失败: ${error.message}`);
+          toast.error(t('library.citationManager.addLiteratureFailed', { message: error.message }));
         },
         // 🎯 精确的链接策略：从当前文献指向新添加的文献
         linkingStrategy: {
@@ -467,24 +471,24 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
       // 处理立即返回的结果（主要是本地条目或重复检测）
       if (result.success) {
         if (result.processingMode === 'local') {
-          toast.success(`文献"${literatureData.title}"已添加到文献库！`);
+          toast.success(t('library.citationManager.literatureParsingCompleted', { title: literatureData.title }));
           setTimeout(() => {
             refresh();
           }, 1000);
         }
         // 后端处理模式的反馈已在 onTaskCreated 回调中处理
       } else if (result.duplicate && result.duplicate.length > 0) {
-        toast.success(`文献"${literatureData.title}"已添加到文献库！`);
+        toast.success(t('library.citationManager.literatureParsingCompleted', { title: literatureData.title }));
         setTimeout(() => {
           refresh();
         }, 1000);
       } else {
-        throw new Error(result.error || '添加文献失败');
+        throw new Error(result.error || t('library.citationManager.addLiteratureFailed'));
       }
 
     } catch (error) {
       console.error('Error adding reference to library:', error);
-      toast.error(`添加文献失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      toast.error(t('library.citationManager.addLiteratureFailed', { message: error instanceof Error ? error.message : t('library.citationManager.unknownError') }));
     } finally {
       // 移除加载状态
       setAddingToLibrary(prev => {
@@ -526,7 +530,7 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          载入引文数据失败：{error}
+          {t('library.citationManager.loadCitationDataFailed', { error: error })}
         </AlertDescription>
       </Alert>
     );
@@ -537,90 +541,85 @@ export function CitationManager({ item, onNavigateToItem }: CitationManagerProps
 
   return (
     <div className="space-y-4">
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* Stats Cards and Auto Link Panel */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatsCard
-          title="总引文数"
+          title={t('library.citationManager.totalReferences')}
           value={totalReferences}
           icon={<BookDown className="h-5 w-5 text-blue-600" />}
           gradient="bg-gradient-to-br from-blue-400 to-blue-600"
           iconColor="bg-blue-100 dark:bg-blue-900"
         />
         <StatsCard
-          title="已链接"
+          title={t('library.citationManager.linked')}
           value={references.length}
           icon={<Link2 className="h-5 w-5 text-green-600" />}
           gradient="bg-gradient-to-br from-green-400 to-green-600"
           iconColor="bg-green-100 dark:bg-green-900"
         />
         <StatsCard
-          title="被引用"
+          title={t('library.citationManager.citedBy')}
           value={citedBy.length}
           icon={<Library className="h-5 w-5 text-purple-600" />}
           gradient="bg-gradient-to-br from-purple-400 to-purple-600"
           iconColor="bg-purple-100 dark:bg-purple-900"
         />
-      </div>
 
-      {/* 自动链接控制面板 */}
-      {totalReferences > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Zap className="h-4 w-4 text-yellow-500" />
-              自动化引文链接
+        {/* 自动链接控制面板 */}
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-yellow-600 opacity-10" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 relative z-10">
+            <CardTitle className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              {t('library.citationManager.autoLinkCitations')}
             </CardTitle>
+            <div className="p-1 rounded-full bg-yellow-100 dark:bg-yellow-900 bg-opacity-20">
+              <Zap className="h-4 w-4 text-yellow-600" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  智能匹配引文到您的文献库中的现有条目
-                </p>
-                {unlinkedReferences.length > 0 && (
-                  <p className="text-xs text-orange-600 mt-1">
-                    还有 {unlinkedReferences.length} 个引文未链接
-                  </p>
-                )}
+          <CardContent className="relative z-10 pt-0 pb-2">
+            <div className="space-y-2">
+              <div className="text-lg font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
+                {unlinkedReferences.length > 0 ? `${unlinkedReferences.length} ${t('library.citationManager.unlinked')}` : t('library.citationManager.allLinked')}
               </div>
               <Button
                 onClick={handleAutoLink}
                 disabled={isAutoLinking || totalReferences === 0}
-                className="ml-4"
+                size="sm"
+                className="w-full h-7 text-xs"
               >
                 {isAutoLinking ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    链接中...
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    {t('library.citationManager.linking')}
                   </>
                 ) : (
                   <>
-                    <Zap className="h-4 w-4 mr-2" />
-                    自动链接
+                    <Zap className="h-3 w-3 mr-1" />
+                    {t('library.citationManager.autoLink')}
                   </>
                 )}
               </Button>
             </div>
           </CardContent>
         </Card>
-      )}
+      </div>
 
       {/* 引文列表 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <CitationList
-          title="引用文献"
+          title={t('library.citationManager.citedLiterature')}
           icon={<ArrowRight className="h-4 w-4 text-green-500" />}
           items={references}
           onNavigateToItem={onNavigateToItem}
-          emptyMessage="没有找到引用的文献"
+          emptyMessage={t('library.citationManager.noCitedLiteratureFound')}
           onUnlink={handleUnlink}
         />
         <CitationList
-          title="被引用"
+          title={t('library.citationManager.citedBy')}
           icon={<ArrowLeft className="h-4 w-4 text-blue-500" />}
           items={citedBy}
           onNavigateToItem={onNavigateToItem}
-          emptyMessage="暂无文献引用此条目"
+          emptyMessage={t('library.citationManager.noCitedLiteratureFound')}
         />
       </div>
 

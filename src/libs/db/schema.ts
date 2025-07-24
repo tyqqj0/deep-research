@@ -62,6 +62,7 @@ export const LibraryItemSchema = z.object({
 
   // 🚀 解析内容字段 - 存储从后端解析的引文数据
   parsedContent: z.object({
+    extractedText: z.string().optional(),
     extractedReferences: z.array(z.any()).optional(), // 从PDF解析出的引文列表
     // 可以在未来扩展其他解析内容，如摘要、关键词等
   }).optional(),

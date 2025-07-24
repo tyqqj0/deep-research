@@ -101,7 +101,7 @@ const ReferenceItem = ({ reference, index, onEdit }: ReferenceItemProps) => {
       return {
         title: ref.parsed.title || ref.raw_text || '未知标题',
         authors: ref.parsed.authors || [],
-        year: ref.parsed.year || ref.parsed.publicationDate ? 
+        year: ref.parsed.year || ref.parsed.publicationDate ?
           new Date(ref.parsed.publicationDate).getFullYear() : undefined,
         journal: ref.parsed.venue || ref.parsed.journal,
         doi: ref.parsed.doi || ref.parsed.externalIds?.DOI,
@@ -128,21 +128,21 @@ const ReferenceItem = ({ reference, index, onEdit }: ReferenceItemProps) => {
     <div className="text-sm p-2 bg-white dark:bg-gray-700 rounded border group relative">
       <div className="pr-8">
         <p className="font-semibold">{index + 1}. {extractedData.title}</p>
-        
+
         {extractedData.authors && extractedData.authors.length > 0 && (
           <p className="text-xs text-gray-600 dark:text-gray-300">
             Authors: {formatAuthors(extractedData.authors)}
           </p>
         )}
-        
+
         {extractedData.year && (
           <p className="text-xs text-gray-600 dark:text-gray-300">Year: {extractedData.year}</p>
         )}
-        
+
         {extractedData.journal && (
           <p className="text-xs text-gray-600 dark:text-gray-300">Journal: {extractedData.journal}</p>
         )}
-        
+
         {extractedData.doi && (
           <p className="text-xs text-gray-600 dark:text-gray-300">DOI: {extractedData.doi}</p>
         )}
@@ -158,7 +158,7 @@ const ReferenceItem = ({ reference, index, onEdit }: ReferenceItemProps) => {
           </p>
         )}
       </div>
-      
+
       <Button
         variant="ghost"
         size="sm"
@@ -668,7 +668,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                   )}
 
                   {/* 提取的元数据 */}
-                  {item.parsedContent.extractedMetadata && Object.keys(item.parsedContent.extractedMetadata).length > 0 && (
+                  {/* {item.parsedContent.extractedMetadata && Object.keys(item.parsedContent.extractedMetadata).length > 0 && (
                     <div className="space-y-2">
                       <h3 className="text-lg font-semibold">{t('library.editLiteratureForm.extractedMetadata')}</h3>
                       <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-4">1
@@ -677,7 +677,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                         </pre>
                       </div>
                     </div>
-                  )}
+                  )} */}
 
                   {/* 提取的引用 */}
                   {/* 引文部分 - 始终显示，即使没有引文也可以添加新的 */}
@@ -709,7 +709,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
 
                         {/* 引文列表 */}
                         <div className="space-y-2">
-                          {item.parsedContent?.extractedReferences?.length > 0 ? (
+                          {item.parsedContent?.extractedReferences && item.parsedContent.extractedReferences.length > 0 ? (
                             item.parsedContent.extractedReferences.map((ref: any, index: number) => (
                               <ReferenceItem
                                 key={index}
@@ -731,7 +731,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                   </Collapsible>
 
                   {/* 下载完整结果 */}
-                  {item.parsedContent.fullZipUrl && (
+                  {/* {item.parsedContent.fullZipUrl && (
                     <div className="pt-4 border-t">
                       <Button
                         type="button"
@@ -743,7 +743,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                         {t('library.editLiteratureForm.downloadFullResults')}
                       </Button>
                     </div>
-                  )}
+                  )} */}
                 </div>
               ) : (
                 <div className="text-center py-12">
@@ -754,12 +754,13 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                   <p className="text-gray-500 dark:text-gray-400 mb-6">
                     {t('library.editLiteratureForm.noParsedContentAvailableDescription')}
                   </p>
-                  {(item.parsingStatus === 'AWAITING_MANUAL_UPLOAD' || item.parsingStatus === 'FAILED') && (
+                  {(item.backendTask?.literature_status?.component_status?.content?.status === 'failed' || item.backendTask?.literature_status?.component_status?.content?.status === 'pending') && (
+                    // 这里后端需要修改，这里的逻辑是如果content的status是failed，则显示上传pdf的提示，现在后端不支持传pdf之后再解析
                     <p className="text-sm text-blue-600 dark:text-blue-400">
                       {t('library.editLiteratureForm.uploadPdfToStartExtraction')}
                     </p>
                   )}
-                  {(item.parsingStatus === 'PENDING_MINERU_SUBMISSION' || item.parsingStatus === 'PARSING_IN_MINERU') && (
+                  {(item.backendTask?.literature_status?.component_status?.content?.status === 'processing') && (
                     <p className="text-sm text-yellow-600 dark:text-yellow-400">
                       {t('library.editLiteratureForm.processingInProgress')}
                     </p>
