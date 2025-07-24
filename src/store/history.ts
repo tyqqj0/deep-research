@@ -28,8 +28,8 @@ export const useHistoryStore = create(
     (set, get) => ({
       history: [],
       save: (taskStore) => {
-        // Only tasks with a title and final report are saved to the history
-        if (taskStore.title && taskStore.finalReport) {
+        // Save tasks with a title or question immediately upon creation
+        if (taskStore.title || taskStore.question) {
           const id = nanoid();
           const newHistory: ResearchHistory = {
             ...clone(taskStore),
@@ -37,6 +37,7 @@ export const useHistoryStore = create(
             createdAt: Date.now(),
           };
           set((state) => ({ history: [newHistory, ...state.history] }));
+          console.log("[HistoryStore] Saved history:", { id, title: taskStore.title, question: taskStore.question });
           return id;
         }
         return "";

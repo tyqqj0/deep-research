@@ -22,6 +22,8 @@ interface LibraryState {
   // Filtering and search
   sourceFilter: LiteratureSource | 'all';
   searchTerm: string;
+  topicFilter: string[]; // 🏷️ 话题过滤器
+  availableTopics: string[]; // 🏷️ 可用话题列表
 
   // Zotero integration
   zoteroConfig: ZoteroConfig | null;
@@ -96,6 +98,12 @@ interface LibraryActions {
   setSourceFilter: (source: LiteratureSource | 'all') => void;
   setSearchTerm: (term: string) => void;
   getFilteredItems: () => LibraryItem[];
+  
+  // 🏷️ Topics filtering
+  setTopicFilter: (topics: string[]) => void;
+  addTopicToFilter: (topic: string) => void;
+  removeTopicFromFilter: (topic: string) => void;
+  loadAvailableTopics: () => Promise<void>;
 
   // Zotero integration
   configureZotero: (config: ZoteroConfig) => Promise<boolean>;
@@ -136,6 +144,8 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   // Filtering and search
   sourceFilter: 'all',
   searchTerm: '',
+  topicFilter: [], // 🏷️ 初始化为空数组
+  availableTopics: [], // 🏷️ 初始化为空数组
 
   // Zotero integration
   zoteroConfig: null,
@@ -221,6 +231,9 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
       // 🚀 启动全局轮询器，监听异步任务状态
       get().startPolling();
+
+      // 🏷️ 加载可用话题列表
+      get().loadAvailableTopics().catch(console.error);
 
     } catch (error) {
       console.error('LibraryStore: Initialization failed:', error);
@@ -1276,7 +1289,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   },
 
   getFilteredItems: () => {
-    const { items, sourceFilter, searchTerm } = get();
+    const { items, sourceFilter, searchTerm, topicFilter } = get();
 
     let filtered = items;
 
@@ -1294,6 +1307,19 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         item.publication?.toLowerCase().includes(term) ||
         item.abstract?.toLowerCase().includes(term)
       );
+    }
+
+    // 🏷️ Filter by topics
+    if (topicFilter.length > 0) {
+      filtered = filtered.filter(item => {
+        if (!item.topics || item.topics.length === 0) {
+          return false; // 没有topics的文献不匹配任何话题过滤
+        }
+        // 只要文献的topics中包含任一选中的话题就匹配
+        return topicFilter.some(selectedTopic => 
+          item.topics!.includes(selectedTopic)
+        );
+      });
     }
 
     return filtered;
@@ -1565,6 +1591,76 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         error: error instanceof Error ? error.message : 'Failed to delete citation link'
       });
       throw error;
+    }
+  },
+
+  // 🏷️ Topics filtering actions
+  setTopicFilter: (topics: string[]) => {
+    set({ topicFilter: topics });
+    console.log(`[LibraryStore] Topic filter updated:`, topics);
+  },
+
+  addTopicToFilter: (topic: string) => {
+    const { topicFilter } = get();
+    if (!topicFilter.includes(topic)) {
+      const newFilter = [...topicFilter, topic];
+      set({ topicFilter: newFilter });
+      console.log(`[LibraryStore] Added topic to filter: ${topic}`);
+    }
+  },
+
+  removeTopicFromFilter: (topic: string) => {
+    const { topicFilter } = get();
+    const newFilter = topicFilter.filter(t => t !== topic);
+    set({ topicFilter: newFilter });
+    console.log(`[LibraryStore] Removed topic from filter: ${topic}`);
+  },
+
+  loadAvailableTopics: async () => {
+    try {
+      // 🎯 统一话题概念：只从深度研究历史中收集话题
+      const topicsSet = new Set<string>();
+      
+      try {
+        // 从useHistoryStore获取研究历史
+        const { history } = await import('@/store/history').then(m => m.useHistoryStore.getState());
+        if (history && history.length > 0) {
+          history.forEach((session: any) => {
+            if (session.question && session.question.trim()) {
+              topicsSet.add(session.question.trim());
+            }
+            if (session.title && session.title.trim()) {
+              topicsSet.add(session.title.trim());
+            }
+          });
+        }
+
+        // 从当前任务中获取话题
+        const taskData = localStorage.getItem('task-store');
+        if (taskData) {
+          const task = JSON.parse(taskData);
+          if (task?.state?.question && task.state.question.trim()) {
+            topicsSet.add(task.state.question.trim());
+          }
+          if (task?.state?.title && task.state.title.trim()) {
+            topicsSet.add(task.state.title.trim());
+          }
+        }
+
+        console.log(`[LibraryStore] 🎯 Found ${topicsSet.size} research topics from history`);
+      } catch (error) {
+        console.error('[LibraryStore] Failed to load research topics:', error);
+      }
+      
+      const availableTopics = Array.from(topicsSet)
+        .filter(topic => topic.length > 0) // 过滤空字符串
+        .sort();
+      
+      set({ availableTopics });
+      
+      console.log(`[LibraryStore] 🎯 Loaded ${availableTopics.length} research topics:`, availableTopics);
+    } catch (error) {
+      console.error('[LibraryStore] Failed to load available topics:', error);
     }
   }
 }));

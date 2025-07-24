@@ -104,6 +104,17 @@ export class MyDatabase extends Dexie {
       console.log('🔗 Database upgraded to version 6 - Citation management ready');
       return Promise.resolve();
     });
+
+    // Version 7 - 🏷️ 添加话题管理支持 (Topics Support)
+    this.version(7).stores({
+      library: '++id, title, *authors, year, source, publication, zoteroKey, doi, url, pdfPath, *topics, createdAt', // 添加topics多值索引
+      literatureTrees: '++id, name, createdAt',
+      citations: '++id, [sourceItemId+targetItemId], sourceItemId, targetItemId'
+    }).upgrade(trans => {
+      // 🏷️ 为话题管理功能做准备，向后兼容现有数据
+      console.log('🏷️ Database upgraded to version 7 - Topics support added');
+      return Promise.resolve();
+    });
   }
 }
 

@@ -33,6 +33,7 @@ const formSchema = z.object({
   zoteroKey: z.string().optional(),
   doi: z.string().optional(),
   url: z.string().url().optional().or(z.literal("")),
+  topics: z.array(z.string()).optional(), // 🏷️ 添加topics字段
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -40,8 +41,9 @@ type FormData = z.infer<typeof formSchema>;
 export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
   const { t } = useTranslation();
   const [authorInput, setAuthorInput] = useState("");
+  const [topicsInput, setTopicsInput] = useState(""); // 🏷️ topics输入状态
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { addLibraryItem } = useLibraryStore();
+  const { addLibraryItem, availableTopics, loadAvailableTopics } = useLibraryStore();
 
   const {
     register,
@@ -63,15 +65,18 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
       zoteroKey: "",
       doi: "",
       url: "",
+      topics: [], // 🏷️ 默认为空数组
     },
   });
 
   const watchedAuthors = watch("authors");
   const watchedSource = watch("source");
+  const watchedTopics = watch("topics"); // 🏷️ 监听topics变化
 
   const handleClose = () => {
     reset();
     setAuthorInput("");
+    setTopicsInput(""); // 🏷️ 重置topics输入
     onClose();
   };
 
@@ -86,6 +91,34 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
   const removeAuthor = (index: number) => {
     const newAuthors = watchedAuthors.filter((_, i) => i !== index);
     setValue("authors", newAuthors);
+  };
+
+  // 🏷️ Topics管理函数
+  const addTopic = () => {
+    if (topicsInput.trim()) {
+      const currentTopics = watchedTopics || [];
+      if (!currentTopics.includes(topicsInput.trim())) {
+        const newTopics = [...currentTopics, topicsInput.trim()];
+        setValue("topics", newTopics);
+        setTopicsInput("");
+        // 更新可用topics列表
+        loadAvailableTopics().catch(console.error);
+      }
+    }
+  };
+
+  const removeTopic = (index: number) => {
+    const currentTopics = watchedTopics || [];
+    const newTopics = currentTopics.filter((_, i) => i !== index);
+    setValue("topics", newTopics);
+  };
+
+  const addExistingTopic = (topic: string) => {
+    const currentTopics = watchedTopics || [];
+    if (!currentTopics.includes(topic)) {
+      const newTopics = [...currentTopics, topic];
+      setValue("topics", newTopics);
+    }
   };
 
   const onSubmit = async (data: FormData) => {
@@ -103,6 +136,7 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
         zoteroKey: data.zoteroKey || undefined,
         doi: data.doi || undefined,
         url: data.url || undefined,
+        topics: data.topics || undefined, // 🏷️ 包含topics数据
       });
 
       if (result && result.success) {
@@ -127,6 +161,14 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
     if (e.key === 'Enter') {
       e.preventDefault();
       addAuthor();
+    }
+  };
+
+  // 🏷️ Topics输入按键处理
+  const handleTopicsKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addTopic();
     }
   };
 
@@ -273,6 +315,72 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
               />
               {errors.url && (
                 <p className="text-sm text-red-500">{errors.url.message}</p>
+              )}
+            </div>
+          </div>
+
+          {/* 🏷️ Topics */}
+          <div className="space-y-2">
+            <Label>🏷️ 话题标签</Label>
+            <div className="flex gap-2">
+              <Input
+                value={topicsInput}
+                onChange={(e) => setTopicsInput(e.target.value)}
+                onKeyPress={handleTopicsKeyPress}
+                placeholder="输入话题标签（按Enter添加）"
+                className="flex-1"
+              />
+              <Button 
+                type="button" 
+                onClick={addTopic}
+                variant="outline"
+                size="sm"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            {/* Topics Tags */}
+            <div className="space-y-2">
+              {/* 当前选择的topics */}
+              {watchedTopics && watchedTopics.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {watchedTopics.map((topic, index) => (
+                    <Badge
+                      key={index}
+                      variant="default"
+                      className="flex items-center gap-1 pr-1"
+                    >
+                      {topic}
+                      <button
+                        type="button"
+                        onClick={() => removeTopic(index)}
+                        className="ml-1 hover:bg-red-500 hover:text-white rounded-full p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              
+              {/* 研究话题建议 */}
+              {availableTopics.filter(topic => !watchedTopics?.includes(topic)).length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs text-blue-600 font-medium">🎯 相关研究话题（点击添加）：</p>
+                  <div className="flex flex-wrap gap-1">
+                    {availableTopics.filter(topic => !watchedTopics?.includes(topic)).slice(0, 10).map(topic => (
+                      <Badge
+                        key={topic}
+                        variant="default"
+                        className="cursor-pointer hover:opacity-80 text-xs bg-blue-100 text-blue-800 hover:bg-blue-200"
+                        onClick={() => addExistingTopic(topic)}
+                      >
+                        🎯 {topic.length > 25 ? topic.substring(0, 25) + "..." : topic}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>

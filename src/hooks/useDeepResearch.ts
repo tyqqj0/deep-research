@@ -54,6 +54,7 @@ function useDeepResearch() {
   const { createModelProvider, getModel } = useModelProvider();
   const { search } = useWebSearch();
   const [status, setStatus] = useState<string>("");
+  const { save } = useHistoryStore();
 
   async function askQuestions() {
     const { question } = useTaskStore.getState();
@@ -89,6 +90,13 @@ function useDeepResearch() {
       }
     }
     if (reasoning) console.log(reasoning);
+    
+    // 保存研究历史 - askQuestions阶段完成
+    const currentState = taskStore.backup();
+    if (currentState.title || currentState.question) {
+      const savedId = save(currentState);
+      console.log("[askQuestions] saved history with id:", savedId);
+    }
   }
 
   async function writeReportPlan() {
@@ -123,6 +131,13 @@ function useDeepResearch() {
       }
     }
     if (reasoning) console.log(reasoning);
+    
+    // 保存研究历史 - writeReportPlan阶段完成
+    const currentState = taskStore.backup();
+    if (currentState.title || currentState.question) {
+      save(currentState);
+    }
+    
     return content;
   }
 
@@ -873,6 +888,12 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
       }
       if (reasoning) console.log(reasoning);
       await runSearchTask(queries);
+      
+      // 保存研究历史 - deepResearch阶段完成
+      const currentState = taskStore.backup();
+      if (currentState.title || currentState.question) {
+        save(currentState);
+      }
     } catch (err) {
       console.error(err);
     }

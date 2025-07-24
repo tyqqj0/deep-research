@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { Plus, Search, Filter, Download, Upload, RefreshCw, ArrowLeft } from "lucide-react";
+import { Plus, Search, Filter, Download, Upload, RefreshCw, ArrowLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,9 +52,14 @@ export default function LibraryPage() {
     error,
     sourceFilter,
     searchTerm,
+    topicFilter,
+    availableTopics,
     initialize,
     setSourceFilter,
     setSearchTerm,
+    setTopicFilter,
+    addTopicToFilter,
+    removeTopicFromFilter,
     getFilteredItems,
     deleteLibraryItems,
     clearError,
@@ -63,7 +68,7 @@ export default function LibraryPage() {
   } = useLibraryStore();
 
   // Use useMemo to ensure filteredItems updates when items change
-  const filteredItems = useMemo(() => getFilteredItems(), [items, sourceFilter, searchTerm, getFilteredItems]);
+  const filteredItems = useMemo(() => getFilteredItems(), [items, sourceFilter, searchTerm, topicFilter, getFilteredItems]);
 
   useEffect(() => {
     const initializeAsync = async () => {
@@ -274,32 +279,116 @@ export default function LibraryPage() {
         <>
           {/* 隔开 */}
           <div className="h-8"></div>
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder={t('library.common.searchLiterature')}
-                value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="pl-10"
-              />
+          <div className="flex flex-col gap-4 mb-6">
+            {/* 第一行：搜索框和来源过滤器 */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder={t('library.common.searchLiterature')}
+                  value={searchTerm}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={sourceFilter} onValueChange={handleFilterChange}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder={t('library.common.filterBySource')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('library.common.allSources')}</SelectItem>
+                  {Object.entries(LITERATURE_SOURCES).map(([key, value]) => (
+                    <SelectItem key={key} value={value}>
+                      <div className="flex items-center gap-2">
+                        <span>{t(SOURCE_METADATA[value]?.icon)}</span>
+                        {t(SOURCE_METADATA[value]?.name)}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={sourceFilter} onValueChange={handleFilterChange}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder={t('library.common.filterBySource')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t('library.common.allSources')}</SelectItem>
-                {Object.entries(LITERATURE_SOURCES).map(([key, value]) => (
-                  <SelectItem key={key} value={value}>
-                    <div className="flex items-center gap-2">
-                      <span>{t(SOURCE_METADATA[value]?.icon)}</span>
-                      {t(SOURCE_METADATA[value]?.name)}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            {/* 第二行：话题过滤器 - 现在总是显示 */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex items-center gap-2 min-w-0">
+                <Filter className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                  🏷️ 按话题过滤
+                </span>
+              </div>
+              <div className="flex-1">
+                <Select 
+                  value={topicFilter.length > 0 ? "custom" : "all"} 
+                  onValueChange={(value) => {
+                    if (value === "all") {
+                      setTopicFilter([]);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="选择要过滤的话题...">
+                      {topicFilter.length === 0 
+                        ? "显示所有话题" 
+                        : `已选择 ${topicFilter.length} 个话题`
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">显示所有话题</SelectItem>
+                    {availableTopics.length > 0 && (
+                      <>
+                        <div className="px-2 py-1 text-xs font-medium text-blue-600 border-b bg-blue-50">
+                          🎯 研究话题（点击切换）
+                        </div>
+                        {availableTopics.map(topic => (
+                          <div
+                            key={topic}
+                            className="flex items-center gap-2 px-2 py-2 hover:bg-blue-50 cursor-pointer"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (topicFilter.includes(topic)) {
+                                removeTopicFromFilter(topic);
+                              } else {
+                                addTopicToFilter(topic);
+                              }
+                            }}
+                          >
+                            <div className="flex items-center space-x-2 flex-1">
+                              <input
+                                type="checkbox"
+                                checked={topicFilter.includes(topic)}
+                                onChange={() => {}}
+                                className="w-4 h-4 text-blue-600"
+                              />
+                              <span className="text-sm font-medium text-blue-800">
+                                🎯 {topic.length > 35 ? topic.substring(0, 35) + "..." : topic}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    {availableTopics.length === 0 && (
+                      <div className="px-2 py-2 text-xs text-gray-500">
+                        暂无可用话题，请先为文献添加话题标签
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              {topicFilter.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTopicFilter([])}
+                  className="flex items-center gap-1"
+                >
+                  <X className="h-3 w-3" />
+                  清除
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Main Content */}

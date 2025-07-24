@@ -37,6 +37,7 @@ import { useGlobalStore } from "@/store/global";
 import { useSettingStore } from "@/store/setting";
 import { useTaskStore } from "@/store/task";
 import { useHistoryStore } from "@/store/history";
+import { useLibraryStore } from "@/store/libraryStore";
 
 const formSchema = z.object({
   topic: z.string().min(2),
@@ -78,6 +79,7 @@ function Topic() {
   async function handleSubmit(values: z.infer<typeof formSchema>) {
     if (handleCheck()) {
       const { id, setQuestion } = useTaskStore.getState();
+      const { save } = useHistoryStore.getState();
       try {
         setIsThinking(true);
         accurateTimerStart();
@@ -86,6 +88,22 @@ function Topic() {
           form.setValue("topic", values.topic);
         }
         setQuestion(values.topic);
+        
+        // 保存研究历史 - 创建即保存，确保题目被记录
+        const currentState = useTaskStore.getState().backup();
+        if (currentState.question) {
+          console.log("save history", currentState);
+          const savedId = save(currentState);
+          console.log("saved history with id:", savedId);
+          // 验证保存是否成功
+          setTimeout(() => {
+            const { history } = useHistoryStore.getState();
+            console.log("current history after save:", history);
+          }, 100);
+          // 刷新文献库的可用话题列表
+          useLibraryStore.getState().loadAvailableTopics().catch(console.error);
+        }
+        
         await askQuestions();
       } finally {
         setIsThinking(false);
