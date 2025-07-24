@@ -341,8 +341,9 @@
     },
     "topic": {
       "title": "1. 研究方向",
-      "topicLabel": "1.1 研究主题",
-      "topicPlaceholder": "任何您想了解的问题..."
+      "topicLabel": "研究主题",
+      "topicPlaceholder": "任何您想了解的问题...",
+      "submitButton": "开始研究"
     },
     "feedback": {
       "title": "2. 提出您的想法",

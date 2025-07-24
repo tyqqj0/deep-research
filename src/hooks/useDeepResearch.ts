@@ -15,7 +15,6 @@ import { useKnowledgeStore } from "@/store/knowledge";
 import { outputGuidelinesPrompt } from "@/constants/prompts";
 import {
   getSystemPrompt,
-  generateQuestionsPrompt,
   writeReportPlanPrompt,
   generateSerpQueriesPrompt,
   processResultPrompt,
@@ -56,48 +55,6 @@ function useDeepResearch() {
   const [status, setStatus] = useState<string>("");
   const { save } = useHistoryStore();
 
-  async function askQuestions() {
-    const { question } = useTaskStore.getState();
-    const { thinkingModel } = getModel();
-    setStatus(t("research.common.thinking"));
-    const thinkTagStreamProcessor = new ThinkTagStreamProcessor();
-    const result = streamText({
-      model: await createModelProvider(thinkingModel),
-      system: getSystemPrompt(),
-      prompt: [
-        generateQuestionsPrompt(question),
-        getResponseLanguagePrompt(),
-      ].join("\n\n"),
-      onError: handleError,
-    });
-    let content = "";
-    let reasoning = "";
-    taskStore.setQuestion(question);
-    for await (const part of result.fullStream) {
-      if (part.type === "text-delta") {
-        thinkTagStreamProcessor.processChunk(
-          part.textDelta,
-          (data) => {
-            content += data;
-            taskStore.updateQuestions(content);
-          },
-          (data) => {
-            reasoning += data;
-          }
-        );
-      } else if (part.type === "reasoning") {
-        reasoning += part.textDelta;
-      }
-    }
-    if (reasoning) console.log(reasoning);
-    
-    // 保存研究历史 - askQuestions阶段完成
-    const currentState = taskStore.backup();
-    if (currentState.title || currentState.question) {
-      const savedId = save(currentState);
-      console.log("[askQuestions] saved history with id:", savedId);
-    }
-  }
 
   async function writeReportPlan() {
     const { query } = useTaskStore.getState();
@@ -902,7 +859,6 @@ Respond with a single JSON object with two keys: "query" and "researchGoal". Do 
   return {
     status,
     deepResearch,
-    askQuestions,
     writeReportPlan,
     runSearchTask,
     runWiderResearch,

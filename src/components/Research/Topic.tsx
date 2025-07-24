@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import useDeepResearch from "@/hooks/useDeepResearch";
+import { useDirectionFinding } from "@/hooks/useDirectionFinding";
 import useAiProvider from "@/hooks/useAiProvider";
 import useKnowledge from "@/hooks/useKnowledge";
 import useAccurateTimer from "@/hooks/useAccurateTimer";
@@ -47,7 +48,7 @@ function Topic() {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const taskStore = useTaskStore();
-  const { askQuestions } = useDeepResearch();
+  const { findDirection } = useDirectionFinding();
   const { hasApiKey } = useAiProvider();
   const { getKnowledgeFromFile } = useKnowledge();
   const {
@@ -104,7 +105,7 @@ function Topic() {
           useLibraryStore.getState().loadAvailableTopics().catch(console.error);
         }
         
-        await askQuestions();
+        await findDirection();
       } finally {
         setIsThinking(false);
         accurateTimerStop();

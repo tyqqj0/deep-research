@@ -8,8 +8,7 @@ import { useSettingStore } from "@/store/setting";
 
 const Header = dynamic(() => import("@/components/Internal/Header"));
 const Setting = dynamic(() => import("@/components/Setting"));
-const Topic = dynamic(() => import("@/components/Research/Topic"));
-const Feedback = dynamic(() => import("@/components/Research/Feedback"));
+const DirectionFinding = dynamic(() => import("@/components/Research/DirectionFinding"));
 const SearchResult = dynamic(
   () => import("@/components/Research/SearchResult")
 );
@@ -39,8 +38,7 @@ function Home() {
     <div className="max-lg:max-w-screen-md max-w-screen-lg mx-auto px-4">
       <Header />
       <main>
-        <Topic />
-        <Feedback />
+        <DirectionFinding />
         <SearchResult />
         <FinalReport />
       </main>

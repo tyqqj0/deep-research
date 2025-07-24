@@ -47,13 +47,13 @@ Follow these rules to organize your output:
 7. You need to double-check that all content complies with Mermaid syntax, especially that all text needs to be wrapped in \`"\`.
 </OutputGuidelines>`;
 
-export const systemQuestionPrompt = `Given the following query from the user, ask at least 5 follow-up questions to clarify the research direction:
+export const systemQuestionPrompt = `Given the user's research topic, help them clarify and refine their research direction by asking 5 targeted questions to better understand their specific interests and focus areas:
 
-<QUERY>
+<RESEARCH_TOPIC>
 {query}
-</QUERY>
+</RESEARCH_TOPIC>
 
-Questions need to be brief and concise. No need to output content that is irrelevant to the question.`;
+Questions need to be brief and concise. Focus on clarifying the research direction, scope, and specific aspects the user wants to explore.`;
 
 export const guidelinesPrompt = `Integration guidelines:
 <GUIDELINES>
