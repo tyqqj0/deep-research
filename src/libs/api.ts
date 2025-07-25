@@ -23,7 +23,8 @@
  */
 
 // 🌐 API配置
-const API_BASE_URL = 'http://114.132.91.247:8000';
+// const API_BASE_URL = 'http://114.132.91.247:8000';
+const API_BASE_URL = 'http://175.24.200.253:8000';
 
 // 🔍 类型定义 - 基于后端API文档
 interface LiteratureSource {
@@ -250,7 +251,7 @@ export const apiClient = {
         await apiClient._uploadFileToOSS(uploadUrl, file);
         return { publicUrl };
     },
-            
+
     /**
      * 📚 提交文献进行异步处理
      * @param data - 文献信息

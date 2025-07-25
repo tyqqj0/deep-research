@@ -55,6 +55,10 @@ function DirectionFinding() {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const taskStore = useTaskStore();
+  
+  // 确保订阅questions和reportPlan字段的变化
+  const questions = useTaskStore((state) => state.questions);
+  const reportPlan = useTaskStore((state) => state.reportPlan);
   const { findDirection } = useDirectionFinding();
   const { writeReportPlan } = useDeepResearch();
   const { hasApiKey } = useAiProvider();
@@ -322,13 +326,13 @@ function DirectionFinding() {
       </div>
 
       {/* Step 2: 方向细化建议 (条件显示) */}
-      {taskStore.questions && (
+      {questions && questions.trim() && (
         <div className="mt-6 pt-6 border-t">
           <h4 className="text-base font-semibold mb-3">1.2 方向细化建议</h4>
           <div className="mb-4">
             <MagicDown
               className="min-h-20"
-              value={taskStore.questions}
+              value={questions}
               onChange={(value) => taskStore.updateQuestions(value)}
             />
           </div>
@@ -365,7 +369,7 @@ function DirectionFinding() {
                     <span>正在制定研究计划...</span>
                     <small className="font-mono ml-2">{formattedTime}</small>
                   </>
-                ) : taskStore.reportPlan === "" ? (
+                ) : reportPlan === "" ? (
                   t("research.common.writeReportPlan")
                 ) : (
                   t("research.common.rewriteReportPlan")
@@ -373,6 +377,18 @@ function DirectionFinding() {
               </Button>
             </form>
           </Form>
+          
+          {/* Step 3: 报告计划显示 (条件显示) */}
+          {reportPlan && reportPlan.trim() && (
+            <div className="mt-6 pt-6 border-t">
+              <h4 className="text-base font-semibold mb-3">1.3 研究报告计划</h4>
+              <MagicDown
+                className="min-h-20"
+                value={reportPlan}
+                onChange={(value) => taskStore.updateReportPlan(value)}
+              />
+            </div>
+          )}
         </div>
       )}
 

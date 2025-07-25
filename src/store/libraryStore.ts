@@ -90,7 +90,7 @@ interface LibraryActions {
     }
   ) => Promise<{ success: boolean; itemId?: string; taskId?: string; processingMode?: string; duplicate?: LibraryItem[]; error?: string }>;
   addLibraryItem: (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<{ success: boolean; itemId?: string; duplicate?: LibraryItem[]; error?: string }>;
-  addLibraryItems: (itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]) => Promise<any>;
+  masterAddLiteratures: (itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]) => Promise<any>;
   updateLibraryItem: (id: string, itemData: Partial<LibraryItem>) => Promise<void>;
   deleteLibraryItem: (id: string) => Promise<void>;
   deleteLibraryItems: (ids: string[]) => Promise<void>;
@@ -923,7 +923,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   },
 
   // 批量添加文献条目，逻辑参考 masterAddLiterature，支持后端查重与异步处理
-  addLibraryItems: async (
+  masterAddLiteratures: async (
     itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]
   ) => {
     try {
@@ -978,7 +978,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         itemsSkipped: failedCount,
       };
     } catch (error) {
-      console.error('[LibraryStore] addLibraryItems error:', error);
+      console.error('[LibraryStore] masterAddLiteratures error:', error);
       set({
         isLoading: false,
         error: error instanceof Error ? error.message : '批量添加文献失败'

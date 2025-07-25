@@ -21,6 +21,8 @@ import {
   Play,
   Pencil,
   Save,
+  TreePine,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/Internal/Button";
 import {
@@ -49,6 +51,7 @@ import { downloadFile } from "@/utils/file";
 const MagicDown = dynamic(() => import("@/components/MagicDown"));
 const MagicDownView = dynamic(() => import("@/components/MagicDown/View"));
 const Lightbox = dynamic(() => import("@/components/Internal/Lightbox"));
+const MCTSLiteratureWorkflow = dynamic(() => import("@/components/Research/MCTSLiteratureWorkflow"));
 
 const formSchema = z.object({
   suggestion: z.string().optional(),
@@ -471,6 +474,33 @@ function SearchResult() {
             </form>
           </Form>
         </div>
+      )}
+      
+      {/* 🎯 MCTS文献工作流 - 第二部分 */}
+      {/* 🔍 Debug: 显示当前状态 */}
+      <div className="text-xs text-gray-400 mb-2">
+        Debug: question="{taskStore.question}" | reportPlan={taskStore.reportPlan ? 'exists' : 'none'}
+      </div>
+      
+      {taskStore.question && taskStore.question.trim() ? (
+        <MCTSLiteratureWorkflow 
+          topic={taskStore.question}
+          reportPlan={taskStore.reportPlan}         // 🆕 传递研究计划
+          onTopicChange={(newTopic) => taskStore.setQuestion(newTopic)}
+          className="mt-6"
+        />
+      ) : (
+        <section className="p-4 border rounded-md mt-4">
+          <h3 className="font-semibold text-lg border-b mb-2 leading-10 flex items-center gap-2">
+            <TreePine className="h-5 w-5 text-green-600" />
+            MCTS文献研究工作流
+          </h3>
+          <div className="text-center py-8 text-gray-500">
+            <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p className="text-lg mb-2">请先输入研究方向</p>
+            <p className="text-sm">在上方的"方向细化建议"中输入研究主题，然后开始文献搜索工作流</p>
+          </div>
+        </section>
       )}
     </section>
   );

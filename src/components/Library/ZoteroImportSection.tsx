@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { 
-  Download, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Download,
+  CheckCircle,
+  XCircle,
   AlertCircle,
   Loader2,
   User,
@@ -37,11 +37,11 @@ interface ZoteroImportSectionProps {
   onLibraryChange: (libraryId: string) => void;
 }
 
-export function ZoteroImportSection({ 
-  isConnected, 
-  userInfo, 
-  collections, 
-  groups, 
+export function ZoteroImportSection({
+  isConnected,
+  userInfo,
+  collections,
+  groups,
   libraries,
   currentLibrary,
   onLoginClick,
@@ -51,8 +51,8 @@ export function ZoteroImportSection({
   const [importResult, setImportResult] = useState<ZoteroSyncResult | null>(null);
   const [importProgress, setImportProgress] = useState(0);
   const [selectedCollection, setSelectedCollection] = useState<string>("__all__");
-  
-  const { items: libraryItems, addLibraryItems, updateLibraryItem } = useLibraryStore();
+
+  const { items: libraryItems, masterAddLiteratures, updateLibraryItem } = useLibraryStore();
   const { t } = useTranslation();
   const startImport = async () => {
     if (!isConnected || !currentLibrary) {
@@ -63,7 +63,7 @@ export function ZoteroImportSection({
     setIsImporting(true);
     setImportProgress(0);
     setImportResult(null);
-    
+
     try {
       // Simulate progress updates
       const progressInterval = setInterval(() => {
@@ -72,26 +72,26 @@ export function ZoteroImportSection({
 
       const collectionKey = selectedCollection && selectedCollection !== "__all__" ? selectedCollection : undefined;
       const result = await zoteroService.syncItems(libraryItems, collectionKey);
-      
+
       // Add new items to the library in batch
       if (result.newItems && result.newItems.length > 0) {
         const itemsToAdd = result.newItems.map(item => {
           const { id, createdAt, updatedAt, ...itemData } = item;
           return itemData;
         });
-        
+
         console.log(`[ZoteroImport] Batch adding ${itemsToAdd.length} items to UI state`);
-        const batchResult = await addLibraryItems(itemsToAdd);
+        const batchResult = await masterAddLiteratures(itemsToAdd);
         console.log(`[ZoteroImport] Batch add result:`, batchResult);
       }
-      
+
       // Update existing items
       if (result.updatedItems) {
         for (const item of result.updatedItems) {
           await updateLibraryItem(item.id, item);
         }
       }
-      
+
       clearInterval(progressInterval);
       setImportProgress(100);
       setImportResult(result);
@@ -201,17 +201,17 @@ export function ZoteroImportSection({
                 )}
               </div>
             )}
-            
+
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={onLoginClick}
                 size="sm"
               >
                 {t('library.zoteroImportSection.manageConnection')}
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={refreshCollections}
                 size="sm"
                 disabled={!currentLibrary}
@@ -240,8 +240,8 @@ export function ZoteroImportSection({
           {libraries.length > 0 && (
             <div className="space-y-2">
               <Label className="text-sm font-medium">{t('library.zoteroImportSection.selectLibrary')}</Label>
-              <Select 
-                value={currentLibrary?.id || ""} 
+              <Select
+                value={currentLibrary?.id || ""}
                 onValueChange={handleLibraryChange}
               >
                 <SelectTrigger>
@@ -428,8 +428,8 @@ export function ZoteroImportSection({
               </Alert>
             )}
 
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setImportResult(null)}
               className="w-full"
             >
