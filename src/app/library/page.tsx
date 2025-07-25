@@ -18,6 +18,7 @@ import { EditLiteratureForm } from "@/components/Library/EditLiteratureForm";
 import { ZoteroLogin } from "@/components/Library/ZoteroLogin";
 import { ZoteroImportSection } from "@/components/Library/ZoteroImportSection";
 import { PdfUploadDialog } from "@/components/Library/PdfUploadDialog";
+import { LiteratureDiscoveryPanel } from "@/components/Library/LiteratureDiscoveryPanel";
 import { toast } from "sonner";
 import type { LibraryItem } from "@/libs/db";
 import { GlobalCitationGraph } from "@/components/Library/CitationGraph";
@@ -393,8 +394,9 @@ export default function LibraryPage() {
 
           {/* Main Content */}
           <Tabs defaultValue="list" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="list">{t('library.common.literatureList')}</TabsTrigger>
+              <TabsTrigger value="discovery">文献发现</TabsTrigger>
               <TabsTrigger value="trees">{t('library.common.literatureTrees')}</TabsTrigger>
               <TabsTrigger value="sync">{t('library.common.zoteroSync')}</TabsTrigger>
             </TabsList>
@@ -422,6 +424,18 @@ export default function LibraryPage() {
                   handleEditLiterature(item);
                 }}
               />
+            </TabsContent>
+
+            <TabsContent value="discovery" className="space-y-4">
+              <div className="max-w-2xl mx-auto">
+                <LiteratureDiscoveryPanel 
+                  onDiscoveryComplete={(results) => {
+                    // 刷新文献列表以显示新添加的文献
+                    initialize();
+                    toast.success(`文献发现完成！新增 ${results.addedItems.length} 篇文献`);
+                  }}
+                />
+              </div>
             </TabsContent>
 
             <TabsContent value="trees" className="space-y-4">

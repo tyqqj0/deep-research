@@ -88,6 +88,7 @@ export class LibraryService {
 
   /**
    * Add new library item with duplicate check
+   * 此为底层方法，若要添加文献，请使用masterAddLiterature()，带有自动的duplicate check，解析，更新等功能
    */
   async addLibraryItem(item: LibraryItem): Promise<string> {
     try {

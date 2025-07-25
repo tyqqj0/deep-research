@@ -7,6 +7,7 @@ import { apiClient, BackendTaskResponse, Literature } from '../libs/api'; // �
 import { TreeController } from '../libs/tree/TreeController';
 import { zoteroService, ZoteroConfig, ZoteroSyncResult } from '../libs/zotero';
 import { generateLibraryItemId } from '../libs/utils/uuid';
+import { toast } from 'sonner';
 
 // Define State interface
 interface LibraryState {
@@ -85,6 +86,7 @@ interface LibraryActions {
         mode: 'bidirectional' | 'unidirectional' | 'source-to-target';
         sourceItemId?: string; // 当mode为'source-to-target'时必需
       };
+      preCheckDuplicate?: boolean;
     }
   ) => Promise<{ success: boolean; itemId?: string; taskId?: string; processingMode?: string; duplicate?: LibraryItem[]; error?: string }>;
   addLibraryItem: (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<{ success: boolean; itemId?: string; duplicate?: LibraryItem[]; error?: string }>;
@@ -423,7 +425,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
   handleTaskStatusUpdate: async (taskInfo: any, response: BackendTaskResponse) => {
     const { activeTasks, items } = get();
 
-    console.log(`🔄 Processing task update: ${taskInfo.taskId} - execution_status: ${response.execution_status}`);
+    // console.log(`🔄 Processing task update: ${taskInfo.taskId} - execution_status: ${response.execution_status}`);
 
     // 🔄 处理进行中的任务
     if (response.execution_status === 'processing' || response.execution_status === 'pending') {
@@ -458,7 +460,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
         set({ items: updatedItems });
       } else {
-        console.log(`⏭️ No significant change for task ${taskInfo.taskId}, skipping UI update`);
+        // console.log(`⏭️ No significant change for task ${taskInfo.taskId}, skipping UI update`);
       }
 
       // 🚀 检查元数据是否已完成，如果是则立即更新本地数据
@@ -591,6 +593,63 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         const finalLiterature = await apiClient.getLiterature(response.literature_id);
 
         console.log('📖 Retrieved literature data from backend:', finalLiterature.title);
+
+        // 🎯 二次智能查重：用解析后的完整元数据再次检查重复
+        console.log('🔍 [SECOND_CHECK] Starting post-processing duplicate check with complete metadata...');
+        const { matchingEngine } = await import('../libs/db/matching');
+        const duplicateAfterParsing = await matchingEngine.findItemByUrlOrDoi(
+          finalLiterature.url,
+          finalLiterature.doi,
+          finalLiterature.title,
+          finalLiterature.authors,
+          finalLiterature.year
+        );
+
+        // 如果找到重复项且不是当前正在处理的条目
+        if (duplicateAfterParsing && duplicateAfterParsing.id !== literatureId) {
+          console.log(`🎯 [SECOND_CHECK] Found duplicate after parsing! Existing: "${duplicateAfterParsing.title}", Current: "${finalLiterature.title}"`);
+          // 显示弹窗提示已自动合并重复文献
+          toast.success('已自动合并重复文献');
+          
+          // 🚀 智能合并策略：将占位条目的信息合并到已存在条目
+          console.log('🔄 [MERGE] Merging placeholder data into existing item...');
+          
+          // 获取占位条目的topics等信息
+          const { items } = get();
+          const placeholderItem = items.find(item => item.id === literatureId);
+          
+          if (placeholderItem?.topics && placeholderItem.topics.length > 0) {
+            console.log(`🏷️ [MERGE] Merging topics: ${placeholderItem.topics.join(', ')}`);
+            // 合并topics到已存在的条目
+            for (const topic of placeholderItem.topics) {
+              await libraryService.addTopicToItem(duplicateAfterParsing.id, topic);
+            }
+          }
+          
+          // 🗑️ 删除占位条目（重复项）
+          console.log(`🗑️ [CLEANUP] Removing placeholder duplicate item: ${literatureId}`);
+          await libraryService.deleteLibraryItem(literatureId);
+          
+          // 更新 store 状态，移除占位条目
+          const updatedItems = items.filter(item => item.id !== literatureId);
+          set({ items: updatedItems });
+          
+          // 🎯 触发完成回调，但使用已存在条目的ID
+          const { taskCallbacks } = get();
+          const callbacks = taskCallbacks.get(response.task_id);
+          if (callbacks?.onComplete) {
+            try {
+              callbacks.onComplete(duplicateAfterParsing.id, 'duplicate');
+              console.log(`✅ [MERGE] Task completed with merged duplicate: ${duplicateAfterParsing.id}`);
+            } catch (callbackError) {
+              console.error('❌ Error calling onComplete callback:', callbackError);
+            }
+          }
+          
+          return; // 早期返回，不继续处理占位条目
+        } else {
+          console.log('✅ [SECOND_CHECK] No duplicates found after parsing, proceeding with update...');
+        }
 
         // 🔍 调试后端返回的数据
         console.log('🔍 [DEBUG] Raw backend literature data:', {
@@ -829,51 +888,108 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     }
   },
 
-  // Add multiple library items in batch - 🚀 重构为使用后端API
-  addLibraryItems: async (itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]) => {
+  // 批量添加文献条目，逻辑参考 masterAddLiterature，支持后端查重与异步处理
+  addLibraryItems: async (
+    itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]
+  ) => {
     try {
       set({ isLoading: true, error: null });
 
-      const results = [];
+      const results: any[] = [];
       const totalFiles = itemsData.length;
 
-      console.log(`📤 Batch creating ${totalFiles} literature items via backend API...`);
+      console.log(`📤 批量添加 ${totalFiles} 个文献条目...`);
 
       for (let i = 0; i < totalFiles; i++) {
         const itemData = itemsData[i];
-
         try {
-          // 🚀 调用后端API创建每个文献条目
-          const createdItem = await apiClient.createLibraryItem({
-            ...itemData,
-            source: itemData.source || DEFAULT_LIBRARY_ITEM_SOURCE
-          });
+          // 1. 查重（本地）
+          let isDuplicate = false;
+          let duplicateId = '';
+          if (itemData.title && itemData.title.trim() !== '') {
+            const duplicates = await libraryService.checkDuplicateByTitle(itemData.title.trim());
+            if (duplicates.length > 0) {
+              isDuplicate = true;
+              duplicateId = duplicates[0].id;
+            }
+          }
 
-          // 同步到本地缓存
-          await libraryService.addLibraryItem(createdItem);
+          if (isDuplicate) {
+            results.push({
+              success: false,
+              error: '已存在重复文献',
+              title: itemData.title,
+              duplicateId
+            });
+            console.warn(`❌ [${i + 1}/${totalFiles}] 跳过重复文献: ${itemData.title}`);
+            continue;
+          }
 
-          results.push({
-            success: true,
-            itemId: createdItem.id,
-            title: createdItem.title
-          });
+          // 2. 判断是否可后端处理（有DOI或URL）
+          const canBeProcessedByBackend = Boolean(itemData.doi || itemData.url);
 
-          console.log(`✅ [${i + 1}/${totalFiles}] Created: ${createdItem.title}`);
+          if (canBeProcessedByBackend && apiClient.submitLiterature) {
+            // 2.1 有DOI/URL，走后端异步任务
+            const taskId = await apiClient.submitLiterature({
+              source: {
+                title: itemData.title,
+                authors: itemData.authors,
+                doi: itemData.doi,
+                url: itemData.url,
+                year: itemData.year,
+                journal: itemData.publication
+              }
+            });
+            // 这里可以考虑轮询任务状态，或直接标记为已提交
+            results.push({
+              success: true,
+              itemId: taskId,
+              title: itemData.title,
+              backendTask: true
+            });
+            console.log(`🚀 [${i + 1}/${totalFiles}] 已提交后端异步任务: ${itemData.title}`);
+          } else if (apiClient.submitLiterature) {
+            // 2.2 无DOI/URL，直接创建
+            const createdItem = await apiClient.submitLiterature({
+              source: {
+                title: itemData.title,
+                authors: itemData.authors,
+                doi: itemData.doi,
+                url: itemData.url,
+                year: itemData.year,
+                journal: itemData.publication
+              }
+            });
+            // 同步到本地缓存
+            await libraryService.addLibraryItem(createdItem);
+
+            results.push({
+              success: true,
+              itemId: createdItem,
+              title: itemData.title
+            });
+            console.log(`✅ [${i + 1}/${totalFiles}] 已创建: ${createdItem.title}`);
+          } else {
+            // 没有可用API
+            results.push({
+              success: false,
+              error: '未找到可用的文献创建API',
+              title: itemData.title
+            });
+            console.error(`❌ [${i + 1}/${totalFiles}] 无法创建: ${itemData.title}`);
+          }
         } catch (error) {
-          console.error(`❌ [${i + 1}/${totalFiles}] Failed to create: ${itemData.title}`, error);
+          console.error(`❌ [${i + 1}/${totalFiles}] 创建失败: ${itemData.title}`, error);
           results.push({
             success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: error instanceof Error ? error.message : '未知错误',
             title: itemData.title
           });
         }
       }
 
-      // 🔄 刷新状态列表 (从本地缓存，因为已同步)
+      // 刷新本地文献列表
       const updatedItems = await libraryService.getAllLibraryItems();
-
-      console.log('[LibraryStore] addLibraryItems completed, refreshed with', updatedItems.length, 'total items');
-
       set({
         items: updatedItems,
         isLoading: false
@@ -887,18 +1003,18 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         results,
         totalAdded: successCount,
         totalErrors: errorCount,
-        itemsAdded: successCount, // For Zotero compatibility
-        itemsSkipped: errorCount  // For Zotero compatibility
+        itemsAdded: successCount,
+        itemsSkipped: errorCount
       };
     } catch (error) {
       console.error('[LibraryStore] addLibraryItems error:', error);
       set({
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to add library items'
+        error: error instanceof Error ? error.message : '批量添加文献失败'
       });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to add library items',
+        error: error instanceof Error ? error.message : '批量添加文献失败',
         results: [],
         totalAdded: 0,
         totalErrors: itemsData.length
@@ -918,9 +1034,10 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         mode: 'bidirectional' | 'unidirectional' | 'source-to-target';
         sourceItemId?: string; // 当mode为'source-to-target'时必需
       };
+      preCheckDuplicate?: boolean;
     }
   ) => {
-    const { onProgress, onTaskCreated, onComplete, onError, linkingStrategy } = options || {};
+    const { onProgress, onTaskCreated, onComplete, onError, linkingStrategy, preCheckDuplicate = true } = options || {};
 
     try {
       set({ isLoading: true, error: null });
@@ -929,21 +1046,31 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       const { items } = get();
       const itemId = generateLibraryItemId();
 
-      // 🔍 统一查重检查 - 无论是否有DOI/URL都要先检查重复
+      // 🔍 智能查重检查 - 使用新的MatchingEngine
       onProgress?.('检查重复文献...', 10);
-      if (itemData.title && itemData.title.trim() !== '') {
-        console.log('🔍 [Master] Checking for duplicates:', itemData.title);
-        const duplicates = await libraryService.checkDuplicateByTitle(itemData.title.trim());
-        if (duplicates.length > 0) {
-          console.log('❌ [Master] Duplicate found:', duplicates[0].title);
+      if (preCheckDuplicate && itemData.title && itemData.title.trim() !== '') {
+        console.log('🔍 [Master] Using intelligent matching engine for duplicate check:', itemData.title);
+        
+        // 使用新的智能匹配引擎进行查重
+        const { matchingEngine } = await import('../libs/db/matching');
+        const existingItem = await matchingEngine.findItemByUrlOrDoi(
+          itemData.url,
+          itemData.doi,
+          itemData.title,
+          itemData.authors,
+          itemData.year
+        );
+        
+        if (existingItem) {
+          console.log('❌ [Master] Intelligent matching found duplicate:', existingItem.title);
           set({
             isLoading: false,
-            error: 'Duplicate literature found'
+            error: 'Duplicate literature found via intelligent matching'
           });
-          onComplete?.(duplicates[0].id, 'duplicate');
-          return { success: false, duplicate: duplicates, itemId: duplicates[0].id };
+          onComplete?.(existingItem.id, 'duplicate');
+          return { success: false, duplicate: [existingItem], itemId: existingItem.id };
         }
-        console.log('✅ [Master] No duplicates found, proceeding...');
+        console.log('✅ [Master] No duplicates found via intelligent matching, proceeding...');
       }
 
       // 检查是否有可以让后端处理的信息 (DOI 或 URL)

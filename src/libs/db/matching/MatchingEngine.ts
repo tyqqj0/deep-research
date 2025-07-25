@@ -29,51 +29,85 @@ export class MatchingEngine {
   ) {}
 
   /**
-   * 🔍 智能匹配：在文献库中查找与给定引文匹配的条目
-   * 匹配策略：
-   * 1. DOI 精确匹配（优先级最高）
-   * 2. 标题 + 作者 + 年份模糊匹配
+   * 🔍 核心匹配引擎：统一的文献匹配逻辑
+   * @param matchData 匹配数据（可以是引文、URL、DOI等）
+   * @param options 匹配选项
    */
-  async findMatchingLiterature(reference: any, sourceItemId?: string): Promise<LibraryItem | null> {
+  private async findMatches(matchData: {
+    title?: string;
+    authors?: string[];
+    year?: number;
+    doi?: string;
+    url?: string;
+  }, options: {
+    enableTitleMatching?: boolean;
+    sourceItemId?: string;
+    strictMode?: boolean; // 严格模式：只有精确匹配（DOI/URL）
+  } = {}): Promise<LibraryItem | null> {
     try {
-      // 🔍 提取引文数据 - 处理嵌套结构
-      const extractedRef = this.referenceExtractor.extractReferenceData(reference);
-
-      // 策略一：DOI 精确匹配
-      if (extractedRef.doi) {
+      // 策略1: DOI 精确匹配（最高优先级）
+      if (matchData.doi) {
         const doiMatch = await db.library
           .where('doi')
-          .equals(extractedRef.doi.trim())
+          .equals(matchData.doi.trim())
           .first();
 
         if (doiMatch) {
           // 检查自我引用
-          if (sourceItemId && doiMatch.id === sourceItemId) {
-            console.log(`🚫 [DOI] Self-reference detected, ignoring`);
+          if (options.sourceItemId && doiMatch.id === options.sourceItemId) {
+            console.log(`🚫 [MatchingEngine] Self-reference detected, ignoring DOI match`);
           } else {
-            console.log(`✅ [DOI] Match found: ${doiMatch.title}`);
+            console.log(`✅ [MatchingEngine] DOI精确匹配: ${doiMatch.title}`);
             return doiMatch;
           }
         }
       }
 
-      // 策略二：带守门员的综合匹配
-      if (extractedRef.title) {
+      // 策略2: URL 精确匹配
+      if (matchData.url) {
+        const urlMatch = await db.library
+          .where('url')
+          .equals(matchData.url.trim())
+          .first();
+        
+        if (urlMatch) {
+          console.log(`✅ [MatchingEngine] URL精确匹配: ${urlMatch.title}`);
+          return urlMatch;
+        }
+      }
+
+      // 策略3: 标题+作者综合匹配（如果启用且有标题）
+      if (options.enableTitleMatching && matchData.title && !options.strictMode) {
+        console.log(`🔍 [MatchingEngine] 开始标题相似性匹配: "${matchData.title}"`);
+        
         const allItems = await db.library.toArray();
         const candidates = [];
 
         for (const item of allItems) {
+          // 跳过自我引用
+          if (options.sourceItemId && item.id === options.sourceItemId) {
+            continue;
+          }
+
           // 🚪 守门员：最低标题相似度检查
           const titleSimilarity = this.similarityCalculator.calculateStringSimilarity(
-            extractedRef.title.toLowerCase().trim(),
+            matchData.title.toLowerCase().trim(),
             item.title.toLowerCase().trim()
           );
+
+          console.log(`📊 [MatchingEngine] 标题相似性: "${item.title}" = ${(titleSimilarity * 100).toFixed(1)}%`);
 
           if (titleSimilarity < this.thresholds.gatekeeperThreshold) {
             continue; // 标题相似度太低，直接跳过
           }
 
           // 通过守门员检查，计算综合得分
+          const extractedRef = {
+            title: matchData.title,
+            authors: matchData.authors || [],
+            year: matchData.year
+          };
+          
           const totalScore = this.similarityCalculator.calculateMatchScore(extractedRef, item);
           candidates.push({
             item,
@@ -87,18 +121,42 @@ export class MatchingEngine {
           .filter(candidate => candidate.totalScore > this.thresholds.finalThreshold)
           .sort((a, b) => b.totalScore - a.totalScore);
 
-        console.log(`🔍 [MATCH] Found ${qualifiedMatches.length} qualified matches (threshold: ${this.thresholds.finalThreshold})`);
-
         if (qualifiedMatches.length > 0) {
           const bestMatch = qualifiedMatches[0];
-          console.log(`✅ [MATCH] Best match: "${bestMatch.item.title}" (score: ${bestMatch.totalScore.toFixed(3)})`);
+          console.log(`✅ [MatchingEngine] 智能匹配成功: "${bestMatch.item.title}" (相似度: ${(bestMatch.totalScore * 100).toFixed(1)}%)`);
           return bestMatch.item;
         } else {
-          console.log(`❌ [MATCH] No qualified matches found (highest score below ${this.thresholds.finalThreshold} threshold)`);
+          console.log(`❌ [MatchingEngine] 未找到符合阈值的匹配项 (最高阈值: ${this.thresholds.finalThreshold})`);
         }
       }
 
       return null;
+    } catch (error) {
+      console.error('Error in core matching engine:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 🔍 智能匹配：在文献库中查找与给定引文匹配的条目
+   * 匹配策略：
+   * 1. DOI 精确匹配（优先级最高）
+   * 2. 标题 + 作者 + 年份模糊匹配
+   */
+  async findMatchingLiterature(reference: any, sourceItemId?: string): Promise<LibraryItem | null> {
+    try {
+      // 🔍 提取引文数据 - 处理嵌套结构
+      const extractedRef = this.referenceExtractor.extractReferenceData(reference);
+
+      return await this.findMatches({
+        title: extractedRef.title,
+        authors: extractedRef.authors,
+        year: extractedRef.year,
+        doi: extractedRef.doi
+      }, {
+        enableTitleMatching: true,
+        sourceItemId
+      });
     } catch (error) {
       console.error('Error finding matching literature:', error);
       return null;
@@ -106,36 +164,36 @@ export class MatchingEngine {
   }
 
   /**
-   * 🔍 根据URL或DOI查找文献
+   * 🔍 增强版查重：通过URL、DOI或标题查找匹配的文献项
+   * 支持精确匹配和智能相似性匹配
+   * 
+   * @param url 文献URL
+   * @param doi 文献DOI
+   * @param title 文献标题（可选，用于相似性匹配）
+   * @param authors 作者列表（可选，用于增强匹配准确性）
+   * @param year 发表年份（可选，用于增强匹配准确性）
    */
-  async findItemByUrlOrDoi(url?: string, doi?: string): Promise<LibraryItem | null> {
+  async findItemByUrlOrDoi(
+    url?: string, 
+    doi?: string, 
+    title?: string, 
+    authors?: string[], 
+    year?: number
+  ): Promise<LibraryItem | null> {
     try {
-      // Priority 1: DOI match (most reliable)
-      if (doi) {
-        const doiMatch = await db.library
-          .where('doi')
-          .equals(doi.trim())
-          .first();
-        if (doiMatch) {
-          return doiMatch;
-        }
-      }
-
-      // Priority 2: URL match
-      if (url) {
-        const urlMatch = await db.library
-          .where('url')
-          .equals(url.trim())
-          .first();
-        if (urlMatch) {
-          return urlMatch;
-        }
-      }
-
-      return null;
+      return await this.findMatches({
+        title,
+        authors,
+        year,
+        doi,
+        url
+      }, {
+        enableTitleMatching: !!title, // 只有提供标题时才启用标题匹配
+        strictMode: false // 允许智能匹配
+      });
     } catch (error) {
-      console.error('Error finding item by URL or DOI:', error);
-      throw new Error('Failed to find item by URL or DOI');
+      console.error('Error finding item by URL, DOI, or title:', error);
+      throw new Error('Failed to find item by URL, DOI, or title');
     }
   }
 

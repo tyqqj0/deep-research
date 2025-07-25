@@ -249,7 +249,7 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
         setIsLayouting(true);
 
         try {
-            console.log(`[Graph] 🔄 Updating layout - Items: ${allItems.length}, Citation Version: ${citationVersion}`);
+            // console.log(`[Graph] 🔄 Updating layout - Items: ${allItems.length}, Citation Version: ${citationVersion}`);
 
             // 🎯 优先使用store中的数据，确保数据一致性
             const items = allItems.length > 0 ? allItems : await libraryService.getAllLibraryItems();
@@ -261,17 +261,17 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
             }
 
             const citations = await libraryService.getAllCitations();
-            console.log(`[Graph] 📊 Data loaded - ${items.length} items, ${citations.length} citations`);
+            // console.log(`[Graph] 📊 Data loaded - ${items.length} items, ${citations.length} citations`);
 
             // 🎯 生成数据特征签名，检查是否真的需要重新布局
             const dataSignature = `${items.length}-${citations.length}-${citationVersion}`;
             if (dataSignature === lastDataSignatureRef.current) {
-                console.log('[Graph] ⏭️ Data signature unchanged, skipping layout recalculation');
+                // console.log('[Graph] ⏭️ Data signature unchanged, skipping layout recalculation');
                 setIsLayouting(false);
                 return;
             }
             lastDataSignatureRef.current = dataSignature;
-            console.log(`[Graph] 🔄 Data signature changed: ${dataSignature}`);
+            // console.log(`[Graph] 🔄 Data signature changed: ${dataSignature}`);
 
             const nodeIds = new Set(items.map(item => item.id));
 
@@ -323,7 +323,7 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
 
     // 🎯 响应式更新：监听文献数量和citation版本变化
     useEffect(() => {
-        console.log(`[Graph] Triggering layout update: ${allItems.length} items, citation version: ${citationVersion}`);
+        // console.log(`[Graph] Triggering layout update: ${allItems.length} items, citation version: ${citationVersion}`);
         fetchDataAndLayout();
     }, [fetchDataAndLayout]);
 
