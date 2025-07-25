@@ -108,16 +108,9 @@ export function PdfUploadDialog({
           try {
             console.log(`🔄 [${i + 1}/${totalFiles}] Processing: ${file.name}`);
 
-            // 【步骤1】请求上传许可
-            console.log(`📤 [${i + 1}/${totalFiles}] Step 1: Requesting upload permission...`);
-            const { uploadUrl, publicUrl } = await apiClient.requestUploadUrl(file.name, file.type);
-            
-            completedSteps++;
-            setUploadProgress((completedSteps / totalSteps) * 100);
-
-            // 【步骤2】直传到OSS
-            console.log(`☁️ [${i + 1}/${totalFiles}] Step 2: Uploading to OSS...`);
-            await apiClient.uploadFileToOSS(uploadUrl, file);
+            // 【步骤1】上传PDF文件
+            console.log(`📤 [${i + 1}/${totalFiles}] Step 1: Uploading to OSS...`);
+            const { publicUrl } = await apiClient.uploadPdf(fileName, file.type, file);
             
             completedSteps++;
             setUploadProgress((completedSteps / totalSteps) * 100);
@@ -129,7 +122,7 @@ export function PdfUploadDialog({
               source: {
                 title: fileName, // 使用文件名作为临时标题
                 authors: ['Unknown Author'], // 临时作者，后端AI会提取真实信息
-                url: publicUrl, // OSS上的PDF文件URL
+                url: publicUrl, // 公开访问URL
                 year: new Date().getFullYear() // 当前年份作为临时年份
               }
             });

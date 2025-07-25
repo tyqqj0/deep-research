@@ -3,7 +3,7 @@ import { liveQuery } from 'dexie';
 import { LibraryItem, LiteratureTree, db } from '../libs/db';
 import { LITERATURE_SOURCES, DEFAULT_LIBRARY_ITEM_SOURCE, LiteratureSource } from '../libs/db/constants';
 import { libraryService } from '../libs/db/LibraryService';
-import { apiClient, BackendTaskResponse, Literature } from '../libs/api'; // 🚀 使用新的API Client和类型
+import { apiClient, BackendTaskResponse, Literature, SubmitLiteratureRequest, UploadUrlResponse } from '../libs/api'; // 🚀 使用新的API Client和类型
 import { TreeController } from '../libs/tree/TreeController';
 import { zoteroService, ZoteroConfig, ZoteroSyncResult } from '../libs/zotero';
 import { generateLibraryItemId } from '../libs/utils/uuid';
@@ -100,7 +100,7 @@ interface LibraryActions {
   setSourceFilter: (source: LiteratureSource | 'all') => void;
   setSearchTerm: (term: string) => void;
   getFilteredItems: () => LibraryItem[];
-  
+
   // 🏷️ Topics filtering
   setTopicFilter: (topics: string[]) => void;
   addTopicToFilter: (topic: string) => void;
@@ -195,21 +195,20 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
       try {
         // 从后端API获取最新数据
-        console.log('🔄 Fetching latest data from backend API...');
-        const [backendItems, localTrees] = await Promise.all([
-          apiClient.getLibraryItems(), // 从后端获取文献数据
-          libraryService.getAllTrees()  // 本地获取树数据（暂时保持本地）
+        console.log('🔄 Fetching latest data from local cache (backend sync disabled)...');
+        // 🚀 混合策略：优先从后端获取最新数据，本地数据库作为缓存
+        // NOTE: apiClient.getLibraryItems() is deprecated. We will rely on the local cache
+        // which can be synced from another source if needed.
+        const [localItems, localTrees] = await Promise.all([
+          libraryService.getAllLibraryItems(),
+          libraryService.getAllTrees()
         ]);
 
-        items = backendItems;
+        items = localItems;
         trees = localTrees;
 
-        // 🔄 同步到本地缓存
-        console.log(`📦 Syncing ${items.length} items to local cache...`);
-        await libraryService.syncItemsFromBackend(backendItems);
-
       } catch (backendError) {
-        console.warn('⚠️ Backend API unavailable, falling back to local cache:', backendError);
+        console.warn('⚠️ Error fetching from local cache:', backendError);
 
         // 后端不可用时，从本地缓存加载
         const [localItems, localTrees] = await Promise.all([
@@ -353,14 +352,39 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     console.log('🚀 Starting global task polling...');
 
     const interval = setInterval(async () => {
-      const { activeTasks } = get();
+      const { activeTasks, items } = get();
 
       if (activeTasks.size === 0) {
         return; // 没有任务需要轮询
       }
 
-      // 并行查询所有活跃任务的状态
-      const taskPromises = Array.from(activeTasks.values()).map(async (taskInfo) => {
+      // 🗑️ 清理孤立任务：检查任务对应的文献是否仍然存在
+      const tasksToPoll = [];
+      const orphanedTaskIds: string[] = [];
+      const currentItemIds = new Set(items.map(item => item.id));
+
+      for (const [taskId, taskInfo] of activeTasks.entries()) {
+        if (currentItemIds.has(taskInfo.literatureId)) {
+          tasksToPoll.push(taskInfo);
+        } else {
+          orphanedTaskIds.push(taskId);
+        }
+      }
+
+      // 如果发现孤立任务，从状态中移除它们
+      if (orphanedTaskIds.length > 0) {
+        console.warn(`🗑️ Cleaning up ${orphanedTaskIds.length} orphaned tasks whose literature items no longer exist:`, orphanedTaskIds);
+        const newActiveTasks = new Map(activeTasks);
+        orphanedTaskIds.forEach(id => newActiveTasks.delete(id));
+        set({ activeTasks: newActiveTasks });
+      }
+
+      if (tasksToPoll.length === 0) {
+        return; // 没有有效任务需要轮询
+      }
+
+      // 并行查询所有有效任务的状态
+      const taskPromises = tasksToPoll.map(async (taskInfo) => {
         try {
           const status = await apiClient.getTaskStatus(taskInfo.taskId);
           return { taskInfo, status };
@@ -374,11 +398,18 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
       // 处理轮询结果
       for (const result of results) {
-        if (result.status === 'fulfilled' && result.value.status) {
-          await get().handleTaskStatusUpdate(result.value.taskInfo, result.value.status);
-        } else if (result.status === 'fulfilled' && result.value.error) {
-          // 处理轮询错误
-          await get().handleTaskError(result.value.taskInfo, result.value.error);
+        if (result.status === 'fulfilled') {
+          if (result.value.status) {
+            await get().handleTaskStatusUpdate(result.value.taskInfo, result.value.status);
+          } else if (result.value.error) {
+            // 处理轮询错误
+            await get().handleTaskError(result.value.taskInfo, result.value.error);
+          }
+        } else {
+          // 找不到文献id或任务被删除
+          console.error(`❌ Failed to poll task:`, result.reason);
+          // 显示弹窗提示任务轮询失败
+          toast.error('A task failed to update.');
         }
       }
     }, 3000); // 每3秒轮询一次
@@ -538,6 +569,8 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     try {
       await libraryService.updateLibraryItem(taskInfo.literatureId, {
         backendTask: {
+          ...taskInfo.backendTask, // a temp solution to provide all required fields
+          task_id: taskInfo.taskId,
           execution_status: 'failed',
           error_info: { message: error instanceof Error ? error.message : 'Processing failed' }
         }
@@ -610,14 +643,14 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
           console.log(`🎯 [SECOND_CHECK] Found duplicate after parsing! Existing: "${duplicateAfterParsing.title}", Current: "${finalLiterature.title}"`);
           // 显示弹窗提示已自动合并重复文献
           toast.success('已自动合并重复文献');
-          
+
           // 🚀 智能合并策略：将占位条目的信息合并到已存在条目
           console.log('🔄 [MERGE] Merging placeholder data into existing item...');
-          
+
           // 获取占位条目的topics等信息
           const { items } = get();
           const placeholderItem = items.find(item => item.id === literatureId);
-          
+
           if (placeholderItem?.topics && placeholderItem.topics.length > 0) {
             console.log(`🏷️ [MERGE] Merging topics: ${placeholderItem.topics.join(', ')}`);
             // 合并topics到已存在的条目
@@ -625,15 +658,15 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
               await libraryService.addTopicToItem(duplicateAfterParsing.id, topic);
             }
           }
-          
+
           // 🗑️ 删除占位条目（重复项）
           console.log(`🗑️ [CLEANUP] Removing placeholder duplicate item: ${literatureId}`);
           await libraryService.deleteLibraryItem(literatureId);
-          
+
           // 更新 store 状态，移除占位条目
           const updatedItems = items.filter(item => item.id !== literatureId);
           set({ items: updatedItems });
-          
+
           // 🎯 触发完成回调，但使用已存在条目的ID
           const { taskCallbacks } = get();
           const callbacks = taskCallbacks.get(response.task_id);
@@ -645,7 +678,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
               console.error('❌ Error calling onComplete callback:', callbackError);
             }
           }
-          
+
           return; // 早期返回，不继续处理占位条目
         } else {
           console.log('✅ [SECOND_CHECK] No duplicates found after parsing, proceeding with update...');
@@ -668,6 +701,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
             : ['Unknown Author'], // 确保作者数组不为空
           year: finalLiterature.year || new Date().getFullYear(),
           doi: finalLiterature.doi || undefined, // 将 null 转换为 undefined
+          url: finalLiterature.url || undefined,
           publication: finalLiterature.journal || undefined, // 同样处理 journal
 
           // 🔗 同步引文数据到 parsedContent
@@ -903,80 +937,17 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       for (let i = 0; i < totalFiles; i++) {
         const itemData = itemsData[i];
         try {
-          // 1. 查重（本地）
-          let isDuplicate = false;
-          let duplicateId = '';
-          if (itemData.title && itemData.title.trim() !== '') {
-            const duplicates = await libraryService.checkDuplicateByTitle(itemData.title.trim());
-            if (duplicates.length > 0) {
-              isDuplicate = true;
-              duplicateId = duplicates[0].id;
-            }
-          }
+          // Use masterAddLiterature for each item
+          const result = await get().masterAddLiterature(itemData, { preCheckDuplicate: true });
+          results.push({
+            ...result,
+            title: itemData.title,
+          });
 
-          if (isDuplicate) {
-            results.push({
-              success: false,
-              error: '已存在重复文献',
-              title: itemData.title,
-              duplicateId
-            });
-            console.warn(`❌ [${i + 1}/${totalFiles}] 跳过重复文献: ${itemData.title}`);
-            continue;
-          }
-
-          // 2. 判断是否可后端处理（有DOI或URL）
-          const canBeProcessedByBackend = Boolean(itemData.doi || itemData.url);
-
-          if (canBeProcessedByBackend && apiClient.submitLiterature) {
-            // 2.1 有DOI/URL，走后端异步任务
-            const taskId = await apiClient.submitLiterature({
-              source: {
-                title: itemData.title,
-                authors: itemData.authors,
-                doi: itemData.doi,
-                url: itemData.url,
-                year: itemData.year,
-                journal: itemData.publication
-              }
-            });
-            // 这里可以考虑轮询任务状态，或直接标记为已提交
-            results.push({
-              success: true,
-              itemId: taskId,
-              title: itemData.title,
-              backendTask: true
-            });
-            console.log(`🚀 [${i + 1}/${totalFiles}] 已提交后端异步任务: ${itemData.title}`);
-          } else if (apiClient.submitLiterature) {
-            // 2.2 无DOI/URL，直接创建
-            const createdItem = await apiClient.submitLiterature({
-              source: {
-                title: itemData.title,
-                authors: itemData.authors,
-                doi: itemData.doi,
-                url: itemData.url,
-                year: itemData.year,
-                journal: itemData.publication
-              }
-            });
-            // 同步到本地缓存
-            await libraryService.addLibraryItem(createdItem);
-
-            results.push({
-              success: true,
-              itemId: createdItem,
-              title: itemData.title
-            });
-            console.log(`✅ [${i + 1}/${totalFiles}] 已创建: ${createdItem.title}`);
+          if (result.success) {
+            console.log(`✅ [${i + 1}/${totalFiles}] Successfully processed: ${itemData.title}`);
           } else {
-            // 没有可用API
-            results.push({
-              success: false,
-              error: '未找到可用的文献创建API',
-              title: itemData.title
-            });
-            console.error(`❌ [${i + 1}/${totalFiles}] 无法创建: ${itemData.title}`);
+            console.warn(`❌ [${i + 1}/${totalFiles}] Skipped or failed: ${itemData.title} - ${result.error || 'Duplicate found'}`);
           }
         } catch (error) {
           console.error(`❌ [${i + 1}/${totalFiles}] 创建失败: ${itemData.title}`, error);
@@ -996,15 +967,15 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       });
 
       const successCount = results.filter(r => r.success).length;
-      const errorCount = results.filter(r => !r.success).length;
+      const failedCount = totalFiles - successCount;
 
       return {
         success: true,
         results,
         totalAdded: successCount,
-        totalErrors: errorCount,
+        totalErrors: failedCount,
         itemsAdded: successCount,
-        itemsSkipped: errorCount
+        itemsSkipped: failedCount,
       };
     } catch (error) {
       console.error('[LibraryStore] addLibraryItems error:', error);
@@ -1050,7 +1021,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       onProgress?.('检查重复文献...', 10);
       if (preCheckDuplicate && itemData.title && itemData.title.trim() !== '') {
         console.log('🔍 [Master] Using intelligent matching engine for duplicate check:', itemData.title);
-        
+
         // 使用新的智能匹配引擎进行查重
         const { matchingEngine } = await import('../libs/db/matching');
         const existingItem = await matchingEngine.findItemByUrlOrDoi(
@@ -1060,7 +1031,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
           itemData.authors,
           itemData.year
         );
-        
+
         if (existingItem) {
           console.log('❌ [Master] Intelligent matching found duplicate:', existingItem.title);
           set({
@@ -1123,7 +1094,6 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         };
 
         // 添加到本地状态和缓存
-        onProgress?.('创建本地条目...', 40);
         try {
           await libraryService.addLibraryItem(temporaryItem);
           console.log('✅ [Master] Temporary item added to local cache successfully');
@@ -1443,7 +1413,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
           return false; // 没有topics的文献不匹配任何话题过滤
         }
         // 只要文献的topics中包含任一选中的话题就匹配
-        return topicFilter.some(selectedTopic => 
+        return topicFilter.some(selectedTopic =>
           item.topics!.includes(selectedTopic)
         );
       });
@@ -1539,9 +1509,8 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
       // 🚀 使用API客户端上传PDF
       console.log('📤 Uploading PDF for item via API client...', itemId);
-      const formData = new FormData();
-      formData.append('file', file);
-      await apiClient.uploadPdf(itemId, formData);
+      const { publicUrl } = await apiClient.uploadPdf(file.name, file.type, file);
+      await get().updateLibraryItem(itemId, { pdfPath: publicUrl });
 
       // Refresh the items list
       const updatedItems = await libraryService.getAllLibraryItems();
@@ -1550,7 +1519,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         isUploadingPdf: false
       });
 
-      console.log('✅ PDF uploaded successfully');
+      console.log('✅ PDF uploaded and linked successfully');
     } catch (error) {
       console.error('❌ Failed to upload PDF:', error);
       set({
@@ -1567,6 +1536,8 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       const totalFiles = files.length;
       const { uploadProgress } = get();
 
+      const addedItemsInfo = [];
+
       for (let i = 0; i < totalFiles; i++) {
         const file = files[i];
         const tempId = `upload_${i}`;
@@ -1581,17 +1552,19 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
         // 🚀 使用API客户端创建文献并上传PDF
         const fileName = file.name.replace('.pdf', '');
-        const newItem = await apiClient.createLibraryItem({
+        const { publicUrl } = await apiClient.uploadPdf(fileName, file.type, file);
+        const result = await get().masterAddLiterature({
           title: fileName,
           authors: ['Unknown'],
           year: new Date().getFullYear(),
-          source: 'manual'
+          source: 'manual',
+          url: publicUrl,
+          pdfPath: publicUrl,
         });
 
-        // 上传PDF
-        const formData = new FormData();
-        formData.append('file', file);
-        await apiClient.uploadPdf(newItem.id, formData);
+        if (result.success) {
+          addedItemsInfo.push({ title: fileName, itemId: result.itemId });
+        }
       }
 
       // Refresh the items list
@@ -1601,6 +1574,9 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         isUploadingPdf: false,
         uploadProgress: {}
       });
+
+      console.log(`✅ Bulk upload completed. Added ${addedItemsInfo.length} items.`);
+
     } catch (error) {
       set({
         isUploadingPdf: false,
@@ -1747,7 +1723,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     try {
       // 🎯 统一话题概念：只从深度研究历史中收集话题
       const topicsSet = new Set<string>();
-      
+
       try {
         // 从useHistoryStore获取研究历史
         const { history } = await import('@/store/history').then(m => m.useHistoryStore.getState());
@@ -1778,13 +1754,13 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       } catch (error) {
         console.error('[LibraryStore] Failed to load research topics:', error);
       }
-      
+
       const availableTopics = Array.from(topicsSet)
         .filter(topic => topic.length > 0) // 过滤空字符串
         .sort();
-      
+
       set({ availableTopics });
-      
+
       console.log(`[LibraryStore] 🎯 Loaded ${availableTopics.length} research topics:`, availableTopics);
     } catch (error) {
       console.error('[LibraryStore] Failed to load available topics:', error);

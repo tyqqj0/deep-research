@@ -101,6 +101,7 @@ interface Literature {
     title: string;
     authors: string[];
     doi?: string;
+    url?: string;
     year?: number;
     journal?: string;
     created_at: string;
@@ -193,7 +194,7 @@ export const apiClient = {
      * @param contentType - 文件MIME类型，默认为'application/pdf'
      * @returns Promise<UploadUrlResponse> - 包含上传URL和公开访问URL
      */
-    requestUploadUrl: async (
+    _requestUploadUrl: async (
         fileName: string,
         contentType: string = 'application/pdf'
     ): Promise<UploadUrlResponse> => {
@@ -219,7 +220,7 @@ export const apiClient = {
      * @param file - 要上传的文件
      * @returns Promise<void>
      */
-    uploadFileToOSS: async (uploadUrl: string, file: File): Promise<void> => {
+    _uploadFileToOSS: async (uploadUrl: string, file: File): Promise<void> => {
         console.log(`☁️ Uploading file to OSS: ${file.name} (${file.size} bytes)`);
 
         const response = await fetch(uploadUrl, {
@@ -237,6 +238,19 @@ export const apiClient = {
         console.log(`✅ File uploaded successfully to OSS: ${file.name}`);
     },
 
+    /**     
+     * 📄 上传PDF文件
+     * @param fileName - 文件名
+     * @param contentType - 文件类型
+     * @param file - 文件
+     * @returns Promise<{ publicUrl: string }> - 返回公开访问URL
+     */
+    uploadPdf: async (fileName: string, contentType: string, file: File): Promise<{ publicUrl: string }> => {
+        const { uploadUrl, publicUrl } = await apiClient._requestUploadUrl(fileName, contentType);
+        await apiClient._uploadFileToOSS(uploadUrl, file);
+        return { publicUrl };
+    },
+            
     /**
      * 📚 提交文献进行异步处理
      * @param data - 文献信息
