@@ -31,12 +31,14 @@ import { toast } from 'sonner';
 
 // 导入新的Hook和store
 import useLiteratureResearch from '@/hooks/useLiteratureResearch';
+import { useTreeBuilder } from '@/hooks/useTreeBuilder';
 import { useTaskStore } from '@/store/task';
 import { useLibraryStore } from '@/store/libraryStore';
 import { LibraryItem } from '@/libs/db';
 
 // 导入组件
 import LiteratureInfoPanel from './LiteratureInfoPanel';
+import MCTSControlPanel from './MCTSControlPanel';
 import { TreeVisualization } from '@/components/Library/TreeVisualization';
 import {
   Accordion,
@@ -87,6 +89,9 @@ export default function MCTSLiteratureWorkflow({
 
   // 🚀 新的简化Hook
   const { status, runLiteratureSeeding, cancelTask } = useLiteratureResearch();
+
+  // 🌳 TreeBuilder Hook - SG-MCTS功能
+  const treeBuilder = useTreeBuilder();
 
   // 本地状态
   const [isTreeMaximized, setIsTreeMaximized] = useState(false);
@@ -139,6 +144,25 @@ export default function MCTSLiteratureWorkflow({
   const toggleTreeMaximize = useCallback(() => {
     setIsTreeMaximized(!isTreeMaximized);
   }, [isTreeMaximized]);
+
+  // 🌳 设为根节点处理函数
+  const handleSetAsRoot = useCallback(async (item: LibraryItem) => {
+    try {
+      toast.loading('正在创建知识树...', { id: 'tree-creation' });
+
+      await treeBuilder.startTreeBuilding(item, topic);
+
+      toast.success(`已将"${item.title}"设为根节点`, { id: 'tree-creation' });
+
+      // 可选：切换到树可视化模式
+      setIsTreeMaximized(false);
+
+    } catch (error) {
+      console.error('设置根节点失败:', error);
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
+      toast.error(`设置根节点失败: ${errorMsg}`, { id: 'tree-creation' });
+    }
+  }, [topic, treeBuilder]);
 
   // 检查是否有正在进行的任务
   const isRunning = status.includes('正在') || status.includes('生成');
@@ -266,6 +290,8 @@ export default function MCTSLiteratureWorkflow({
                   sessionLiterature={sessionLiterature}
                   topic={topic}
                   onViewLibrary={handleViewLibrary}
+                  onSetAsRoot={handleSetAsRoot}
+                  hasActiveTreeBuilding={treeBuilder.isBuilding || !!treeBuilder.currentSession}
                   className="h-full"
                 />
               </div>
@@ -302,142 +328,12 @@ export default function MCTSLiteratureWorkflow({
                 </Card>
               </div>
 
-              {/* 3. 搜索任务面板（下） - 增大到20%，提供更多空间 */}
-              <div className="h-[20%] flex-shrink-0">
-                <Card className="h-full bg-gradient-to-br from-blue-50 to-indigo-50/30 border-0 rounded-none">
-                  <CardHeader className="pb-2 border-b border-blue-100">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <Search className="h-4 w-4 text-blue-600" />
-                      文献搜索任务
-                      {taskStore.tasks.length > 0 && (
-                        <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-700 text-xs">
-                          {taskStore.tasks.length}
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="h-[calc(100%-50px)] overflow-auto p-3">
-                    {/* 🎯 强制显示任务列表如果有任务 */}
-                    {taskStore.tasks.length > 0 ? (
-                      // 有任务时：显示任务列表
-                      <>
-                        <div className="mb-3 text-xs text-green-700 font-semibold bg-green-50 px-3 py-2 rounded-lg border border-green-200">
-                          📋 搜索任务列表 ({taskStore.tasks.length} 项)
-                        </div>
-                        <Accordion type="multiple" className="space-y-2">
-                          {taskStore.tasks.map((item) => {
-                            const isEditing = editingTaskId === item.id;
-                            return (
-                              <AccordionItem key={item.id} value={item.id} className="border border-gray-200 rounded-lg bg-white shadow-sm">
-                                <AccordionTrigger className="px-4 py-3 hover:bg-gray-50/80 rounded-t-lg">
-                                  <div className="flex items-center gap-3 w-full">
-                                    <TaskState state={item.state} />
-                                    <span className="text-left font-medium flex-1 text-gray-800">{item.title}</span>
-                                  </div>
-                                </AccordionTrigger>
-                                <AccordionContent className="px-4 pb-4">
-                                  {isEditing ? (
-                                    <div className="space-y-3 my-3">
-                                      <Input
-                                        value={item.title}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                          taskStore.updateTask(item.id, { title: e.target.value })
-                                        }
-                                        className="font-semibold border-gray-300"
-                                      />
-                                      <Textarea
-                                        value={item.researchGoal}
-                                        readOnly
-                                        className="bg-gray-50 border-gray-200"
-                                        rows={3}
-                                      />
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm">
-                                        <strong className="text-blue-800">研究目标：</strong>
-                                        <span className="text-gray-700">{item.researchGoal}</span>
-                                      </div>
-                                      <Separator className="mb-4" />
-                                    </>
-                                  )}
-
-                                  <div className="whitespace-pre-wrap text-sm bg-gray-50 border border-gray-200 p-3 rounded-lg">
-                                    {item.learning || "⏳ 等待搜索开始..."}
-                                  </div>
-
-                                  <div className="flex items-center justify-end space-x-2 mt-4 pt-3 border-t border-gray-100">
-                                    {isEditing ? (
-                                      <Button
-                                        onClick={() => setEditingTaskId(null)}
-                                        size="sm"
-                                        className="bg-blue-600 hover:bg-blue-700"
-                                      >
-                                        <Save className="mr-1 h-4 w-4" />
-                                        保存
-                                      </Button>
-                                    ) : (
-                                      <Button
-                                        onClick={() => {
-                                          setEditingTaskId(item.id);
-                                          setOriginalTasks((prev) => ({ ...prev, [item.id]: item }));
-                                        }}
-                                        variant="outline"
-                                        size="sm"
-                                        className="border-gray-300 hover:bg-gray-50"
-                                      >
-                                        <Pencil className="mr-1 h-4 w-4" />
-                                        编辑
-                                      </Button>
-                                    )}
-
-                                    <Button
-                                      onClick={() => cancelTask(item.id)}
-                                      variant="destructive"
-                                      size="sm"
-                                    >
-                                      <Trash className="mr-1 h-4 w-4" />
-                                      删除
-                                    </Button>
-                                  </div>
-                                </AccordionContent>
-                              </AccordionItem>
-                            );
-                          })}
-                        </Accordion>
-
-                        {/* 如果还在生成，显示进度提示 */}
-                        {isRunning && (
-                          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-3">
-                            <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                            <span className="text-sm text-blue-700 font-medium">{status}</span>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      // 无任务时：显示加载或空状态
-                      <div className="text-center text-gray-500 py-8">
-                        {isRunning ? (
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-center gap-3">
-                              <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                              <span className="text-sm font-medium">{status}</span>
-                            </div>
-                            <div className="text-xs bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 inline-block">
-                              任务数量: {taskStore.tasks.length}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <Search className="h-8 w-8 mx-auto text-gray-400" />
-                            <p className="text-sm font-medium">暂无搜索任务</p>
-                            <p className="text-xs text-gray-400">点击上方按钮开始文献播种</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+              {/* 3. MCTS控制面板（下） - 20%高度，树构建执行控制 */}
+              <div className="h-[18%] flex-shrink-0">
+                <MCTSControlPanel
+                  treeBuilder={treeBuilder}
+                  className="h-full"
+                />
               </div>
             </div>
           )
@@ -451,7 +347,7 @@ export default function MCTSLiteratureWorkflow({
               <div className="space-y-2 text-xs text-gray-400">
                 <p>🌱 播种模式：为研究主题创建初始文献库</p>
                 <p>📚 将自动生成搜索任务，搜索并添加相关文献</p>
-                <p>🔍 支持三面板布局：文献信息 + 树可视化 + 搜索任务</p>
+                <p>🔍 支持三面板布局：文献信息 + 树可视化 + MCTS控制</p>
               </div>
             </div>
           </div>

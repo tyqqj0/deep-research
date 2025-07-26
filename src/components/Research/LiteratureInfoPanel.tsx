@@ -13,7 +13,9 @@ import {
   User,
   ArrowRight,
   Plus,
-  FileText
+  FileText,
+  TreePine,
+  Play
 } from 'lucide-react';
 import { LibraryItem } from '@/libs/db';
 import { SOURCE_METADATA } from '@/libs/db/constants';
@@ -24,16 +26,25 @@ interface LiteratureInfoPanelProps {
   sessionLiterature: LibraryItem[];
   topic: string;
   onViewLibrary: () => void;
+  onSetAsRoot?: (item: LibraryItem) => void;  // 新增：设置根节点回调
+  hasActiveTreeBuilding?: boolean;             // 新增：是否有活跃的树构建会话
   className?: string;
 }
 
 interface LiteratureCardMiniProps {
   item: LibraryItem;
   onSelect?: () => void;
+  onSetAsRoot?: (item: LibraryItem) => void;  // 新增：设置根节点回调
+  hasActiveTreeBuilding?: boolean;             // 新增：是否有活跃的树构建会话
 }
 
 // 极简文献卡片
-function LiteratureCardMini({ item, onSelect }: LiteratureCardMiniProps) {
+function LiteratureCardMini({ 
+  item, 
+  onSelect, 
+  onSetAsRoot, 
+  hasActiveTreeBuilding = false 
+}: LiteratureCardMiniProps) {
   const sourceMetadata = SOURCE_METADATA[item.source || 'manual'];
 
   const formatAuthors = (authors: string[]) => {
@@ -68,13 +79,42 @@ function LiteratureCardMini({ item, onSelect }: LiteratureCardMiniProps) {
             </div>
           </div>
         </div>
-        <Badge
-          variant="outline"
-          className={`text-xs px-1 ${sourceMetadata?.color || 'bg-gray-100 text-gray-800'}`}
-          title={sourceMetadata?.name}
-        >
-          {sourceMetadata?.icon}
-        </Badge>
+        
+        {/* 右侧按钮区域 */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <Badge
+            variant="outline"
+            className={`text-xs px-1 ${sourceMetadata?.color || 'bg-gray-100 text-gray-800'}`}
+            title={sourceMetadata?.name}
+          >
+            {sourceMetadata?.icon}
+          </Badge>
+          
+          {/* 设为根节点按钮 - 只在没有活跃构建时显示 */}
+          {!hasActiveTreeBuilding && onSetAsRoot && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation(); // 阻止触发卡片点击
+                onSetAsRoot(item);
+              }}
+              className="h-6 px-2 text-xs border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
+              title="将此文献设为知识树根节点"
+            >
+              <TreePine className="h-3 w-3 mr-1" />
+              设为根节点
+            </Button>
+          )}
+          
+          {/* 活跃构建状态指示 */}
+          {hasActiveTreeBuilding && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+              <Play className="h-3 w-3" />
+              <span>构建中</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -84,6 +124,8 @@ export default function LiteratureInfoPanel({
   sessionLiterature,
   topic,
   onViewLibrary,
+  onSetAsRoot,
+  hasActiveTreeBuilding = false,
   className = ''
 }: LiteratureInfoPanelProps) {
   const { t } = useTranslation();
@@ -185,6 +227,8 @@ export default function LiteratureInfoPanel({
                       console.log('Selected literature:', item.title);
                       // 这里可以触发查看详情或其他操作
                     }}
+                    onSetAsRoot={onSetAsRoot}
+                    hasActiveTreeBuilding={hasActiveTreeBuilding}
                   />
                 ))}
               </div>
