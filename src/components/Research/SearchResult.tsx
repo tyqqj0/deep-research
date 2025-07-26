@@ -1,10 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useState, useEffect, useMemo } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import {
   LoaderCircle,
@@ -14,24 +11,13 @@ import {
   Trash,
   RotateCcw,
   NotebookText,
-  Search,
-  TrendingUp,
   Hourglass,
   XCircle,
   Play,
   Pencil,
   Save,
-  TreePine,
-  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/Internal/Button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-} from "@/components/ui/form";
 import {
   Accordion,
   AccordionContent,
@@ -41,7 +27,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import useAccurateTimer from "@/hooks/useAccurateTimer";
 import useDeepResearch from "@/hooks/useDeepResearch";
 import useKnowledge from "@/hooks/useKnowledge";
 import { useTaskStore } from "@/store/task";
@@ -51,11 +36,7 @@ import { downloadFile } from "@/utils/file";
 const MagicDown = dynamic(() => import("@/components/MagicDown"));
 const MagicDownView = dynamic(() => import("@/components/MagicDown/View"));
 const Lightbox = dynamic(() => import("@/components/Internal/Lightbox"));
-const MCTSLiteratureWorkflow = dynamic(() => import("@/components/Research/MCTSLiteratureWorkflow"));
 
-const formSchema = z.object({
-  suggestion: z.string().optional(),
-});
 
 function addQuoteBeforeAllLine(text: string = "") {
   return text
@@ -82,40 +63,15 @@ function SearchResult() {
   const { t } = useTranslation();
   const taskStore = useTaskStore();
   const {
-    status,
     runSearchTask,
-    runWiderResearch,
-    runDeeperResearch,
     regenerateAndRerunTask,
     rerunTask,
     cancelTask,
   } = useDeepResearch();
   const { generateId } = useKnowledge();
-  const {
-    formattedTime,
-    start: accurateTimerStart,
-    stop: accurateTimerStop,
-  } = useAccurateTimer();
-  const [isThinking, setIsThinking] = useState<boolean>(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [originalTasks, setOriginalTasks] = useState<Record<string, SearchTask>>({});
 
-  const isThinkingDeeper = useMemo(() => {
-    return isThinking && taskStore.thinkingProcess !== "";
-  }, [isThinking, taskStore.thinkingProcess]);
-  const unfinishedTasks = useMemo(() => {
-    return taskStore.tasks.filter((item) => item.state !== "completed");
-  }, [taskStore.tasks]);
-  const taskFinished = useMemo(() => {
-    return taskStore.tasks.length > 0 && unfinishedTasks.length === 0;
-  }, [taskStore.tasks, unfinishedTasks]);
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      suggestion: taskStore.suggestion,
-    },
-  });
 
   function getSearchResultContent(item: SearchTask) {
     return [
@@ -142,48 +98,6 @@ function SearchResult() {
     ].join("\n\n");
   }
 
-  async function handleSubmit(values: z.infer<typeof formSchema>) {
-    const { setSuggestion } = useTaskStore.getState();
-    try {
-      accurateTimerStart();
-      setIsThinking(true);
-      if (unfinishedTasks.length > 0) {
-        await runSearchTask(unfinishedTasks);
-      } else {
-        if (values.suggestion) setSuggestion(values.suggestion);
-        console.log("Form submitted for continuing unfinished tasks or suggestion.");
-      }
-    } finally {
-      setIsThinking(false);
-      accurateTimerStop();
-    }
-  }
-
-  async function handleWiderResearch() {
-    const { setSuggestion } = useTaskStore.getState();
-    const values = form.getValues();
-    try {
-      accurateTimerStart();
-      setIsThinking(true);
-      if (values.suggestion) setSuggestion(values.suggestion);
-      await runWiderResearch();
-      setSuggestion("");
-    } finally {
-      setIsThinking(false);
-      accurateTimerStop();
-    }
-  }
-
-  async function handleDeeperResearch() {
-    try {
-      accurateTimerStart();
-      setIsThinking(true);
-      await runDeeperResearch();
-    } finally {
-      setIsThinking(false);
-      accurateTimerStop();
-    }
-  }
 
   async function startTaskNow(item: SearchTask) {
     const { updateTask } = useTaskStore.getState();
@@ -232,9 +146,6 @@ function SearchResult() {
     cancelTask(id);
   }
 
-  useEffect(() => {
-    form.setValue("suggestion", taskStore.suggestion);
-  }, [taskStore.suggestion, form]);
 
   return (
     <section className="p-4 border rounded-md mt-4 print:hidden">
@@ -396,111 +307,7 @@ function SearchResult() {
               );
             })}
           </Accordion>
-          {isThinkingDeeper && (
-            <div className="p-4 mt-4 mb-4 border-l-4 border-blue-500 bg-blue-50 dark:bg-gray-800 rounded-md">
-              <h4 className="font-semibold text-lg mb-2 flex items-center">
-                <LoaderCircle className="animate-spin mr-2" />
-                Deeper Research in Progress...
-              </h4>
-              <div className="prose prose-sm dark:prose-invert max-w-full mt-2">
-                <MagicDownView>{taskStore.thinkingProcess}</MagicDownView>
-              </div>
-            </div>
-          )}
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)}>
-              <FormField
-                control={form.control}
-                name="suggestion"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="mb-2 font-semibold">
-                      {t("research.searchResult.suggestionLabel")}
-                    </FormLabel>
-                    <FormControl>
-                      <Textarea
-                        rows={3}
-                        placeholder={t(
-                          "research.searchResult.suggestionPlaceholder"
-                        )}
-                        disabled={isThinking}
-                        {...field}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <div className="flex gap-4 mt-4">
-                <Button
-                  className="w-full"
-                  type="button"
-                  variant="outline"
-                  disabled={isThinking || !taskFinished}
-                  onClick={handleWiderResearch}
-                >
-                  {isThinking ? (
-                    <>
-                      <LoaderCircle className="animate-spin" />
-                      <span>{status}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Search className="mr-2 h-4 w-4" />
-                      {t("research.common.widerResearch")}
-                    </>
-                  )}
-                </Button>
-                <Button
-                  className="w-full"
-                  type="button"
-                  variant="default"
-                  disabled={isThinking || !taskFinished}
-                  onClick={handleDeeperResearch}
-                >
-                  {isThinking ? (
-                    <>
-                      <LoaderCircle className="animate-spin" />
-                      <span>{status}</span>
-                      <small className="font-mono">{formattedTime}</small>
-                    </>
-                  ) : (
-                    <>
-                      <TrendingUp className="mr-2 h-4 w-4" />
-                      {t("research.common.deeperResearch")}
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </Form>
         </div>
-      )}
-      
-      {/* 🎯 MCTS文献工作流 - 第二部分 */}
-      {/* 🔍 Debug: 显示当前状态 */}
-      <div className="text-xs text-gray-400 mb-2">
-        Debug: question="{taskStore.question}" | reportPlan={taskStore.reportPlan ? 'exists' : 'none'}
-      </div>
-      
-      {taskStore.question && taskStore.question.trim() ? (
-        <MCTSLiteratureWorkflow 
-          topic={taskStore.question}
-          reportPlan={taskStore.reportPlan}         // 🆕 传递研究计划
-          onTopicChange={(newTopic) => taskStore.setQuestion(newTopic)}
-          className="mt-6"
-        />
-      ) : (
-        <section className="p-4 border rounded-md mt-4">
-          <h3 className="font-semibold text-lg border-b mb-2 leading-10 flex items-center gap-2">
-            <TreePine className="h-5 w-5 text-green-600" />
-            MCTS文献研究工作流
-          </h3>
-          <div className="text-center py-8 text-gray-500">
-            <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
-            <p className="text-lg mb-2">请先输入研究方向</p>
-            <p className="text-sm">在上方的"方向细化建议"中输入研究主题，然后开始文献搜索工作流</p>
-          </div>
-        </section>
       )}
     </section>
   );

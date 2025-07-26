@@ -13,7 +13,8 @@
       "Bash(mv:*)",
       "Bash(npm run build:*)",
       "Bash(mkdir:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

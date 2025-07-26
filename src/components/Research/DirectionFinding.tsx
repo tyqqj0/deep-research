@@ -55,7 +55,7 @@ function DirectionFinding() {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const taskStore = useTaskStore();
-  
+
   // 确保订阅questions和reportPlan字段的变化
   const questions = useTaskStore((state) => state.questions);
   const reportPlan = useTaskStore((state) => state.reportPlan);
@@ -142,7 +142,7 @@ function DirectionFinding() {
         topicForm.setValue("topic", values.topic);
       }
       setQuestion(values.topic);
-      
+
       // 保存研究历史 - 创建即保存，确保题目被记录
       const currentState = useTaskStore.getState().backup();
       if (currentState.question) {
@@ -157,7 +157,7 @@ function DirectionFinding() {
         // 刷新文献库的可用话题列表
         useLibraryStore.getState().loadAvailableTopics().catch(console.error);
       }
-      
+
       await findDirection();
     } finally {
       setIsThinking(false);
@@ -377,11 +377,11 @@ function DirectionFinding() {
               </Button>
             </form>
           </Form>
-          
+
           {/* Step 3: 报告计划显示 (条件显示) */}
           {reportPlan && reportPlan.trim() && (
             <div className="mt-6 pt-6 border-t">
-              <h4 className="text-base font-semibold mb-3">1.3 研究报告计划</h4>
+              <h4 className="text-base font-semibold mb-3">1.3 具体研究方向</h4>
               <MagicDown
                 className="min-h-20"
                 value={reportPlan}

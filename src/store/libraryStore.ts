@@ -715,6 +715,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
               firstReferenceKeys: finalLiterature.references?.[0] ? Object.keys(finalLiterature.references[0]) : [],
               sampleReferences: finalLiterature.references?.slice(0, 2)
             });
+            
 
             return finalLiterature.references && finalLiterature.references.length > 0 ? {
               extractedReferences: finalLiterature.references
@@ -1089,6 +1090,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
             resource_url: null,
             error_info: null
           }, // 保存完整的后端任务状态
+          topics: itemData.topics,
           createdAt: new Date(),
           updatedAt: new Date()
         };

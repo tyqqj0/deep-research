@@ -6,11 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { 
-  BookOpen, 
-  ExternalLink, 
-  Calendar, 
-  User, 
+import {
+  BookOpen,
+  ExternalLink,
+  Calendar,
+  User,
   ArrowRight,
   Plus,
   FileText
@@ -35,7 +35,7 @@ interface LiteratureCardMiniProps {
 // 极简文献卡片
 function LiteratureCardMini({ item, onSelect }: LiteratureCardMiniProps) {
   const sourceMetadata = SOURCE_METADATA[item.source || 'manual'];
-  
+
   const formatAuthors = (authors: string[]) => {
     if (authors.length === 0) return '未知作者';
     if (authors.length === 1) return authors[0];
@@ -48,7 +48,7 @@ function LiteratureCardMini({ item, onSelect }: LiteratureCardMiniProps) {
   };
 
   return (
-    <div 
+    <div
       className="p-3 border rounded-lg hover:shadow-sm transition-all cursor-pointer bg-white dark:bg-gray-800"
       onClick={onSelect}
     >
@@ -68,8 +68,8 @@ function LiteratureCardMini({ item, onSelect }: LiteratureCardMiniProps) {
             </div>
           </div>
         </div>
-        <Badge 
-          variant="outline" 
+        <Badge
+          variant="outline"
           className={`text-xs px-1 ${sourceMetadata?.color || 'bg-gray-100 text-gray-800'}`}
           title={sourceMetadata?.name}
         >
@@ -90,8 +90,8 @@ export default function LiteratureInfoPanel({
   const [showAll, setShowAll] = useState(false);
 
   // 显示逻辑：默认显示前6个，点击显示全部
-  const displayItems = showAll ? sessionLiterature : sessionLiterature.slice(0, 6);
-  const hasMore = sessionLiterature.length > 6;
+  const displayItems = showAll ? sessionLiterature : sessionLiterature.slice(0, 1);
+  const hasMore = sessionLiterature.length > 1;
 
   // 统计信息
   const stats = {
@@ -107,7 +107,7 @@ export default function LiteratureInfoPanel({
   };
 
   return (
-    <Card className={`h-full ${className}`}>
+    <Card className={`h-full flex flex-col ${className}`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -131,7 +131,7 @@ export default function LiteratureInfoPanel({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="flex-1 overflow-y-auto space-y-4">
         {/* 统计概览 */}
         <div className="grid grid-cols-3 gap-2">
           <div className="text-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
@@ -176,7 +176,7 @@ export default function LiteratureInfoPanel({
                 )}
               </div>
 
-              <div className="space-y-2 max-h-64 overflow-y-auto">
+              <div className="space-y-2">
                 {displayItems.map((item) => (
                   <LiteratureCardMini
                     key={item.id}
@@ -197,8 +197,8 @@ export default function LiteratureInfoPanel({
                     size="sm"
                     className="text-xs"
                   >
-                    <Plus className="h-3 w-3 mr-1" />
-                    还有 {sessionLiterature.length - 6} 篇文献
+                    <Plus className="h-1 w-3 mr-1" />
+                    还有 {sessionLiterature.length - 1} 篇文献
                   </Button>
                 </div>
               )}
