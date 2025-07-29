@@ -65,6 +65,7 @@ interface LibraryActions {
   // Core actions
   initialize: () => Promise<void>;
   _hasSignificantItemsChange: (currentItems: LibraryItem[], newItems: LibraryItem[]) => boolean; // 🎯 智能状态比较（内部方法）
+  _isDuplicateItemCompleted: (item: LibraryItem) => boolean; // 🎯 判断重复项是否已完成（内部方法）
   startRealTimeUpdates: () => () => void; // 返回cleanup函数
   startPolling: () => void; // 🚀 启动全局轮询器
   stopPolling: () => void; // 🚀 停止轮询
@@ -282,6 +283,45 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     return false;
   },
 
+  // 🎯 判断重复项是否已完成 - 智能重复处理辅助方法
+  _isDuplicateItemCompleted: (item: LibraryItem): boolean => {
+    // 情况1: 没有后端任务信息，说明是手动创建或导入的完整项目
+    if (!item.backendTask) {
+      console.log(`📝 [DuplicateCheck] Item has no backend task, treating as completed: ${item.title}`);
+      return true;
+    }
+
+    // 情况2: 有后端任务，检查执行状态
+    const { execution_status, literature_status } = item.backendTask;
+    
+    // 检查任务执行状态
+    if (execution_status === 'completed') {
+      console.log(`✅ [DuplicateCheck] Backend task completed: ${item.title}`);
+      return true;
+    }
+    
+    if (execution_status === 'failed') {
+      console.log(`❌ [DuplicateCheck] Backend task failed: ${item.title}`);
+      return false;
+    }
+    
+    if (execution_status === 'processing' || execution_status === 'pending') {
+      console.log(`⏳ [DuplicateCheck] Backend task still processing: ${item.title}`);
+      return false;
+    }
+
+    // 情况3: 如果有文献状态信息，进一步检查
+    if (literature_status) {
+      const isLiteratureCompleted = literature_status.overall_status === 'completed';
+      console.log(`📊 [DuplicateCheck] Literature status check: ${literature_status.overall_status} for ${item.title}`);
+      return isLiteratureCompleted;
+    }
+
+    // 情况4: 状态不明确，保守处理 - 视为未完成
+    console.log(`⚠️ [DuplicateCheck] Unclear status, treating as incomplete: ${item.title}`);
+    return false;
+  },
+
   // 启动实时数据更新监听 - 🚀 优化版本
   startRealTimeUpdates: () => {
     console.log('📡 Subscribing to real-time library updates with liveQuery (optimized)...');
@@ -457,6 +497,38 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     const { activeTasks, items } = get();
 
     // console.log(`🔄 Processing task update: ${taskInfo.taskId} - execution_status: ${response.execution_status}`);
+
+    // 🔗 优先检查URL验证错误
+    if (response.url_validation_status === 'failed') {
+      console.warn(`🔗 URL validation failed for task ${taskInfo.taskId}: ${response.url_validation_error}`);
+      
+      // 显示URL错误的Toast提示
+      toast.error(`URL验证失败，请检查URL是否正确或可访问`, {
+        duration: 6000,
+        description: response.url_validation_error || `URL: ${response.original_url || '未知'}`
+      });
+      
+      // 更新任务状态
+      const updatedItems = items.map(item => {
+        if (item.id === taskInfo.literatureId) {
+          return {
+            ...item,
+            backendTask: response,
+            updatedAt: new Date()
+          };
+        }
+        return item;
+      });
+      
+      set({ items: updatedItems });
+      
+      // 从活跃任务中移除
+      const newTasks = new Map(activeTasks);
+      newTasks.delete(taskInfo.taskId);
+      set({ activeTasks: newTasks });
+      
+      return; // 早期返回，不继续处理其他状态
+    }
 
     // 🔄 处理进行中的任务
     if (response.execution_status === 'processing' || response.execution_status === 'pending') {
@@ -687,6 +759,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         // 🔍 调试后端返回的数据
         console.log('🔍 [DEBUG] Raw backend literature data:', {
           title: finalLiterature.title,
+          year: finalLiterature.year,
           authors: finalLiterature.authors,
           authorsLength: finalLiterature.authors?.length,
           authorsType: typeof finalLiterature.authors,
@@ -706,15 +779,15 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
           // 🔗 同步引文数据到 parsedContent
           parsedContent: (() => {
-            console.log(`🔍 [DEBUG] Processing references for parsedContent:`, {
-              hasReferences: !!finalLiterature.references,
-              referencesLength: finalLiterature.references?.length || 0,
-              referencesType: typeof finalLiterature.references,
-              isArray: Array.isArray(finalLiterature.references),
-              firstReference: finalLiterature.references?.[0],
-              firstReferenceKeys: finalLiterature.references?.[0] ? Object.keys(finalLiterature.references[0]) : [],
-              sampleReferences: finalLiterature.references?.slice(0, 2)
-            });
+            // console.log(`🔍 [DEBUG] Processing references for parsedContent:`, {
+            //   hasReferences: !!finalLiterature.references,
+            //   referencesLength: finalLiterature.references?.length || 0,
+            //   referencesType: typeof finalLiterature.references,
+            //   isArray: Array.isArray(finalLiterature.references),
+            //   firstReference: finalLiterature.references?.[0],
+            //   firstReferenceKeys: finalLiterature.references?.[0] ? Object.keys(finalLiterature.references[0]) : [],
+            //   sampleReferences: finalLiterature.references?.slice(0, 2)
+            // });
             
 
             return finalLiterature.references && finalLiterature.references.length > 0 ? {
@@ -1021,7 +1094,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       // 🔍 智能查重检查 - 使用新的MatchingEngine
       onProgress?.('检查重复文献...', 10);
       if (preCheckDuplicate && itemData.title && itemData.title.trim() !== '') {
-        console.log('🔍 [Master] Using intelligent matching engine for duplicate check:', itemData.title);
+        // console.log('🔍 [Master] Using intelligent matching engine for duplicate check:', itemData.title);
 
         // 使用新的智能匹配引擎进行查重
         const { matchingEngine } = await import('../libs/db/matching');
@@ -1034,13 +1107,23 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
         );
 
         if (existingItem) {
-          console.log('❌ [Master] Intelligent matching found duplicate:', existingItem.title);
-          set({
-            isLoading: false,
-            error: 'Duplicate literature found via intelligent matching'
-          });
-          onComplete?.(existingItem.id, 'duplicate');
-          return { success: false, duplicate: [existingItem], itemId: existingItem.id };
+          console.log('🔍 [Master] Intelligent matching found duplicate:', existingItem.title);
+          
+          // 🎯 智能重复处理：根据重复项状态决定返回结果
+          const isDuplicateCompleted = get()._isDuplicateItemCompleted(existingItem);
+          
+          if (isDuplicateCompleted) {
+            console.log('✅ [Master] Duplicate item is completed, returning success:', existingItem.title);
+            set({ isLoading: false });
+            onComplete?.(existingItem.id, 'duplicate');
+            return { success: true, duplicate: [existingItem], itemId: existingItem.id };
+          } else {
+            console.log('⚠️ [Master] Duplicate item is incomplete/failed, need smart merge:', existingItem.title);
+            // 对于处理中或失败的重复项，暂时还是返回false，后续实现智能合并
+            set({ isLoading: false });
+            onComplete?.(existingItem.id, 'duplicate');
+            return { success: false, duplicate: [existingItem], itemId: existingItem.id, needsSmartMerge: true };
+          }
         }
         console.log('✅ [Master] No duplicates found via intelligent matching, proceeding...');
       }

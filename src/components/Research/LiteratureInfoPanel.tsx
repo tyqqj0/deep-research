@@ -15,7 +15,9 @@ import {
   Plus,
   FileText,
   TreePine,
-  Play
+  Play,
+  Database,
+  FlaskConical
 } from 'lucide-react';
 import { LibraryItem } from '@/libs/db';
 import { SOURCE_METADATA } from '@/libs/db/constants';
@@ -28,6 +30,7 @@ interface LiteratureInfoPanelProps {
   onViewLibrary: () => void;
   onSetAsRoot?: (item: LibraryItem) => void;  // 新增：设置根节点回调
   hasActiveTreeBuilding?: boolean;             // 新增：是否有活跃的树构建会话
+  onGenerateMockData?: () => void;             // 新增：生成模拟数据回调
   className?: string;
 }
 
@@ -126,6 +129,7 @@ export default function LiteratureInfoPanel({
   onViewLibrary,
   onSetAsRoot,
   hasActiveTreeBuilding = false,
+  onGenerateMockData,
   className = ''
 }: LiteratureInfoPanelProps) {
   const { t } = useTranslation();
@@ -161,15 +165,29 @@ export default function LiteratureInfoPanel({
               话题: {topic}
             </p>
           </div>
-          <Button
-            onClick={onViewLibrary}
-            variant="outline"
-            size="sm"
-            className="shrink-0"
-          >
-            <ExternalLink className="h-3 w-3 mr-1" />
-            完整库
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* 生成模拟数据按钮 */}
+            {onGenerateMockData && (
+              <Button
+                onClick={onGenerateMockData}
+                variant="outline"
+                size="sm"
+                className="border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300"
+                title="生成测试用的模拟文献数据"
+              >
+                <FlaskConical className="h-3 w-3 mr-1" />
+                生成模拟数据
+              </Button>
+            )}
+            <Button
+              onClick={onViewLibrary}
+              variant="outline"
+              size="sm"
+            >
+              <ExternalLink className="h-3 w-3 mr-1" />
+              完整库
+            </Button>
+          </div>
         </div>
       </CardHeader>
 

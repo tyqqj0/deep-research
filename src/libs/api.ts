@@ -78,6 +78,11 @@ interface BackendTaskResponse {
     literature_id: string | null;
     literature_status: LiteratureStatus | null;
 
+    // 🔗 URL验证相关字段
+    url_validation_status?: 'success' | 'failed';
+    url_validation_error?: string;
+    original_url?: string;
+
     // === 聚合和兼容性字段 ===
     status: string; // 向后兼容（映射到execution_status）
     overall_progress: number; // 0-100

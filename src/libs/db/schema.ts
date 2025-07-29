@@ -36,7 +36,11 @@ const BackendTaskSchema = z.object({
   overall_progress: z.number().min(0).max(100),
   current_stage: z.string().nullable(),
   resource_url: z.string().nullable(),
-  error_info: z.object({}).nullable()
+  error_info: z.object({}).nullable(),
+  // 🔗 URL验证相关字段
+  url_validation_status: z.enum(['success', 'failed']).optional(),
+  url_validation_error: z.string().optional(),
+  original_url: z.string().optional()
 });
 
 // Zod Schema for LibraryItem

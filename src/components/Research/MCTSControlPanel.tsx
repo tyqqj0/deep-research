@@ -324,7 +324,7 @@ export default function MCTSControlPanel({
               <div className="flex items-center justify-between">
                 <Label className="text-xs">单步执行模式</Label>
                 <Switch
-                  checked={true} // 假设从store获取
+                  checked={true} // 从store获取
                   onCheckedChange={handleStepModeToggle}
                 />
               </div>

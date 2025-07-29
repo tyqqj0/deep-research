@@ -5,7 +5,8 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
-  Upload
+  Upload,
+  AlertTriangle
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ interface StatusConfig {
   animated?: boolean;
 }
 
-type ExecutionStatus = 'completed' | 'processing' | 'pending' | 'failed';
+type ExecutionStatus = 'completed' | 'processing' | 'pending' | 'failed' | 'url_failed';
 
 const statusConfigs: Record<ExecutionStatus, StatusConfig> = {
   'pending': {
@@ -69,6 +70,14 @@ const statusConfigs: Record<ExecutionStatus, StatusConfig> = {
     color: 'bg-red-100 text-red-800 border-red-300',
     variant: 'destructive',
     showUpload: false
+  },
+  'url_failed': {
+    icon: <AlertTriangle className="h-3 w-3" />,
+    label: 'URL Error',
+    description: 'URL validation failed',
+    color: 'bg-orange-100 text-orange-800 border-orange-300',
+    variant: 'outline',
+    showUpload: false
   }
 };
 
@@ -91,7 +100,21 @@ export function ParsingStatusIndicator({
 }: ParsingStatusIndicatorProps) {
   // 🚀 基于backendTask获取状态配置
   const hasBackendTask = Boolean(backendTask);
-  const executionStatus = backendTask?.execution_status || 'pending';
+  
+  // 🔗 优先检查URL验证状态，然后检查执行状态
+  const getActualExecutionStatus = (): ExecutionStatus => {
+    if (!backendTask) return 'pending';
+    
+    // 优先级1: URL验证失败
+    if (backendTask.url_validation_status === 'failed') {
+      return 'url_failed';
+    }
+    
+    // 优先级2: 普通执行状态
+    return backendTask.execution_status || 'pending';
+  };
+  
+  const executionStatus = getActualExecutionStatus();
   const config = hasBackendTask ? statusConfigs[executionStatus] : getDefaultConfig();
 
   const shouldShowUpload = config.showUpload && showUploadButton && onUploadPdf;
@@ -103,9 +126,17 @@ export function ParsingStatusIndicator({
 
   // 🚀 获取显示标签和描述
   const displayLabel = hasBackendTask ? currentStage : config.label;
-  const displayDescription = hasBackendTask
-    ? `${currentStage} (${Math.round(overallProgress)}% complete)`
-    : config.description;
+  const displayDescription = (() => {
+    if (!hasBackendTask) return config.description;
+    
+    // 🔗 URL验证错误时显示详细信息
+    if (executionStatus === 'url_failed' && backendTask?.url_validation_error) {
+      return `${backendTask.url_validation_error}${backendTask.original_url ? `\n原始URL: ${backendTask.original_url}` : ''}`;
+    }
+    
+    // 普通状态显示进度
+    return `${currentStage} (${Math.round(overallProgress)}% complete)`;
+  })();
 
   // 🚀 获取进度值
   const progressValue = overallProgress;
@@ -121,8 +152,8 @@ export function ParsingStatusIndicator({
                 "flex items-center text-xs font-medium",
                 // 根据视图模式调整间距和大小
                 viewMode === 'list' ? "gap-1.5 px-2 py-1" : "gap-1 px-1.5 py-0.5",
-                // 🚀 后端任务时使用不同的颜色
-                hasBackendTask ? "bg-indigo-100 text-indigo-800 border-indigo-300" : config.color
+                // 🚀 根据状态使用对应的颜色
+                hasBackendTask ? (executionStatus === 'url_failed' ? config.color : "bg-indigo-100 text-indigo-800 border-indigo-300") : config.color
               )}
             >
               {config.icon}

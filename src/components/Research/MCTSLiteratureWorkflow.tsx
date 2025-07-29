@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,10 +35,12 @@ import { useTreeBuilder } from '@/hooks/useTreeBuilder';
 import { useTaskStore } from '@/store/task';
 import { useLibraryStore } from '@/store/libraryStore';
 import { LibraryItem } from '@/libs/db';
+import { createSessionLiteratureConnector } from '@/libs/research/SessionLiteratureConnector';
 
 // 导入组件
 import LiteratureInfoPanel from './LiteratureInfoPanel';
 import MCTSControlPanel from './MCTSControlPanel';
+import SearchResult from './SearchResult';
 import { TreeVisualization } from '@/components/Library/TreeVisualization';
 import {
   Accordion,
@@ -93,27 +95,36 @@ export default function MCTSLiteratureWorkflow({
   // 🌳 TreeBuilder Hook - SG-MCTS功能
   const treeBuilder = useTreeBuilder();
 
+  // 🔗 会话文献连接件
+  const sessionConnector = useMemo(() => {
+    return createSessionLiteratureConnector({
+      topic,
+      autoTag: true,
+      filterByTopic: true
+    });
+  }, [topic]);
+
   // 本地状态
   const [isTreeMaximized, setIsTreeMaximized] = useState(false);
   const [sessionLiterature, setSessionLiterature] = useState<LibraryItem[]>([]);
   const [workflowStarted, setWorkflowStarted] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [originalTasks, setOriginalTasks] = useState<Record<string, SearchTask>>({});
+  const [isGeneratingMockData, setIsGeneratingMockData] = useState(false);
 
-  // 刷新会话文献列表
+  // 刷新会话文献列表 - 使用SessionLiteratureConnector
   const refreshSessionLiterature = useCallback(() => {
-    const topicRelatedLiterature = libraryStore.items.filter(item =>
-      item.topics?.includes(topic) ||
-      item.title.toLowerCase().includes(topic.toLowerCase()) ||
-      item.abstract?.toLowerCase().includes(topic.toLowerCase())
-    );
+    const topicLiterature = sessionConnector.getTopicLiterature();
 
-    const sortedLiterature = topicRelatedLiterature.sort(
+    const sortedLiterature = topicLiterature.sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
     setSessionLiterature(sortedLiterature);
-  }, [libraryStore.items, topic]);
+
+    // 调试信息
+    console.log(`[MCTSWorkflow] 刷新会话文献: ${sortedLiterature.length} 篇，话题: ${topic}`);
+  }, [sessionConnector, libraryStore.items]);
 
   useEffect(() => {
     refreshSessionLiterature();
@@ -164,24 +175,71 @@ export default function MCTSLiteratureWorkflow({
     }
   }, [topic, treeBuilder]);
 
+  // 🧪 生成模拟数据处理函数
+  const handleGenerateMockData = useCallback(async () => {
+    if (isGeneratingMockData) return;
+
+    setIsGeneratingMockData(true);
+
+    try {
+      // 预定义的模拟URL列表 - 包含一些无效URL来测试错误处理
+      const mockUrls = [
+        'https://arxiv.org/abs/2301.00001', // 示例arXiv论文
+        'https://fake-journal.com/article/123456', // 🔗 测试无效URL
+        'https://www.nature.com/articles/s41586-023-00001-0', // Nature文章
+        'https://science.sciencemag.org/content/379/6628/123', // Science文章
+        'https://invalid-domain-test.fake/paper/123', // 🔗 测试无效域名
+        'https://link.springer.com/article/10.1007/s00000-023-00001-0', // Springer文章
+        'https://www.cell.com/cell/fulltext/S0092-8674(23)00001-0', // Cell期刊
+        'https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0000001' // PLOS ONE
+      ];
+
+      console.log(`[MockDataGen] 开始为话题 "${topic}" 生成模拟数据`);
+
+      // 使用SessionLiteratureConnector批量添加
+      const result = await sessionConnector.batchAddFromUrls(mockUrls);
+
+      // 刷新文献列表
+      refreshSessionLiterature();
+
+      // 显示结果统计
+      const resultMsg = `模拟数据生成完成：成功添加 ${result.success} 篇，重复 ${result.duplicates} 篇，失败 ${result.errors} 篇`;
+
+      if (result.errors > 0) {
+        toast.warning(resultMsg);
+        console.warn('[MockDataGen] 部分URL添加失败:', result.errorDetails);
+      } else {
+        toast.success(resultMsg);
+      }
+
+      console.log('[MockDataGen] 模拟数据生成完成:', result);
+
+    } catch (error) {
+      console.error('[MockDataGen] 生成模拟数据失败:', error);
+      toast.error(`生成模拟数据失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setIsGeneratingMockData(false);
+    }
+  }, [topic, sessionConnector, refreshSessionLiterature, isGeneratingMockData]);
+
   // 检查是否有正在进行的任务
   const isRunning = status.includes('正在') || status.includes('生成');
   const hasActiveTasks = taskStore.tasks.length > 0;
 
-  // 🐛 优化调试信息 - 减少频繁输出
-  const shouldShowLayout = workflowStarted || hasActiveTasks || isRunning;
+  // 🐛 只要有topic就显示完整面板，不需要等待工作流开始
+  const shouldShowLayout = !!(topic && topic.trim());
 
   // 只在状态变化时输出调试信息
   useEffect(() => {
     console.log('🔧 [MCTSWorkflow] UI状态变化:', {
-      workflowStarted,
+      topic,
       hasActiveTasks,
       isRunning,
       shouldShowLayout,
       tasksCount: taskStore.tasks.length,
       status: status.slice(0, 100)
     });
-  }, [workflowStarted, hasActiveTasks, isRunning, shouldShowLayout, taskStore.tasks.length, status]);
+  }, [topic, hasActiveTasks, isRunning, shouldShowLayout, taskStore.tasks.length, status]);
 
   return (
     <div className={`h-full ${className}`}>
@@ -292,48 +350,54 @@ export default function MCTSLiteratureWorkflow({
                   onViewLibrary={handleViewLibrary}
                   onSetAsRoot={handleSetAsRoot}
                   hasActiveTreeBuilding={treeBuilder.isBuilding || !!treeBuilder.currentSession}
+                  onGenerateMockData={handleGenerateMockData}
                   className="h-full"
                 />
               </div>
 
-              {/* 2. 知识树可视化面板（中） - 调整为30%，但保持4:3宽高比的显示区域 */}
+              {/* 2. 知识树可视化 + MCTS控制面板（中） - 集成布局 */}
               <div className="h-[45%] border-b border-gray-200">
                 <Card className="h-full bg-gradient-to-br from-green-50 to-emerald-50/30 border-0 rounded-none">
+                  {/* 集成的标题栏 */}
                   <CardHeader className="pb-2 border-b border-green-100">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base font-semibold flex items-center gap-2">
                         <TreePine className="h-5 w-5 text-green-600" />
-                        知识树可视化
+                        知识树可视化 & MCTS控制
                       </CardTitle>
                       <div className="flex items-center gap-2">
                         <Button onClick={toggleTreeMaximize} variant="outline" size="sm" className="border-green-200 hover:bg-green-100">
                           <Maximize2 className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="sm" className="border-green-200 hover:bg-green-100">
-                          <Settings className="h-4 w-4" />
-                        </Button>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="h-[calc(100%-60px)] p-3">
-                    {/* 4:3宽高比的显示区域 */}
-                    <div className="w-full h-full bg-white rounded-lg border border-green-100 flex items-center justify-center text-gray-500 shadow-sm">
+
+                  {/* 集成的内容区域 */}
+                  <CardContent className="h-[calc(100%-60px)] p-3 flex gap-3">
+                    {/* 左侧：树可视化区域 */}
+                    <div className="flex-1 bg-white rounded-lg border border-green-100 flex items-center justify-center text-gray-500 shadow-sm">
                       <div className="text-center">
-                        <TreePine className="h-10 w-10 mx-auto mb-2 text-green-400 opacity-60" />
+                        <TreePine className="h-8 w-8 mx-auto mb-2 text-green-400 opacity-60" />
                         <p className="text-sm font-medium text-gray-600">知识树可视化</p>
-                        <p className="text-xs text-gray-400 mt-1">4:3显示比例，树状图将在此显示</p>
+                        <p className="text-xs text-gray-400 mt-1">树状图将在此显示</p>
                       </div>
+                    </div>
+
+                    {/* 右侧：MCTS控制区域 */}
+                    <div className="w-80 bg-white rounded-lg border border-green-100 shadow-sm overflow-hidden">
+                      <MCTSControlPanel
+                        treeBuilder={treeBuilder}
+                        className="h-full border-0 bg-transparent"
+                      />
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* 3. MCTS控制面板（下） - 20%高度，树构建执行控制 */}
-              <div className="h-[18%] flex-shrink-0">
-                <MCTSControlPanel
-                  treeBuilder={treeBuilder}
-                  className="h-full"
-                />
+              {/* 3. 文献搜索面板（下） - 18%高度，搜索任务管理 */}
+              <div className="h-[18%] flex-shrink-0 bg-white">
+                <SearchResult />
               </div>
             </div>
           )

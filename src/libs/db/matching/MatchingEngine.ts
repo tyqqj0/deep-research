@@ -78,7 +78,7 @@ export class MatchingEngine {
 
       // 策略3: 标题+作者综合匹配（如果启用且有标题）
       if (options.enableTitleMatching && matchData.title && !options.strictMode) {
-        console.log(`🔍 [MatchingEngine] 开始标题相似性匹配: "${matchData.title}"`);
+        // console.log(`🔍 [MatchingEngine] 开始标题相似性匹配: "${matchData.title}"`);
         
         const allItems = await db.library.toArray();
         const candidates = [];
@@ -95,7 +95,7 @@ export class MatchingEngine {
             item.title.toLowerCase().trim()
           );
 
-          console.log(`📊 [MatchingEngine] 标题相似性: "${item.title}" = ${(titleSimilarity * 100).toFixed(1)}%`);
+          // console.log(`📊 [MatchingEngine] 标题相似性: "${item.title}" = ${(titleSimilarity * 100).toFixed(1)}%`);
 
           if (titleSimilarity < this.thresholds.gatekeeperThreshold) {
             continue; // 标题相似度太低，直接跳过
