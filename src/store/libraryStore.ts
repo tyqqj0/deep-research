@@ -3,11 +3,12 @@ import { liveQuery } from 'dexie';
 import { LibraryItem, LiteratureTree, db } from '../libs/db';
 import { LITERATURE_SOURCES, DEFAULT_LIBRARY_ITEM_SOURCE, LiteratureSource } from '../libs/db/constants';
 import { libraryService } from '../libs/db/LibraryService';
-import { apiClient, BackendTaskResponse, Literature, SubmitLiteratureRequest, UploadUrlResponse } from '../libs/api'; // 🚀 使用新的API Client和类型
+import { apiClient, BackendTaskResponse, Literature, SubmitLiteratureRequest, UploadUrlResponse } from '../libs/api';
 import { TreeController } from '../libs/tree/TreeController';
 import { zoteroService, ZoteroConfig, ZoteroSyncResult } from '../libs/zotero';
 import { generateLibraryItemId } from '../libs/utils/uuid';
 import { toast } from 'sonner';
+import { taskStateManager, type TaskDisplayState } from '../libs/task/TaskStateManager'; // 🎯 导入新的任务状态管理器
 
 // Define State interface
 interface LibraryState {
@@ -107,6 +108,10 @@ interface LibraryActions {
   addTopicToFilter: (topic: string) => void;
   removeTopicFromFilter: (topic: string) => void;
   loadAvailableTopics: () => Promise<void>;
+
+  // 🎯 新的统一状态管理方法
+  getItemDisplayState: (itemId: string) => TaskDisplayState | null; // 获取文献项的标准化显示状态
+  getItemDisplayStateByItem: (item: LibraryItem) => TaskDisplayState; // 直接从item获取显示状态
 
   // Zotero integration
   configureZotero: (config: ZoteroConfig) => Promise<boolean>;
@@ -230,6 +235,13 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
       // 自动启动实时更新
       get().startRealTimeUpdates();
+
+      // 🎯 智能恢复未完成的任务到轮询列表
+      const recoveredTasks = taskStateManager.smartRecoverTasks(items);
+      if (recoveredTasks.size > 0) {
+        console.log(`🔄 Recovered ${recoveredTasks.size} incomplete tasks for polling`);
+        set({ activeTasks: recoveredTasks });
+      }
 
       // 🚀 启动全局轮询器，监听异步任务状态
       get().startPolling();
@@ -476,7 +488,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     }
   },
 
-  // 🚀 添加任务到轮询列表
+  // 🚀 添加任务到轮询列表（同时持久化）
   addTaskToPolling: (taskId: string, literatureId: string, title: string) => {
     const { activeTasks } = get();
     const newTasks = new Map(activeTasks);
@@ -489,7 +501,11 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     });
 
     set({ activeTasks: newTasks });
-    console.log(`📋 Added task to polling: ${taskId} (${title})`);
+    
+    // 🎯 同时持久化任务状态
+    taskStateManager.persistActiveTasks(newTasks);
+    
+    console.log(`📋 Added task to polling and persisted: ${taskId} (${title})`);
   },
 
   // 🚀 处理任务状态更新（内部方法） - 重构为新API结构 + 优化轮询刷新
@@ -524,10 +540,14 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       
       set({ items: updatedItems });
       
-      // 从活跃任务中移除
+      // 从活跃任务中移除（同时清理持久化状态）
       const newTasks = new Map(activeTasks);
       newTasks.delete(taskInfo.taskId);
       set({ activeTasks: newTasks });
+      
+      // 🎯 清理持久化状态
+      taskStateManager.removeCompletedTask(taskInfo.taskId);
+      taskStateManager.persistActiveTasks(newTasks);
       
       return; // 早期返回，不继续处理其他状态
     }
@@ -578,10 +598,14 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       console.log(`✅ Task completed: ${taskInfo.taskId} (${taskInfo.title}) - result_type: ${response.result_type}`);
 
       try {
-        // 从activeTasks中移除这个任务
+        // 从activeTasks中移除这个任务（同时清理持久化状态）
         const newTasks = new Map(activeTasks);
         newTasks.delete(taskInfo.taskId);
         set({ activeTasks: newTasks });
+        
+        // 🎯 清理持久化状态
+        taskStateManager.removeCompletedTask(taskInfo.taskId);
+        taskStateManager.persistActiveTasks(newTasks);
 
         // 最终更新本地数据
         const updatedItems = items.map(item => {
@@ -619,10 +643,14 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
 
     console.error(`❌ Task failed: ${taskInfo.taskId} (${taskInfo.title})`, error);
 
-    // 从activeTasks中移除失败的任务
+    // 从activeTasks中移除失败的任务（同时清理持久化状态）
     const newTasks = new Map(activeTasks);
     newTasks.delete(taskInfo.taskId);
     set({ activeTasks: newTasks });
+    
+    // 🎯 清理持久化状态
+    taskStateManager.removeCompletedTask(taskInfo.taskId);
+    taskStateManager.persistActiveTasks(newTasks);
 
     // 更新文献状态为失败
     const updatedItems = items.map(item => {
@@ -1852,5 +1880,20 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
     } catch (error) {
       console.error('[LibraryStore] Failed to load available topics:', error);
     }
+  },
+
+  // 🎯 新的统一状态管理方法实现
+  getItemDisplayState: (itemId: string) => {
+    const { items } = get();
+    const item = items.find(item => item.id === itemId);
+    if (!item) {
+      console.warn(`[LibraryStore] Item not found for display state: ${itemId}`);
+      return null;
+    }
+    return taskStateManager.getTaskDisplayState(item);
+  },
+
+  getItemDisplayStateByItem: (item: LibraryItem) => {
+    return taskStateManager.getTaskDisplayState(item);
   }
 }));

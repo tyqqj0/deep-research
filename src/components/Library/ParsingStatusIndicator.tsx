@@ -13,134 +13,39 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import type { BackendTask } from "@/libs/db/schema";
+import type { TaskDisplayState } from "@/libs/task/TaskStateManager";
 
-// 🚀 新的组件Props - 基于BackendTask结构
+// 🎯 重构后的纯UI组件Props - 接收计算好的显示状态
 interface ParsingStatusIndicatorProps {
-  backendTask?: BackendTask; // 新的统一数据源
+  displayState: TaskDisplayState; // 计算好的标准化显示状态
   onUploadPdf?: () => void;
   showUploadButton?: boolean;
   className?: string;
   viewMode?: 'list' | 'grid';
 }
 
-// 🚀 新的状态配置系统 - 基于execution_status
-interface StatusConfig {
-  icon: React.ReactNode;
-  label: string;
-  description: string;
-  color: string;
-  variant: 'default' | 'secondary' | 'destructive' | 'outline';
-  showUpload: boolean;
-  animated?: boolean;
-}
-
-type ExecutionStatus = 'completed' | 'processing' | 'pending' | 'failed' | 'url_failed';
-
-const statusConfigs: Record<ExecutionStatus, StatusConfig> = {
-  'pending': {
-    icon: <Clock className="h-3 w-3" />,
-    label: 'Pending',
-    description: 'Task is waiting to be processed',
-    color: 'bg-gray-100 text-gray-800 border-gray-300',
-    variant: 'outline',
-    showUpload: false
-  },
-  'processing': {
-    icon: <Loader2 className="h-3 w-3 animate-spin" />,
-    label: 'Processing',
-    description: 'Task is being processed by the backend',
-    color: 'bg-blue-100 text-blue-800 border-blue-300',
-    variant: 'outline',
-    showUpload: false,
-    animated: true
-  },
-  'completed': {
-    icon: <CheckCircle className="h-3 w-3" />,
-    label: 'Completed',
-    description: 'Task has been completed successfully',
-    color: 'bg-green-100 text-green-800 border-green-300',
-    variant: 'outline',
-    showUpload: false
-  },
-  'failed': {
-    icon: <XCircle className="h-3 w-3" />,
-    label: 'Failed',
-    description: 'Task processing failed',
-    color: 'bg-red-100 text-red-800 border-red-300',
-    variant: 'destructive',
-    showUpload: false
-  },
-  'url_failed': {
-    icon: <AlertTriangle className="h-3 w-3" />,
-    label: 'URL Error',
-    description: 'URL validation failed',
-    color: 'bg-orange-100 text-orange-800 border-orange-300',
-    variant: 'outline',
-    showUpload: false
-  }
+// 🎨 状态到图标的映射
+const STATUS_ICONS: Record<TaskDisplayState['status'], React.ReactNode> = {
+  idle: <Clock className="h-3 w-3" />,
+  pending: <Clock className="h-3 w-3" />,
+  processing: <Loader2 className="h-3 w-3 animate-spin" />,
+  completed: <CheckCircle className="h-3 w-3" />,
+  failed: <XCircle className="h-3 w-3" />,
+  url_failed: <AlertTriangle className="h-3 w-3" />
 };
 
-// 🚀 获取默认状态配置 (当没有backendTask时使用)
-const getDefaultConfig = (): StatusConfig => ({
-  icon: <Clock className="h-3 w-3" />,
-  label: 'No Task',
-  description: 'No processing task assigned',
-  color: 'bg-gray-50 text-gray-600 border-gray-200',
-  variant: 'outline',
-  showUpload: false
-});
-
 export function ParsingStatusIndicator({
-  backendTask,
+  displayState,
   onUploadPdf,
   showUploadButton = true,
   className,
   viewMode = 'grid'
 }: ParsingStatusIndicatorProps) {
-  // 🚀 基于backendTask获取状态配置
-  const hasBackendTask = Boolean(backendTask);
-  
-  // 🔗 优先检查URL验证状态，然后检查执行状态
-  const getActualExecutionStatus = (): ExecutionStatus => {
-    if (!backendTask) return 'pending';
-    
-    // 优先级1: URL验证失败
-    if (backendTask.url_validation_status === 'failed') {
-      return 'url_failed';
-    }
-    
-    // 优先级2: 普通执行状态
-    return backendTask.execution_status || 'pending';
-  };
-  
-  const executionStatus = getActualExecutionStatus();
-  const config = hasBackendTask ? statusConfigs[executionStatus] : getDefaultConfig();
-
-  const shouldShowUpload = config.showUpload && showUploadButton && onUploadPdf;
-
-  // 🚀 获取显示信息
-  const currentStage = backendTask?.current_stage || config.label;
-  const overallProgress = backendTask?.overall_progress || 0;
-  const shouldShowProgress = hasBackendTask && (executionStatus === 'processing' || executionStatus === 'pending');
-
-  // 🚀 获取显示标签和描述
-  const displayLabel = hasBackendTask ? currentStage : config.label;
-  const displayDescription = (() => {
-    if (!hasBackendTask) return config.description;
-    
-    // 🔗 URL验证错误时显示详细信息
-    if (executionStatus === 'url_failed' && backendTask?.url_validation_error && backendTask.url_validation_error !== null) {
-      const originalUrl = (backendTask.original_url && backendTask.original_url !== null) ? backendTask.original_url : '';
-      return `${backendTask.url_validation_error}${originalUrl ? `\n原始URL: ${originalUrl}` : ''}`;
-    }
-    
-    // 普通状态显示进度
-    return `${currentStage} (${Math.round(overallProgress)}% complete)`;
-  })();
-
-  // 🚀 获取进度值
-  const progressValue = overallProgress;
+  // 🎯 纯UI逻辑：基于接收的显示状态渲染组件
+  const icon = STATUS_ICONS[displayState.status];
+  const shouldShowUpload = displayState.showUploadButton && showUploadButton && onUploadPdf;
+  const shouldShowProgress = displayState.status === 'processing' || displayState.status === 'pending';
+  const progressValue = displayState.progress;
 
   return (
     <TooltipProvider>
@@ -148,20 +53,20 @@ export function ParsingStatusIndicator({
         <Tooltip>
           <TooltipTrigger asChild>
             <Badge
-              variant={config.variant}
+              variant={displayState.variant}
               className={cn(
                 "flex items-center text-xs font-medium",
                 // 根据视图模式调整间距和大小
                 viewMode === 'list' ? "gap-1.5 px-2 py-1" : "gap-1 px-1.5 py-0.5",
-                // 🚀 根据状态使用对应的颜色
-                hasBackendTask ? (executionStatus === 'url_failed' ? config.color : "bg-indigo-100 text-indigo-800 border-indigo-300") : config.color
+                // 🎯 直接使用计算好的颜色
+                displayState.color
               )}
             >
-              {config.icon}
+              {icon}
               {/* 仅在列表模式下显示标签名称 */}
               {viewMode === 'list' && (
-                <span className="max-w-32 truncate" title={displayLabel}>
-                  {displayLabel}
+                <span className="max-w-32 truncate" title={displayState.label}>
+                  {displayState.label}
                 </span>
               )}
               {shouldShowProgress && (
@@ -172,7 +77,7 @@ export function ParsingStatusIndicator({
             </Badge>
           </TooltipTrigger>
           <TooltipContent>
-            <p className="text-sm">{displayDescription}</p>
+            <p className="text-sm">{displayState.description}</p>
             {shouldShowProgress && (
               <div className="mt-2 space-y-1">
                 <div className="flex justify-between text-xs">
@@ -185,12 +90,6 @@ export function ParsingStatusIndicator({
                   value={progressValue}
                   className="h-2 w-32"
                 />
-                {/* 🚀 显示后端任务ID */}
-                {hasBackendTask && backendTask?.task_id && (
-                  <div className="text-xs text-muted-foreground">
-                    Task: {backendTask.task_id.substring(0, 8)}...
-                  </div>
-                )}
               </div>
             )}
           </TooltipContent>
@@ -224,4 +123,4 @@ export function ParsingStatusIndicator({
   );
 }
 
-// 🚀 组件重构完成 - 现在使用BackendTask作为唯一数据源
+// 🎯 组件重构完成 - 现在是纯UI组件，接收计算好的TaskDisplayState

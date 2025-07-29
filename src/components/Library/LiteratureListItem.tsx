@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useTranslation } from "react-i18next";
+import { useLibraryStore } from "@/store/libraryStore";
 
 interface LiteratureListItemProps {
   item: LibraryItem;
@@ -68,6 +69,10 @@ export function LiteratureListItem({
   const [showPdfUpload, setShowPdfUpload] = useState(false);
 
   const sourceMetadata = SOURCE_METADATA[item.source || 'manual'];
+  
+  // 🎯 使用新的统一状态管理获取显示状态
+  const getItemDisplayStateByItem = useLibraryStore(state => state.getItemDisplayStateByItem);
+  const displayState = getItemDisplayStateByItem(item);
 
   const handleDelete = () => {
     setShowDeleteDialog(false);
@@ -120,11 +125,11 @@ export function LiteratureListItem({
                     <Calendar className="h-3 w-3" />
                     <span>{item.year}</span>
                   </div>
-                  {/* 🚀 Backend Task Status */}
+                  {/* 🎯 统一状态显示 */}
                   <ParsingStatusIndicator
-                    backendTask={item.backendTask}
+                    displayState={displayState}
                     onUploadPdf={() => setShowPdfUpload(true)}
-                    showUploadButton={!item.backendTask || item.backendTask.execution_status === 'failed'}
+                    showUploadButton={displayState.showUploadButton}
                     viewMode={viewMode}
                   />
                 </div>

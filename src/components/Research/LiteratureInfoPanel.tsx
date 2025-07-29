@@ -22,6 +22,7 @@ import {
 import { LibraryItem } from '@/libs/db';
 import { SOURCE_METADATA } from '@/libs/db/constants';
 import { ParsingStatusIndicator } from '@/components/Library/ParsingStatusIndicator';
+import { useLibraryStore } from '@/store/libraryStore';
 import { EditLiteratureForm } from '@/components/Library/EditLiteratureForm';
 
 const minShowNum = 2;
@@ -56,6 +57,10 @@ function LiteratureCardMini({
   onViewDetails // 🚀 新增参数
 }: LiteratureCardMiniProps) {
   const sourceMetadata = SOURCE_METADATA[item.source || 'manual'];
+  
+  // 🎯 使用新的统一状态管理获取显示状态
+  const getItemDisplayStateByItem = useLibraryStore(state => state.getItemDisplayStateByItem);
+  const displayState = getItemDisplayStateByItem(item);
 
   const formatAuthors = (authors: string[]) => {
     if (authors.length === 0) return '未知作者';
@@ -73,7 +78,7 @@ function LiteratureCardMini({
       {/* 🚀 解析状态指示器 - 右上角 */}
       <div className="absolute top-2 right-2">
         <ParsingStatusIndicator
-          backendTask={item.backendTask}
+          displayState={displayState}
           viewMode="grid"
           className="scale-90"
         />
