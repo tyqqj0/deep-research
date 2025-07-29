@@ -21,6 +21,11 @@ import {
 } from 'lucide-react';
 import { LibraryItem } from '@/libs/db';
 import { SOURCE_METADATA } from '@/libs/db/constants';
+import { ParsingStatusIndicator } from '@/components/Library/ParsingStatusIndicator';
+import { EditLiteratureForm } from '@/components/Library/EditLiteratureForm';
+
+const minShowNum = 2;
+
 
 // 🎯 极简版文献信息展示面板 - 为MCTS工作流设计
 
@@ -39,14 +44,16 @@ interface LiteratureCardMiniProps {
   onSelect?: () => void;
   onSetAsRoot?: (item: LibraryItem) => void;  // 新增：设置根节点回调
   hasActiveTreeBuilding?: boolean;             // 新增：是否有活跃的树构建会话
+  onViewDetails?: (item: LibraryItem) => void; // 🚀 新增：查看详情回调
 }
 
 // 极简文献卡片
-function LiteratureCardMini({ 
-  item, 
-  onSelect, 
-  onSetAsRoot, 
-  hasActiveTreeBuilding = false 
+function LiteratureCardMini({
+  item,
+  onSelect,
+  onSetAsRoot,
+  hasActiveTreeBuilding = false,
+  onViewDetails // 🚀 新增参数
 }: LiteratureCardMiniProps) {
   const sourceMetadata = SOURCE_METADATA[item.source || 'manual'];
 
@@ -62,15 +69,40 @@ function LiteratureCardMini({
   };
 
   return (
-    <div
-      className="p-3 border rounded-lg hover:shadow-sm transition-all cursor-pointer bg-white dark:bg-gray-800"
-      onClick={onSelect}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <h4 className="text-sm font-medium leading-tight text-gray-900 dark:text-gray-100 mb-1">
-            {truncateTitle(item.title)}
-          </h4>
+    <div className="p-3 border rounded-lg hover:shadow-sm transition-all bg-white dark:bg-gray-800 relative">
+      {/* 🚀 解析状态指示器 - 右上角 */}
+      <div className="absolute top-2 right-2">
+        <ParsingStatusIndicator
+          backendTask={item.backendTask}
+          viewMode="grid"
+          className="scale-90"
+        />
+      </div>
+
+      {/* 🚀 点击查看详情 - 整个卡片可点击 */}
+      <div
+        className="cursor-pointer"
+        onClick={() => onViewDetails?.(item)}
+      >
+        <div className="flex items-start justify-between gap-2 pr-12"> {/* 右侧留空间给状态指示器 */}
+          <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-medium leading-tight text-gray-900 dark:text-gray-100 mb-1">
+              {truncateTitle(item.title)}
+            </h4>
+            {/* <div className="flex items-center gap-2 text-xs text-gray-500">
+              <div className="flex items-center gap-1">
+                <User className="h-3 w-3" />
+                <span>{formatAuthors(item.authors)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                <span>{item.year}</span>
+              </div>
+            </div> */}
+          </div>
+        </div>
+        {/* 右侧按钮区域（与作者、时间同行，靠右显示） */}
+        <div className="flex items-center gap-2 justify-between">
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <div className="flex items-center gap-1">
               <User className="h-3 w-3" />
@@ -81,45 +113,51 @@ function LiteratureCardMini({
               <span>{item.year}</span>
             </div>
           </div>
-        </div>
-        
-        {/* 右侧按钮区域 */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <Badge
-            variant="outline"
-            className={`text-xs px-1 ${sourceMetadata?.color || 'bg-gray-100 text-gray-800'}`}
-            title={sourceMetadata?.name}
-          >
-            {sourceMetadata?.icon}
-          </Badge>
-          
-          {/* 设为根节点按钮 - 只在没有活跃构建时显示 */}
-          {!hasActiveTreeBuilding && onSetAsRoot && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation(); // 阻止触发卡片点击
-                onSetAsRoot(item);
-              }}
-              className="h-6 px-2 text-xs border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
-              title="将此文献设为知识树根节点"
-            >
-              <TreePine className="h-3 w-3 mr-1" />
-              设为根节点
-            </Button>
-          )}
-          
-          {/* 活跃构建状态指示 */}
-          {hasActiveTreeBuilding && (
-            <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-              <Play className="h-3 w-3" />
-              <span>构建中</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {/* 设为根节点按钮 - 只在没有活跃构建时显示 */}
+            {!hasActiveTreeBuilding && onSetAsRoot && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={(e) => {
+                  e.stopPropagation(); // 阻止触发卡片点击
+                  onSetAsRoot(item);
+                }}
+                className="h-6 px-2 text-xs border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
+                title="将此文献设为知识树根节点"
+              >
+                <TreePine className="h-3 w-3 mr-1" />
+                设为根节点
+              </Button>
+            )}
+
+            {/* 活跃构建状态指示 */}
+            {hasActiveTreeBuilding && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+                <Play className="h-3 w-3" />
+                <span>构建中</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
+
+    // {/* 操作按钮区域 - 底部 */}
+    // <div className="mt-2 flex items-center justify-between">
+    //   {/* <div className="flex items-center gap-1">
+    //     <Badge
+    //       variant="outline"
+    //       className={`text-xs px-1 ${sourceMetadata?.color || 'bg-gray-100 text-gray-800'}`}
+    //       title={sourceMetadata?.name}
+    //     >
+    //       {sourceMetadata?.icon}
+    //     </Badge>
+    //   </div> */}
+
+
+    // </div>
+    // </div>
   );
 }
 
@@ -134,10 +172,24 @@ export default function LiteratureInfoPanel({
 }: LiteratureInfoPanelProps) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null); // 🚀 选中的文献项
+  const [showDetailsForm, setShowDetailsForm] = useState(false); // 🚀 是否显示详情弹窗
+
+  // 🚀 处理查看详情
+  const handleViewDetails = useCallback((item: LibraryItem) => {
+    setSelectedItem(item);
+    setShowDetailsForm(true);
+  }, []);
 
   // 显示逻辑：默认显示前6个，点击显示全部
-  const displayItems = showAll ? sessionLiterature : sessionLiterature.slice(0, 1);
-  const hasMore = sessionLiterature.length > 1;
+  const displayItems = showAll ? sessionLiterature : sessionLiterature.slice(0, minShowNum);
+  const hasMore = sessionLiterature.length > minShowNum;
+
+  // 🚀 判断文献是否解析成功
+  const isSuccessfullyParsed = (item: LibraryItem): boolean => {
+    return item.backendTask?.execution_status === 'completed' &&
+      item.backendTask?.literature_status?.overall_status === 'completed';
+  };
 
   // 统计信息
   const stats = {
@@ -147,9 +199,7 @@ export default function LiteratureInfoPanel({
       acc[source] = (acc[source] || 0) + 1;
       return acc;
     }, {} as Record<string, number>),
-    recentlyAdded: sessionLiterature.filter(
-      item => new Date().getTime() - new Date(item.createdAt).getTime() < 24 * 60 * 60 * 1000
-    ).length
+    successfullyParsed: sessionLiterature.filter(isSuccessfullyParsed).length // 🚀 改为成功解析数量
   };
 
   return (
@@ -199,8 +249,8 @@ export default function LiteratureInfoPanel({
             <div className="text-xs text-gray-500">总文献</div>
           </div>
           <div className="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded">
-            <div className="text-lg font-semibold text-green-600">{stats.recentlyAdded}</div>
-            <div className="text-xs text-gray-500">今日新增</div>
+            <div className="text-lg font-semibold text-green-600">{stats.successfullyParsed}</div>
+            <div className="text-xs text-gray-500">成功解析</div>
           </div>
           <div className="text-center p-2 bg-purple-50 dark:bg-purple-900/20 rounded">
             <div className="text-lg font-semibold text-purple-600">
@@ -247,6 +297,7 @@ export default function LiteratureInfoPanel({
                     }}
                     onSetAsRoot={onSetAsRoot}
                     hasActiveTreeBuilding={hasActiveTreeBuilding}
+                    onViewDetails={handleViewDetails} // 🚀 传递查看详情回调
                   />
                 ))}
               </div>
@@ -260,7 +311,7 @@ export default function LiteratureInfoPanel({
                     className="text-xs"
                   >
                     <Plus className="h-1 w-3 mr-1" />
-                    还有 {sessionLiterature.length - 1} 篇文献
+                    还有 {sessionLiterature.length - minShowNum} 篇文献
                   </Button>
                 </div>
               )}
@@ -292,6 +343,20 @@ export default function LiteratureInfoPanel({
           </>
         )}
       </CardContent>
+
+      {/* 🚀 文献详情弹窗 */}
+      <EditLiteratureForm
+        open={showDetailsForm}
+        onClose={() => {
+          setShowDetailsForm(false);
+          setSelectedItem(null);
+        }}
+        item={selectedItem}
+        onSuccess={() => {
+          // 详情更新成功后可以做额外处理
+          console.log('Literature details updated');
+        }}
+      />
     </Card>
   );
 }

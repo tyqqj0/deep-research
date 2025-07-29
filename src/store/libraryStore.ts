@@ -505,7 +505,9 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
       // 显示URL错误的Toast提示
       toast.error(`URL验证失败，请检查URL是否正确或可访问`, {
         duration: 6000,
-        description: response.url_validation_error || `URL: ${response.original_url || '未知'}`
+        description: (response.url_validation_error && response.url_validation_error !== null) 
+          ? response.url_validation_error 
+          : `URL: ${(response.original_url && response.original_url !== null) ? response.original_url : '未知'}`
       });
       
       // 更新任务状态

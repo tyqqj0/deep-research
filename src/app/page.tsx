@@ -1,11 +1,12 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "next-themes";
 import { useGlobalStore } from "@/store/global";
 import { useSettingStore } from "@/store/setting";
 import { useTaskStore } from "@/store/task";
+import { useLibraryStore } from "@/store/libraryStore";
 
 const Header = dynamic(() => import("@/components/Internal/Header"));
 const Setting = dynamic(() => import("@/components/Setting"));
@@ -34,6 +35,7 @@ function Home() {
   const { theme } = useSettingStore();
   const { setTheme } = useTheme();
   const taskStore = useTaskStore();
+  const libraryStore = useLibraryStore();
 
   // 🎯 判断是否有研究主题（进入MCTS模式）
   const hasResearchTopic = !!(taskStore.question && taskStore.question.trim());
@@ -42,6 +44,36 @@ function Home() {
     const settingStore = useSettingStore.getState();
     setTheme(settingStore.theme);
   }, [theme, setTheme]);
+
+  // 🚀 启动实时更新（不需要完整初始化）- 确保主页面能接收数据库变化
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    const setupRealTimeUpdates = () => {
+      try {
+        console.log('📡 [MainPage] Starting real-time updates for library...');
+        
+        // 直接启动实时数据库订阅，不进行完整初始化避免阻塞
+        cleanup = libraryStore.startRealTimeUpdates();
+        
+        console.log('✅ [MainPage] Real-time updates started successfully');
+      } catch (error) {
+        console.error('❌ [MainPage] Failed to start real-time updates:', error);
+      }
+    };
+
+    // 使用 setTimeout 避免阻塞渲染
+    const timeoutId = setTimeout(setupRealTimeUpdates, 100);
+
+    // 清理函数
+    return () => {
+      clearTimeout(timeoutId);
+      if (cleanup) {
+        console.log('🧹 [MainPage] Cleaning up real-time updates...');
+        cleanup();
+      }
+    };
+  }, []);
 
   return (
     <div className="max-lg:max-w-screen-md max-w-screen-lg mx-auto px-4">

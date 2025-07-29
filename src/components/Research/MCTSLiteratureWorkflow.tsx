@@ -87,6 +87,7 @@ export default function MCTSLiteratureWorkflow({
   const { t } = useTranslation();
   const router = useRouter();
   const libraryStore = useLibraryStore();
+  const libraryItems = useLibraryStore(state => state.items); // 🚀 直接订阅items状态
   const taskStore = useTaskStore();
 
   // 🚀 新的简化Hook
@@ -103,6 +104,36 @@ export default function MCTSLiteratureWorkflow({
       filterByTopic: true
     });
   }, [topic]);
+
+  // 🚀 直接计算会话文献，不依赖SessionLiteratureConnector的内部状态
+  const sessionLiteratureFromStore = useMemo(() => {
+    if (!topic || !topic.trim()) return [];
+    
+    const topicLower = topic.toLowerCase();
+    const filteredItems = libraryItems.filter(item => {
+      // 检查topics标签
+      if (item.topics?.some(itemTopic => itemTopic.toLowerCase().includes(topicLower))) {
+        return true;
+      }
+      // 检查标题
+      if (item.title.toLowerCase().includes(topicLower)) {
+        return true;
+      }
+      // 检查摘要
+      if (item.abstract?.toLowerCase().includes(topicLower)) {
+        return true;
+      }
+      // 检查关键词
+      if (item.keywords?.some(keyword => keyword.toLowerCase().includes(topicLower))) {
+        return true;
+      }
+      return false;
+    });
+
+    return filteredItems.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [libraryItems, topic]);
 
   // 本地状态
   const [isTreeMaximized, setIsTreeMaximized] = useState(false);
@@ -124,7 +155,7 @@ export default function MCTSLiteratureWorkflow({
 
     // 调试信息
     console.log(`[MCTSWorkflow] 刷新会话文献: ${sortedLiterature.length} 篇，话题: ${topic}`);
-  }, [sessionConnector, libraryStore.items]);
+  }, [sessionConnector, libraryItems]); // 🚀 使用直接订阅的libraryItems而不是libraryStore.items
 
   useEffect(() => {
     refreshSessionLiterature();

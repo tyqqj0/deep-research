@@ -130,8 +130,9 @@ export function ParsingStatusIndicator({
     if (!hasBackendTask) return config.description;
     
     // 🔗 URL验证错误时显示详细信息
-    if (executionStatus === 'url_failed' && backendTask?.url_validation_error) {
-      return `${backendTask.url_validation_error}${backendTask.original_url ? `\n原始URL: ${backendTask.original_url}` : ''}`;
+    if (executionStatus === 'url_failed' && backendTask?.url_validation_error && backendTask.url_validation_error !== null) {
+      const originalUrl = (backendTask.original_url && backendTask.original_url !== null) ? backendTask.original_url : '';
+      return `${backendTask.url_validation_error}${originalUrl ? `\n原始URL: ${originalUrl}` : ''}`;
     }
     
     // 普通状态显示进度

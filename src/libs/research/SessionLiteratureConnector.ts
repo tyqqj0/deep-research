@@ -43,11 +43,14 @@ export class SessionLiteratureConnector {
    * 获取当前话题相关的文献列表
    */
   getTopicLiterature(): LibraryItem[] {
+    // 🚀 每次都获取最新的状态，确保响应式更新
+    const currentItems = useLibraryStore.getState().items;
+    
     if (!this.filterByTopic) {
-      return this.libraryStore.items;
+      return currentItems;
     }
 
-    return this.libraryStore.items.filter(item =>
+    return currentItems.filter(item =>
       this.isTopicRelated(item)
     );
   }

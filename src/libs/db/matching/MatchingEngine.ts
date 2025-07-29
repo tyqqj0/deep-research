@@ -78,6 +78,12 @@ export class MatchingEngine {
 
       // 策略3: 标题+作者综合匹配（如果启用且有标题）
       if (options.enableTitleMatching && matchData.title && !options.strictMode) {
+        // 🚫 跳过临时处理标题的匹配，避免误判
+        if (matchData.title.startsWith('Processing: ')) {
+          console.log(`🚫 [MatchingEngine] Skipping title matching for temporary processing title: "${matchData.title}"`);
+          return null;
+        }
+        
         // console.log(`🔍 [MatchingEngine] 开始标题相似性匹配: "${matchData.title}"`);
         
         const allItems = await db.library.toArray();
@@ -86,6 +92,11 @@ export class MatchingEngine {
         for (const item of allItems) {
           // 跳过自我引用
           if (options.sourceItemId && item.id === options.sourceItemId) {
+            continue;
+          }
+
+          // 🚫 跳过库中已有的临时处理标题，避免误判
+          if (item.title.startsWith('Processing: ')) {
             continue;
           }
 
@@ -126,7 +137,7 @@ export class MatchingEngine {
           console.log(`✅ [MatchingEngine] 智能匹配成功: "${bestMatch.item.title}" (相似度: ${(bestMatch.totalScore * 100).toFixed(1)}%)`);
           return bestMatch.item;
         } else {
-          console.log(`❌ [MatchingEngine] 未找到符合阈值的匹配项 (最高阈值: ${this.thresholds.finalThreshold})`);
+          // console.log(`❌ [MatchingEngine] 未找到符合阈值的匹配项 (最高阈值: ${this.thresholds.finalThreshold})`);
         }
       }
 

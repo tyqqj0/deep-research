@@ -41,6 +41,11 @@ export class ZoteroService {
    * Save configuration to localStorage
    */
   private saveToStorage(): void {
+    // 🚀 检查是否在浏览器环境中，避免SSR错误
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return;
+    }
+    
     if (this.config) {
       localStorage.setItem(this.storageKey, JSON.stringify({
         ...this.config,
@@ -55,6 +60,11 @@ export class ZoteroService {
    */
   private loadFromStorage(): void {
     try {
+      // 🚀 检查是否在浏览器环境中，避免SSR错误
+      if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+        return;
+      }
+      
       const stored = localStorage.getItem(this.storageKey);
       if (stored) {
         const config = JSON.parse(stored);
@@ -76,7 +86,10 @@ export class ZoteroService {
    * Clear stored configuration
    */
   clearStorage(): void {
-    localStorage.removeItem(this.storageKey);
+    // 🚀 检查是否在浏览器环境中，避免SSR错误
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.removeItem(this.storageKey);
+    }
     this.config = null;
     this.userInfo = null;
     this.collections = [];
