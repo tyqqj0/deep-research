@@ -1,19 +1,22 @@
 /**
- * 🎯 TaskStateManager - 统一任务状态管理服务
+ * 🎯 TaskStateManager - 统一任务状态管理服务 (重构版)
  * 
  * 核心职责:
  * 1. 统一的任务状态计算和显示逻辑
- * 2. 持久化轮询任务状态，解决页面刷新问题
+ * 2. 协调各个任务服务的工作
  * 3. 提供标准化的状态显示接口
- * 4. 任务生命周期管理
+ * 4. 作为任务管理的门面（Facade）
  * 
  * 设计原则:
- * - 单一职责：只处理任务状态相关逻辑
+ * - 门面模式：协调底层服务，提供简化接口
  * - 无UI依赖：纯业务逻辑服务
  * - 状态标准化：统一的显示状态格式
+ * - 服务协调：统一管理各个任务相关服务
  */
 
 import type { LibraryItem, BackendTask } from '@/libs/db/schema';
+import { taskPersistService } from './TaskPersistService';
+import { taskRecoveryService } from './TaskRecoveryService';
 
 // 🎯 标准化的任务显示状态
 export interface TaskDisplayState {
@@ -27,14 +30,8 @@ export interface TaskDisplayState {
   showUploadButton: boolean;
 }
 
-// 🔄 持久化的任务追踪信息
-export interface PersistedTaskInfo {
-  taskId: string;
-  literatureId: string;
-  title: string;
-  startTime: string; // ISO string for serialization
-  lastPolled: string; // ISO string
-}
+// 🔄 重新导出类型（从 TaskPersistService）
+export type { PersistedTaskInfo } from './TaskPersistService';
 
 // 📊 进度信息
 export interface ProgressInfo {
@@ -97,7 +94,6 @@ const STATUS_CONFIGS: Record<TaskDisplayState['status'], Omit<TaskDisplayState, 
 
 export class TaskStateManager {
   private static instance: TaskStateManager;
-  private readonly STORAGE_KEY = 'literature-active-tasks';
 
   private constructor() {}
 
@@ -258,158 +254,35 @@ export class TaskStateManager {
     };
   }
 
+  // ==================== 🎯 门面方法：委托给专门服务 ====================
+
   /**
-   * 💾 持久化轮询任务状态到localStorage
+   * 🚀 智能恢复任务（委托给 TaskRecoveryService）
+   */
+  public async smartRecoverTasks(items: LibraryItem[]): Promise<Map<string, { taskId: string; literatureId: string; title: string; startTime: Date }>> {
+    const { tasks } = await taskRecoveryService.smartRecoverTasks(items);
+    return tasks;
+  }
+
+  /**
+   * 💾 持久化任务状态（委托给 TaskPersistService）
    */
   public persistActiveTasks(tasks: Map<string, { taskId: string; literatureId: string; title: string; startTime: Date }>): void {
-    try {
-      const persistedTasks: PersistedTaskInfo[] = [];
-      
-      for (const [taskId, taskInfo] of tasks.entries()) {
-        persistedTasks.push({
-          taskId: taskInfo.taskId,
-          literatureId: taskInfo.literatureId,
-          title: taskInfo.title,
-          startTime: taskInfo.startTime.toISOString(),
-          lastPolled: new Date().toISOString()
-        });
-      }
-
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(persistedTasks));
-      console.log(`💾 Persisted ${persistedTasks.length} active tasks to localStorage`);
-    } catch (error) {
-      console.error('❌ Failed to persist active tasks:', error);
-    }
+    taskPersistService.saveTaskState(tasks);
   }
 
   /**
-   * 🔄 从持久化存储恢复轮询任务
-   */
-  public recoverPersistedTasks(): Map<string, { taskId: string; literatureId: string; title: string; startTime: Date }> {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      if (!stored) {
-        console.log('📭 No persisted tasks found');
-        return new Map();
-      }
-
-      const persistedTasks: PersistedTaskInfo[] = JSON.parse(stored);
-      const recoveredTasks = new Map<string, { taskId: string; literatureId: string; title: string; startTime: Date }>();
-
-      for (const task of persistedTasks) {
-        recoveredTasks.set(task.taskId, {
-          taskId: task.taskId,
-          literatureId: task.literatureId,
-          title: task.title,
-          startTime: new Date(task.startTime)
-        });
-      }
-
-      console.log(`🔄 Recovered ${recoveredTasks.size} tasks from localStorage`);
-      return recoveredTasks;
-    } catch (error) {
-      console.error('❌ Failed to recover persisted tasks:', error);
-      return new Map();
-    }
-  }
-
-  /**
-   * 🔍 从LibraryItems中发现未完成的任务
-   * 
-   * 只会发现真正需要继续轮询的任务：
-   * - 排除 URL 验证失败的任务
-   * - 排除执行失败的任务
-   * - 只包含 pending 和 processing 状态的任务
-   */
-  public discoverIncompleteTasks(items: LibraryItem[]): Map<string, { taskId: string; literatureId: string; title: string; startTime: Date }> {
-    const incompleteTasks = new Map<string, { taskId: string; literatureId: string; title: string; startTime: Date }>();
-
-    for (const item of items) {
-      // 🎯 双重检查确保只恢复真正需要轮询的任务
-      if (!this.isTaskCompleted(item) && this.shouldShowAsProcessing(item)) {
-        const taskId = item.backendTask?.task_id;
-        if (taskId) {
-          console.log(`🔍 Discovered incomplete task: ${taskId} (${item.title}) - status: ${item.backendTask?.execution_status}`);
-          incompleteTasks.set(taskId, {
-            taskId,
-            literatureId: item.id,
-            title: item.title,
-            startTime: item.createdAt
-          });
-        }
-      }
-    }
-
-    console.log(`🔍 Discovered ${incompleteTasks.size} incomplete tasks from library items`);
-    return incompleteTasks;
-  }
-
-  /**
-   * 🚀 智能恢复：合并持久化任务和发现的任务
-   * 
-   * 恢复策略：
-   * 1. 从 localStorage 恢复持久化的任务
-   * 2. 从当前 LibraryItems 发现需要轮询的任务
-   * 3. 合并两个来源，优先使用发现的任务（更准确的当前状态）
-   * 4. 自动排除已失败和 URL 错误的任务
-   */
-  public smartRecoverTasks(items: LibraryItem[]): Map<string, { taskId: string; literatureId: string; title: string; startTime: Date }> {
-    console.log(`🚀 Starting smart task recovery for ${items.length} library items...`);
-    
-    const persistedTasks = this.recoverPersistedTasks();
-    const discoveredTasks = this.discoverIncompleteTasks(items);
-
-    // 合并两个来源，优先使用发现的任务（更准确的当前状态）
-    const mergedTasks = new Map(persistedTasks);
-    
-    let discoveredCount = 0;
-    for (const [taskId, taskInfo] of discoveredTasks.entries()) {
-      mergedTasks.set(taskId, taskInfo);
-      discoveredCount++;
-    }
-
-    console.log(`🚀 Smart recovery completed:`);
-    console.log(`   - Persisted tasks: ${persistedTasks.size}`);
-    console.log(`   - Discovered tasks: ${discoveredCount}`);
-    console.log(`   - Total tasks to track: ${mergedTasks.size}`);
-    
-    if (mergedTasks.size === 0) {
-      console.log(`✨ No incomplete tasks found - all literature items are in stable states`);
-    }
-    
-    return mergedTasks;
-  }
-
-  /**
-   * 🗑️ 移除已完成的任务
+   * 🗑️ 移除已完成的任务（委托给 TaskPersistService）
    */
   public removeCompletedTask(taskId: string): void {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      if (!stored) return;
-
-      const persistedTasks: PersistedTaskInfo[] = JSON.parse(stored);
-      const filteredTasks = persistedTasks.filter(task => task.taskId !== taskId);
-
-      if (filteredTasks.length !== persistedTasks.length) {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(filteredTasks));
-        console.log(`🗑️ Removed completed task ${taskId} from persistence`);
-      }
-    } catch (error) {
-      console.error('❌ Failed to remove completed task:', error);
-    }
+    taskPersistService.removeTask(taskId);
   }
 
   /**
-   * 🧹 清理所有持久化任务
+   * 🧹 清理所有持久化任务（委托给 TaskPersistService）
    */
   public clearPersistedTasks(): void {
-    try {
-      localStorage.removeItem(this.STORAGE_KEY);
-      console.log('🧹 Cleared all persisted tasks');
-    } catch (error) {
-      console.error('❌ Failed to clear persisted tasks:', error);
-    }
+    taskPersistService.clearAllData();
   }
 }
 
