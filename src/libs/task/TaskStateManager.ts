@@ -84,7 +84,7 @@ const STATUS_CONFIGS: Record<TaskDisplayState['status'], Omit<TaskDisplayState, 
   },
   url_failed: {
     status: 'url_failed',
-    label: 'URL Error',
+    label: 'URL 错误',
     animated: false,
     variant: 'outline',
     color: 'bg-orange-100 text-orange-800 border-orange-300',

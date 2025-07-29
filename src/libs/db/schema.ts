@@ -29,7 +29,7 @@ const LiteratureStatusSchema = z.object({
 const BackendTaskSchema = z.object({
   task_id: z.string(),
   execution_status: z.enum(['completed', 'processing', 'pending', 'failed']),
-  result_type: z.enum(['created', 'duplicate']),
+  result_type: z.enum(['created', 'duplicate']).nullable(), // 🎯 允许 null 值，在任务完成前为 null
   literature_id: z.string().nullable(),
   literature_status: LiteratureStatusSchema.nullable(),
   status: z.string(),

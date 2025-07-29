@@ -639,7 +639,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
           doi: itemData.doi,
           url: itemData.url || undefined, // 确保空字符串被转为undefined
           pdfPath: itemData.pdfPath,
-          parsingStatus: 'IDLE', // 无需处理，状态为空闲
+          topics: itemData.topics,
           createdAt: new Date(),
           updatedAt: new Date()
         };
@@ -774,7 +774,7 @@ export const useLibraryStore = create<LibraryState & LibraryActions>((set, get) 
           );
 
           set({
-            items: updatedItems,
+            items: updatedItems as LibraryItem[],
             isLoading: false
           });
 
