@@ -46,6 +46,9 @@ interface LiteratureSubmissionState {
   stage: string;
   eventSource?: EventSource;
   startTime: Date;
+  // 🔌 连接管理字段
+  abortController?: AbortController; // 用于中断SSE连接
+  literatureId?: string; // 关联的文献ID，用于删除时查找
 }
 
 // 📊 简化的状态接口
@@ -185,6 +188,9 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   submitLiterature: async (source: LiteratureSource) => {
     const submissionId = `submission_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // 🔌 创建AbortController用于连接管理
+    const abortController = new AbortController();
+
     // 🎯 Step 1: 立即创建占位文献（在try块外定义以便catch块访问）
     const placeholderItem: LibraryItem = {
         id: generateLibraryItemId(),
@@ -222,6 +228,24 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
       // 🏗️ 立即添加占位文献到数据库和UI
       await libraryService.addLibraryItem(placeholderItem);
       await get().refreshItems(); // 刷新UI显示占位文献
+
+      // 🔌 将提交状态存储到activeSubmissions中，用于连接管理
+      const submissionState: LiteratureSubmissionState = {
+        id: submissionId,
+        title: placeholderItem.title,
+        status: 'submitting',
+        progress: 0,
+        stage: '准备提交...',
+        startTime: new Date(),
+        abortController, // 存储控制器引用
+        literatureId: placeholderItem.id // 存储关联的文献ID
+      };
+      
+      set(state => {
+        const newSubmissions = new Map(state.activeSubmissions);
+        newSubmissions.set(submissionId, submissionState);
+        return { activeSubmissions: newSubmissions };
+      });
 
       // console.log(`✅ [LibraryStore] Created placeholder literature: ${placeholderItem.id}`);
 
@@ -330,6 +354,9 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
             // 🔄 更新占位文献
             await get().updateLibraryItem(placeholderItem.id, updateData);
 
+            // 🔌 清理activeSubmissions中的完成项
+            get().completeSubmission(submissionId);
+
             // 单个文献处理完成不显示 toast，避免过多提示
 
           } catch (error) {
@@ -402,12 +429,19 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
             console.log('❌ [LibraryStore] Failed to update placeholder error state:', updateError);
           }
 
-          // 📢 显示错误提示
+          // 📢 显示错误提示（failSubmission已包含清理逻辑）
           get().failSubmission(submissionId, error);
         }
-      });
+      }, abortController); // 🔌 传递AbortController
 
       if (!result.success) {
+        // 🔌 检查是否为用户主动中断，如果是则不显示错误
+        if (result.error === 'Connection aborted') {
+          console.log('🔌 [LibraryStore] Literature submission aborted by user');
+          get().removeSubmission(submissionId); // 直接移除，不显示错误
+          return;
+        }
+
         // 🚑 API层返回失败，更新占位文献状态
         try {
           await get().updateLibraryItem(placeholderItem.id, {
@@ -565,9 +599,31 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
    */
   deleteLibraryItem: async (id: string) => {
     try {
+      // 🔌 Step 1: 检查并取消相关的SSE连接
+      const { activeSubmissions } = get();
+      const relatedSubmissions = Array.from(activeSubmissions.entries())
+        .filter(([_, submission]) => submission.literatureId === id);
+
+      if (relatedSubmissions.length > 0) {
+        console.log(`🔌 [LibraryStore] Found ${relatedSubmissions.length} active SSE connections for literature ${id}, cancelling...`);
+        
+        for (const [submissionId, submission] of relatedSubmissions) {
+          // 中断SSE连接
+          if (submission.abortController) {
+            submission.abortController.abort();
+            console.log(`🔌 [LibraryStore] Aborted SSE connection: ${submissionId}`);
+          }
+          
+          // 从activeSubmissions中移除
+          get().removeSubmission(submissionId);
+        }
+      }
+
+      // 🗑️ Step 2: 删除文献项
       await libraryService.deleteLibraryItem(id);
       await get().refreshItems(); // 刷新UI
-      // console.log(`✅ [LibraryStore] Successfully deleted item: ${id}`);
+      
+      console.log(`✅ [LibraryStore] Successfully deleted item: ${id}${relatedSubmissions.length > 0 ? ` and cancelled ${relatedSubmissions.length} SSE connections` : ''}`);
     } catch (error) {
       console.log(`❌ [LibraryStore] Failed to delete item ${id}:`, error);
       toast.error('文献删除失败', {
@@ -583,12 +639,32 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
    */
   deleteLibraryItems: async (ids: string[]) => {
     try {
-      // 批量删除
+      // 🔌 Step 1: 检查并取消所有相关的SSE连接
+      const { activeSubmissions } = get();
+      const allRelatedSubmissions = Array.from(activeSubmissions.entries())
+        .filter(([_, submission]) => ids.includes(submission.literatureId || ''));
+
+      if (allRelatedSubmissions.length > 0) {
+        console.log(`🔌 [LibraryStore] Found ${allRelatedSubmissions.length} active SSE connections for ${ids.length} items, cancelling...`);
+        
+        for (const [submissionId, submission] of allRelatedSubmissions) {
+          // 中断SSE连接
+          if (submission.abortController) {
+            submission.abortController.abort();
+          }
+          
+          // 从activeSubmissions中移除
+          get().removeSubmission(submissionId);
+        }
+      }
+
+      // 🗑️ Step 2: 批量删除
       const deletePromises = ids.map(id => libraryService.deleteLibraryItem(id));
       await Promise.all(deletePromises);
 
       await get().refreshItems(); // 刷新UI
-      // console.log(`✅ [LibraryStore] Successfully deleted ${ids.length} items`);
+      
+      console.log(`✅ [LibraryStore] Successfully deleted ${ids.length} items${allRelatedSubmissions.length > 0 ? ` and cancelled ${allRelatedSubmissions.length} SSE connections` : ''}`);
 
       toast.success(`已删除 ${ids.length} 项文献`);
     } catch (error) {

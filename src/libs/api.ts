@@ -376,7 +376,8 @@ export const apiClient = {
                 error: string;
                 details?: any;
             }) => void;
-        }
+        },
+        abortController?: AbortController // 🔌 可选的中断控制器
     ): Promise<{
         success: boolean;
         submissionId: string;
@@ -395,7 +396,8 @@ export const apiClient = {
                     'Accept': 'text/event-stream',
                     'Cache-Control': 'no-cache'
                 },
-                body: JSON.stringify({ source })
+                body: JSON.stringify({ source }),
+                signal: abortController?.signal // 🔌 支持连接中断
             });
 
             if (!response.ok) {
@@ -485,6 +487,16 @@ export const apiClient = {
                     }
                 }
             } catch (readerError) {
+                // 🔌 区分用户主动中断和其他连接错误
+                if (readerError instanceof Error && readerError.name === 'AbortError') {
+                    console.log('🔌 [APIClient] SSE reader connection aborted by user');
+                    return {
+                        success: false,
+                        submissionId,
+                        error: 'Connection aborted'
+                    };
+                }
+                
                 console.error('❌ [APIClient] SSE reader error:', readerError);
                 callbacks.onError?.({
                     error_type: 'ConnectionError',
@@ -504,6 +516,16 @@ export const apiClient = {
             };
 
         } catch (error) {
+            // 🔌 处理连接中断（用户主动取消）
+            if (error instanceof Error && error.name === 'AbortError') {
+                console.log('🔌 [APIClient] SSE connection aborted by user');
+                return {
+                    success: false,
+                    submissionId,
+                    error: 'Connection aborted'
+                };
+            }
+            
             console.error('❌ [APIClient] SSE submission error:', error);
             callbacks.onError?.({
                 error_type: 'SubmissionError',
