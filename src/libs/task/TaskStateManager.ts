@@ -14,7 +14,7 @@
  * - 服务协调：统一管理各个任务相关服务
  */
 
-import type { LibraryItem, BackendTask } from '@/libs/db/schema';
+import type { LibraryItem, BackendTask } from '@/libs/db';
 import { taskPersistService } from './TaskPersistService';
 import { taskRecoveryService } from './TaskRecoveryService';
 
@@ -52,15 +52,15 @@ const STATUS_CONFIGS: Record<TaskDisplayState['status'], Omit<TaskDisplayState, 
   },
   pending: {
     status: 'pending',
-    label: 'Pending',
+    label: '等待中',
     animated: false,
     variant: 'outline',
-    color: 'bg-gray-100 text-gray-800 border-gray-300',
+    color: 'bg-blue-50 text-blue-700 border-blue-200',
     showUploadButton: false
   },
   processing: {
     status: 'processing',
-    label: 'Processing',
+    label: '处理中',
     animated: true,
     variant: 'outline',
     color: 'bg-blue-100 text-blue-800 border-blue-300',
@@ -68,7 +68,7 @@ const STATUS_CONFIGS: Record<TaskDisplayState['status'], Omit<TaskDisplayState, 
   },
   completed: {
     status: 'completed',
-    label: 'Completed',
+    label: '已完成',
     animated: false,
     variant: 'outline',
     color: 'bg-green-100 text-green-800 border-green-300',
@@ -76,7 +76,7 @@ const STATUS_CONFIGS: Record<TaskDisplayState['status'], Omit<TaskDisplayState, 
   },
   failed: {
     status: 'failed',
-    label: 'Failed',
+    label: '失败',
     animated: false,
     variant: 'destructive',
     color: 'bg-red-100 text-red-800 border-red-300',
@@ -141,7 +141,7 @@ export class TaskStateManager {
         return {
           ...STATUS_CONFIGS.pending,
           progress,
-          description: `Task is waiting to be processed (${Math.round(progress)}% complete)`
+          description: currentStage || '任务已提交，等待系统处理'
         };
 
       case 'processing':

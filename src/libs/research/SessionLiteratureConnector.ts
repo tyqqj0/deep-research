@@ -129,88 +129,80 @@ export class SessionLiteratureConnector {
   }
 
   /**
-   * 批量添加文献（通过URL列表）
+   * 批量添加文献（通过URL列表）- 🚀 并行化版本
    */
   async batchAddFromUrls(urls: string[]): Promise<BatchAddResult> {
-    console.log(`[SessionConnector] Starting batch add for ${urls.length} URLs`);
+    console.log(`🚀 [SessionConnector] Starting PARALLEL batch add for ${urls.length} URLs`);
     
     const result: BatchAddResult = {
       success: 0,
       duplicates: 0,
       errors: 0,
-      totalProcessed: 0,
+      totalProcessed: urls.length,
       addedItems: [],
       errorDetails: []
     };
 
-    toast.loading(`正在批量添加 ${urls.length} 个文献...`, { id: 'batch-add' });
+    toast.loading(`正在并行添加 ${urls.length} 个文献...`, { id: 'batch-add' });
 
-    for (const url of urls) {
-      result.totalProcessed++;
+    try {
+      // 🏗️ 为所有URL创建基础文献数据
+      const itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[] = urls.map(url => ({
+        title: `Processing: ${url}`, // 临时标题，后端会更新
+        authors: ['Unknown Author'], // 提供默认作者，避免空数组
+        year: new Date().getFullYear(), // 提供默认年份
+        url: url.trim(),
+        source: 'import', // 使用有效的source值
+        topics: this.autoTag ? [this.topic] : []
+      }));
+
+      console.log(`📦 [SessionConnector] Created ${itemsData.length} item data objects, calling parallel masterAddLiteratures`);
+
+      // 🚀 一次性并行处理所有文献（利用底层的并行化处理）
+      const batchResult = await this.libraryStore.masterAddLiteratures(itemsData);
       
-      try {
-        // 从URL创建基础文献数据
-        const itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'> = {
-          title: `Processing: ${url}`, // 临时标题，后端会更新
-          authors: [],
-          year: new Date().getFullYear(), // 提供默认年份
-          url: url.trim(),
-          source: 'import', // 使用有效的source值
-          topics: this.autoTag ? [this.topic] : [],
-          status: 'processing' // 标记为处理中
-        };
+      console.log(`✅ [SessionConnector] Parallel processing completed:`, batchResult);
 
-        const addResult = await this.addLiterature(itemData);
+      // 📊 转换结果格式以匹配 BatchAddResult 接口
+      result.success = batchResult.totalAdded;
+      result.errors = batchResult.totalErrors;
+      
+      // 🔍 处理详细结果
+      batchResult.results.forEach((itemResult, index) => {
+        const url = urls[index];
         
-        // 🎯 智能结果处理：区分真正的错误和重复项
-        if (addResult.success) {
-          // 成功情况：可能是新创建或找到完成的重复项
-          if (addResult.duplicate && addResult.duplicate.length > 0) {
-            result.duplicates++;
-            console.log(`[SessionConnector] Found completed duplicate for: ${url}`);
-          } else {
-            result.success++;
-            console.log(`[SessionConnector] Successfully added new item for: ${url}`);
-            // 添加到结果列表（此时可能还是临时数据）
-            if (addResult.itemId) {
-              const addedItem = this.libraryStore.items.find(item => item.id === addResult.itemId);
-              if (addedItem) {
-                result.addedItems.push(addedItem);
-              }
-            }
+        if (itemResult.success) {
+          // 成功添加，查找添加的项目
+          const addedItem = this.libraryStore.items.find(item => 
+            item.url === url || item.title.includes(url)
+          );
+          if (addedItem) {
+            result.addedItems.push(addedItem);
           }
         } else {
-          // 失败情况：需要区分是真错误还是找到了未完成的重复项
-          if (addResult.duplicate && addResult.duplicate.length > 0) {
-            // 找到了重复项但状态不完整，根据needsSmartMerge标志决定处理方式
-            if ((addResult as any).needsSmartMerge) {
-              console.log(`⚠️ [SessionConnector] Found incomplete duplicate, needs smart merge: ${url}`);
-              result.duplicates++; // 暂时计为重复，后续可实现智能合并
-            } else {
-              result.duplicates++; // 普通重复情况
-              console.log(`[SessionConnector] Found duplicate (legacy logic) for: ${url}`);
-            }
-          } else {
-            // 真正的错误
-            result.errors++;
-            result.errorDetails.push({
-              url,
-              error: addResult.error || 'Unknown error'
-            });
-            console.log(`❌ [SessionConnector] Failed to add: ${url}, error: ${addResult.error}`);
-          }
+          // 添加到错误详情
+          result.errorDetails.push({
+            url,
+            error: itemResult.error || 'Unknown error'
+          });
         }
-        
-        // 添加小延迟避免过快请求
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-      } catch (error) {
-        result.errors++;
+      });
+
+      console.log(`🎊 [SessionConnector] Batch processing summary: ${result.success} success, ${result.duplicates} duplicates, ${result.errors} errors`);
+
+    } catch (error) {
+      console.error('❌ [SessionConnector] Batch add failed completely:', error);
+      
+      // 全部失败的情况
+      result.errors = urls.length;
+      result.success = 0;
+      
+      urls.forEach(url => {
         result.errorDetails.push({
           url,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Batch operation failed'
         });
-      }
+      });
     }
 
     // 更新toast提示

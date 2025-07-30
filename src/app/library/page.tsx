@@ -192,6 +192,7 @@ export default function LibraryPage() {
         </div>
       </div>
 
+
       {/* Dashboard: Statistics + Global Knowledge Graph */}
       <div className="mb-8">
         <div className={`grid gap-6 transition-all duration-300 ${isGraphExpanded ? 'grid-cols-1 h-[90vh]' : 'grid-cols-1 lg:grid-cols-12 h-[500px]'}`}>

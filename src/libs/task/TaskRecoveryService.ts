@@ -14,7 +14,7 @@
  * - 容错处理：处理数据不一致和损坏情况
  */
 
-import type { LibraryItem } from '@/libs/db/schema';
+import type { LibraryItem } from '@/libs/db';
 import { taskPersistService } from './TaskPersistService';
 import { taskStateManager } from './TaskStateManager';
 

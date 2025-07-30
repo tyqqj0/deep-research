@@ -56,18 +56,18 @@ export const LibraryItemSchema = z.object({
     LITERATURE_SOURCES.KNOWLEDGE,
     LITERATURE_SOURCES.ZOTERO
   ]).optional(),
-  publication: z.string().optional(),
-  abstract: z.string().optional(),
-  summary: z.string().optional(),
-  zoteroKey: z.string().optional(),
-  doi: z.string().optional(),
-  url: z.string().url().optional(),
-  pdfPath: z.string().optional(),
+  publication: z.string().nullable().optional(),
+  abstract: z.string().nullable().optional(),
+  summary: z.string().nullable().optional(),
+  zoteroKey: z.string().nullable().optional(),
+  doi: z.string().nullable().optional(),
+  url: z.string().url().nullable().optional(),
+  pdfPath: z.string().nullable().optional(),
   topics: z.array(z.string()).optional(), // 🏷️ 话题/关键词标签
 
   // 🚀 解析内容字段 - 存储从后端解析的引文数据
   parsedContent: z.object({
-    extractedText: z.string().optional(),
+    extractedText: z.string().nullable().optional(),
     extractedReferences: z.array(z.any()).optional(), // 从PDF解析出的引文列表
     // 可以在未来扩展其他解析内容，如摘要、关键词等
   }).optional(),

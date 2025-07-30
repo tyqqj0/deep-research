@@ -50,6 +50,287 @@ export class LibraryService {
   }
 
   /**
+   * 🔒 私有方法：智能添加或更新文献（仅供API层调用）
+   * 
+   * 🎯 核心功能：
+   * - 自动智能查重（复用现有MatchingEngine）
+   * - 检测到重复时自动智能合并
+   * - 确保数据一致性和完整性
+   * 
+   * @param literatureData 文献数据
+   * @returns 最终文献ID
+   */
+  private async addOrUpdateLiteratureWithDuplicateCheck(
+    literatureData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<string> {
+    try {
+      console.log('🔍 [LibraryService] Starting intelligent duplicate check and merge process');
+      
+      // 🔍 Step 1: 复用现有成熟MatchingEngine进行智能查重
+      const existingItem = await matchingEngine.findItemByUrlOrDoi(
+        literatureData.url,
+        literatureData.doi,
+        literatureData.title,
+        literatureData.authors,
+        literatureData.year
+      );
+
+      if (existingItem) {
+        console.log(`🤝 [LibraryService] Found duplicate item, performing intelligent merge: ${existingItem.title}`);
+        
+        // 🤝 Step 2: 智能合并（合并新数据到现有项）
+        const mergedData = await this.intelligentMerge(existingItem, literatureData);
+        
+        // 📝 Step 3: 更新现有项
+        await this.updateLibraryItem(existingItem.id, mergedData);
+        
+        console.log(`✅ [LibraryService] Successfully merged with existing item: ${existingItem.id}`);
+        return existingItem.id;
+      } else {
+        // 📚 Step 4: 创建新文献项
+        console.log('📚 [LibraryService] No duplicate found, creating new literature item');
+        
+        // 🔒 最终防御性检查：确保 authors 不为空
+        const safeData = { ...literatureData };
+        if (!safeData.authors || safeData.authors.length === 0) {
+          console.warn('⚠️ [LibraryService] Authors array is empty in addOrUpdateLiteratureWithDuplicateCheck, applying fallback');
+          safeData.authors = ['Unknown Author'];
+        }
+        
+        console.log('🔍 [LibraryService] Final data check before creation:', {
+          title: safeData.title,
+          authors: safeData.authors,
+          authorsCount: safeData.authors?.length,
+          year: safeData.year
+        });
+        
+        const newItem: LibraryItem = {
+          id: generateLibraryItemId(),
+          ...safeData,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+
+        await this.addLibraryItem(newItem);
+        
+        console.log(`✅ [LibraryService] Successfully created new item: ${newItem.id}`);
+        return newItem.id;
+      }
+    } catch (error) {
+      console.error('❌ [LibraryService] Error in addOrUpdateLiteratureWithDuplicateCheck:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 🤝 私有方法：智能合并文献数据
+   * 
+   * 合并策略：
+   * - 优先保留更完整的数据（非空字段）
+   * - DOI和URL：新数据优先（假设更准确）
+   * - 元数据：合并作者列表，选择更完整的标题
+   * - 内容：保留已有解析内容，补充缺失信息
+   */
+  private async intelligentMerge(
+    existingItem: LibraryItem, 
+    newData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<Partial<LibraryItem>> {
+    const mergedData: Partial<LibraryItem> = {
+      updatedAt: new Date()
+    };
+
+    // 🔗 DOI和URL：新数据优先（假设更准确）
+    if (newData.doi && newData.doi !== existingItem.doi) {
+      mergedData.doi = newData.doi;
+      console.log(`🔗 [Merge] Updated DOI: ${existingItem.doi} → ${newData.doi}`);
+    }
+    
+    if (newData.url && newData.url !== existingItem.url) {
+      mergedData.url = newData.url;
+      console.log(`🔗 [Merge] Updated URL: ${existingItem.url} → ${newData.url}`);
+    }
+
+    // 📝 标题：选择更完整的（长度更长且不是临时标题）
+    if (newData.title && 
+        newData.title.length > existingItem.title.length && 
+        !newData.title.startsWith('Processing: ') &&
+        !existingItem.title.startsWith('Processing: ')) {
+      mergedData.title = newData.title;
+      console.log(`📝 [Merge] Updated title: ${existingItem.title} → ${newData.title}`);
+    }
+
+    // 👥 作者：合并作者列表，去重
+    if (newData.authors && newData.authors.length > 0) {
+      const existingAuthors = existingItem.authors || [];
+      const newAuthors = newData.authors.filter(author => 
+        author !== 'Unknown Author' && 
+        !existingAuthors.includes(author)
+      );
+      
+      if (newAuthors.length > 0) {
+        mergedData.authors = [...existingAuthors, ...newAuthors];
+        console.log(`👥 [Merge] Merged authors: ${existingAuthors.length} + ${newAuthors.length} = ${mergedData.authors.length}`);
+      }
+    }
+
+    // 📅 年份：选择更准确的（非空且合理范围）
+    if (newData.year && newData.year !== existingItem.year && newData.year > 1900 && newData.year <= new Date().getFullYear() + 5) {
+      mergedData.year = newData.year;
+      console.log(`📅 [Merge] Updated year: ${existingItem.year} → ${newData.year}`);
+    }
+
+    // 📚 期刊/出版物：选择更完整的
+    if (newData.publication && (!existingItem.publication || newData.publication.length > existingItem.publication.length)) {
+      mergedData.publication = newData.publication;
+      console.log(`📚 [Merge] Updated publication: ${existingItem.publication} → ${newData.publication}`);
+    }
+
+    // 📄 摘要：选择更完整的
+    if (newData.abstract && (!existingItem.abstract || newData.abstract.length > existingItem.abstract.length)) {
+      mergedData.abstract = newData.abstract;
+      console.log(`📄 [Merge] Updated abstract: ${existingItem.abstract?.substring(0, 50)}... → ${newData.abstract.substring(0, 50)}...`);
+    }
+
+    // 🔍 解析内容：合并引用文献，保留解析文本
+    if (newData.parsedContent) {
+      const existingParsed = existingItem.parsedContent || {};
+      const newParsed = newData.parsedContent;
+      
+      mergedData.parsedContent = {
+        // 保留现有解析文本，除非新的更完整
+        extractedText: newParsed.extractedText && newParsed.extractedText.length > (existingParsed.extractedText?.length || 0) 
+          ? newParsed.extractedText 
+          : existingParsed.extractedText,
+        
+        // 合并引用文献列表
+        extractedReferences: [
+          ...(existingParsed.extractedReferences || []),
+          ...(newParsed.extractedReferences || [])
+        ].filter((ref, index, arr) => 
+          // 简单去重：基于引用文本
+          arr.findIndex(r => JSON.stringify(r) === JSON.stringify(ref)) === index
+        )
+      };
+      
+      console.log(`🔍 [Merge] Merged parsed content: ${(existingParsed.extractedReferences?.length || 0)} + ${(newParsed.extractedReferences?.length || 0)} references`);
+    }
+
+    // 🏷️ 主题标签：合并去重
+    if (newData.topics && newData.topics.length > 0) {
+      const existingTopics = existingItem.topics || [];
+      const newTopics = newData.topics.filter(topic => !existingTopics.includes(topic));
+      
+      if (newTopics.length > 0) {
+        mergedData.topics = [...existingTopics, ...newTopics];
+        console.log(`🏷️ [Merge] Merged topics: ${existingTopics.length} + ${newTopics.length} = ${mergedData.topics.length}`);
+      }
+    }
+
+    // 🔄 后端任务：保留最新的任务信息
+    if (newData.backendTask) {
+      mergedData.backendTask = newData.backendTask;
+      console.log(`🔄 [Merge] Updated backend task: ${newData.backendTask.task_id}`);
+    }
+
+    // 🔒 最终验证：确保authors不为空
+    if (!mergedData.authors || mergedData.authors.length === 0) {
+      console.warn('⚠️ [LibraryService] Merged data has empty authors, applying fallback');
+      mergedData.authors = ['Unknown Author'];
+    }
+    
+    console.log(`🤝 [LibraryService] Intelligent merge completed with ${Object.keys(mergedData).length} field updates`);
+    console.log(`🔍 [LibraryService] Final merged authors: ${mergedData.authors}`);
+    return mergedData;
+  }
+
+  /**
+   * 🎯 判断是否需要触发查重检查
+   * 
+   * 仅在DOI、URL、Title发生变化时触发，减少不必要的查重开销
+   */
+  private shouldCheckDuplicate(
+    oldData: LibraryItem, 
+    newData: Partial<LibraryItem>
+  ): boolean {
+    return (
+      (newData.doi && newData.doi !== oldData.doi) ||
+      (newData.url && newData.url !== oldData.url) ||
+      (newData.title && newData.title !== oldData.title && !newData.title.startsWith('Processing: '))
+    );
+  }
+
+  /**
+   * 🌟 公开方法：从API层智能添加或更新文献
+   * 
+   * 这是API层的入口点，内部会调用私有的智能查重和合并方法
+   * 
+   * @param literatureData 文献数据  
+   * @returns 最终文献ID
+   */
+  async addOrUpdateFromAPI(
+    literatureData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<string> {
+    return await this.addOrUpdateLiteratureWithDuplicateCheck(literatureData);
+  }
+
+  /**
+   * 🔄 公开方法：更新现有文献（带智能查重）
+   * 
+   * 当更新现有文献时，如果关键字段（DOI、URL、Title）发生变化，
+   * 会触发查重检查，避免产生重复项
+   * 
+   * @param id 文献ID
+   * @param updateData 更新数据
+   */
+  async updateWithDuplicateCheck(id: string, updateData: Partial<LibraryItem>): Promise<void> {
+    try {
+      // 获取现有数据
+      const existingItem = await this.getLibraryItemById(id);
+      if (!existingItem) {
+        throw new Error(`Library item not found: ${id}`);
+      }
+
+      // 检查是否需要查重
+      if (this.shouldCheckDuplicate(existingItem, updateData)) {
+        console.log('🔍 [LibraryService] Key fields changed, performing duplicate check');
+        
+        // 构造完整的数据进行查重
+        const fullData = { ...existingItem, ...updateData };
+        const potentialDuplicate = await matchingEngine.findItemByUrlOrDoi(
+          fullData.url,
+          fullData.doi,
+          fullData.title,
+          fullData.authors,
+          fullData.year
+        );
+
+        // 如果找到重复项且不是自己
+        if (potentialDuplicate && potentialDuplicate.id !== id) {
+          console.log(`🤝 [LibraryService] Found duplicate during update, merging items: ${potentialDuplicate.id}`);
+          
+          // 将更新数据合并到找到的重复项
+          const mergedData = await this.intelligentMerge(potentialDuplicate, { ...existingItem, ...updateData });
+          await this.updateLibraryItem(potentialDuplicate.id, mergedData);
+          
+          // 删除原始项（已合并到重复项）
+          await this.deleteLibraryItem(id);
+          
+          // console.log(`✅ [LibraryService] Successfully merged items: ${id} → ${potentialDuplicate.id}`);
+          return;
+        }
+      }
+
+      // 没有重复，正常更新
+      await this.updateLibraryItem(id, { ...updateData, updatedAt: new Date() });
+      // console.log(`✅ [LibraryService] Successfully updated item: ${id}`);
+      
+    } catch (error) {
+      console.error(`❌ [LibraryService] Error in updateWithDuplicateCheck:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Get library item by ID
    */
   async getLibraryItemById(id: string): Promise<LibraryItem | null> {

@@ -1,27 +1,46 @@
-# 文献解析后端服务 - API 使用指南 (v1.1)
+# 文献解析后端服务 - API 使用指南 (v2.0)
 
 欢迎使用文献解析后端服务！本指南将帮助您理解并有效利用API来处理文献、监控进度并获取最终的结构化数据。
+
+## 🚀 新功能：Server-Sent Events (SSE) 支持
+
+**v2.0 重大更新**：现在支持 **实时状态推送**！您可以选择传统的轮询方式或新的SSE实时推送方式。
 
 ## 核心理念：异步处理
 
 本API的核心设计是**异步处理**。您不会在提交文献后立即得到完整结果，因为解析一篇文献（特别是下载和处理PDF）可能需要较长时间。
 
-取而代之的工作流程是：
+### 🔄 两种工作流程
 
-1.  **提交任务**：您向API提交一个文献源（如DOI或PDF链接）。
-2.  **获取任务ID**：API会立即返回一个 `taskId`，确认任务已接收。
-3.  **轮询状态**：您使用这个 `taskId` 定期查询任务的执行状态。
-4.  **获取结果**：当任务状态显示为 `success` 或 `partial_success` 时，您就可以根据返回的 `literature_id` 获取最终的文献数据。
+#### 方式1：SSE实时推送（推荐）
+1. **提交任务**：向SSE端点提交文献源，立即建立实时连接
+2. **实时接收**：通过SSE连接实时接收任务状态更新
+3. **获取结果**：任务完成时自动推送`literature_id`，直接获取文献数据
+
+#### 方式2：传统轮询（向后兼容）
+1. **提交任务**：您向API提交一个文献源（如DOI或PDF链接）
+2. **获取任务ID**：API会立即返回一个 `taskId`，确认任务已接收
+3. **轮询状态**：您使用这个 `taskId` 定期查询任务的执行状态
+4. **获取结果**：当任务状态显示为 `success` 或 `partial_success` 时，您就可以根据返回的 `literature_id` 获取最终的文献数据
 
 ---
 
-## 工作流程详解
+## 🎯 工作流程详解
 
-### 第1步：提交一篇新文献
+## 方式1：SSE实时推送（推荐）
 
-通过向 `/literatures` 端点发送 `POST` 请求来启动一个新的解析任务。您至少需要提供文献的DOI、URL或PDF链接之一。
+### 第1步：建立SSE连接并提交任务
 
-**Endpoint**: `POST /api/v1/literatures`
+通过向 `/literature/stream` 端点发送 `POST` 请求来启动一个新的解析任务并建立SSE连接。
+
+**Endpoint**: `POST /api/literature/stream`
+
+**请求头**:
+```
+Content-Type: application/json
+Accept: text/event-stream
+Cache-Control: no-cache
+```
 
 **请求示例**:
 ```json
@@ -31,22 +50,150 @@
   }
 }
 ```
-*或者，使用URL:*
+
+**JavaScript示例**:
+```javascript
+// 使用fetch建立SSE连接
+const response = await fetch('/api/literature/stream', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        'Cache-Control': 'no-cache'
+    },
+    body: JSON.stringify({
+        source: { doi: "10.1109/CVPR.2017.695" }
+    })
+});
+
+// 处理SSE流
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value);
+    // 处理SSE事件...
+}
+```
+
+### 第2步：处理SSE事件
+
+SSE连接会推送以下类型的事件：
+
+#### 📊 状态更新事件 (`status`)
+```javascript
+event: status
+data: {
+  "task_id": "a8c5b9f0-6b7e-4f5a-9d2c-1e8b9f3a6c2d",
+  "execution_status": "processing",
+  "overall_progress": 60,
+  "current_stage": "正在获取元数据",
+  "literature_status": {
+    "overall_status": "processing",
+    "overall_progress": 60,
+    "component_status": {
+      "metadata": {
+        "status": "processing",
+        "stage": "正在从CrossRef获取数据",
+        "progress": 50,
+        "source": "CrossRef",
+        "attempts": 1
+      },
+      "content": {
+        "status": "pending",
+        "stage": "等待开始",
+        "progress": 0
+      },
+      "references": {
+        "status": "pending",
+        "stage": "等待开始",
+        "progress": 0
+      }
+    }
+  }
+}
+```
+
+#### 🎉 完成事件 (`completed`)
+```javascript
+event: completed
+data: {
+  "event": "completed",
+  "literature_id": "688728583c5e52bb81c2cc29",
+  "resource_url": "/api/literature/688728583c5e52bb81c2cc29"
+}
+```
+
+#### ❌ 错误事件 (`error`)
+```javascript
+// URL验证错误
+event: error
+data: {
+  "event": "url_validation_failed",
+  "error_type": "URLValidationError",
+  "error": "URL验证失败: URL无法访问",
+  "original_url": "https://invalid-url.com",
+  "task_id": "xxx"
+}
+
+// 组件处理错误
+event: error
+data: {
+  "event": "component_failed",
+  "component": "metadata",
+  "error_type": "MetadataFetchError",
+  "error": "Failed to fetch valid metadata",
+  "error_details": {
+    "attempted_sources": ["CrossRef", "Semantic Scholar", "GROBID"]
+  },
+  "task_id": "xxx"
+}
+```
+
+#### 💥 任务失败事件 (`failed`)
+```javascript
+event: failed
+data: {
+  "event": "failed",
+  "error_type": "URLValidationError",
+  "error": "URL验证失败",
+  "task_id": "xxx"
+}
+```
+
+### 第3步：获取文献数据
+
+当收到`completed`事件时，使用返回的`literature_id`获取完整的文献数据：
+
+**Endpoint**: `GET /api/literature/{literature_id}`
+
+---
+
+## 方式2：传统轮询（向后兼容）
+
+### 第1步：提交一篇新文献
+
+通过向 `/literature` 端点发送 `POST` 请求来启动一个新的解析任务。
+
+**Endpoint**: `POST /api/literature`
+
+**请求示例**:
 ```json
 {
   "source": {
-    "url": "https://arxiv.org/abs/1706.03762"
+    "doi": "10.1109/CVPR.2017.695"
   }
 }
 ```
 
 **成功响应 (HTTP `202 Accepted`)**:
-服务器会立即响应，告诉你任务已创建。
-
 ```json
 {
   "taskId": "a8c5b9f0-6b7e-4f5a-9d2c-1e8b9f3a6c2d",
-  "status_url": "/api/v1/tasks/a8c5b9f0-6b7e-4f5a-9d2c-1e8b9f3a6c2d"
+  "status_url": "/api/task/a8c5b9f0-6b7e-4f5a-9d2c-1e8b9f3a6c2d"
 }
 ```
 **请务必保存好这个 `taskId`**，它是您跟踪进度的唯一凭证。

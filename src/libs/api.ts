@@ -216,7 +216,7 @@ export const apiClient = {
         });
 
         const result = await handleResponse<UploadUrlResponse>(response);
-        console.log(`✅ Upload permission granted for: ${fileName}`);
+        // console.log(`✅ Upload permission granted for: ${fileName}`);
         return result;
     },
 
@@ -280,7 +280,7 @@ export const apiClient = {
 
         // 🐞 调试：输出后端的实际返回格式
         console.log('🐞 [Debug] Backend response for submitLiterature:', result);
-        console.log(`✅ Literature submitted, task_id: ${result.task_id}`);
+        // console.log(`✅ Literature submitted, task_id: ${result.task_id}`);
 
         return result.task_id;
     },
@@ -316,7 +316,7 @@ export const apiClient = {
         const response = await fetch(`${API_BASE_URL}/api/literature/${literatureId}`);
         const result = await handleResponse<Literature>(response);
 
-        console.log(`✅ Literature fetched: ${result.title}`);
+        // console.log(`✅ Literature fetched: ${result.title}`);
 
         // 🔍 详细调试引文数据
         console.log(`🔍 [DEBUG] Literature data structure:`, {
@@ -347,8 +347,181 @@ export const apiClient = {
         const response = await fetch(`${API_BASE_URL}/api/literature/${literatureId}/fulltext`);
         const result = await handleResponse<LiteratureFulltext>(response);
 
-        console.log(`✅ Fulltext fetched for: ${literatureId}`);
+        // console.log(`✅ Fulltext fetched for: ${literatureId}`);
         return result;
+    },
+
+    /**
+     * 📡 提交文献到SSE流接口（实时状态更新）
+     * @param source 文献源数据
+     * @param onStatusUpdate 状态更新回调
+     * @param onCompleted 完成回调
+     * @param onError 错误回调
+     * @returns 提交结果
+     */
+    submitLiteratureSSE: async (
+        source: LiteratureSource,
+        callbacks: {
+            onStatusUpdate?: (data: {
+                progress: number;
+                stage: string;
+                status: 'processing' | 'submitting';
+            }) => void;
+            onCompleted?: (data: {
+                literature_id: string;
+                resource_url: string;
+            }) => void;
+            onError?: (error: {
+                error_type: string;
+                error: string;
+                details?: any;
+            }) => void;
+        }
+    ): Promise<{
+        success: boolean;
+        submissionId: string;
+        error?: string;
+    }> => {
+        const submissionId = `sse_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        try {
+            console.log('📡 [APIClient] Starting SSE literature submission:', source.title || source.url);
+            
+            // 📡 建立SSE连接到远程后端
+            const response = await fetch(`${API_BASE_URL}/api/literature/stream`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'text/event-stream',
+                    'Cache-Control': 'no-cache'
+                },
+                body: JSON.stringify({ source })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            if (!response.body) {
+                throw new Error('No response body received');
+            }
+
+            // 📖 处理SSE流
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            // 🔄 通知开始处理
+            callbacks.onStatusUpdate?.({
+                progress: 0,
+                stage: '连接已建立，开始处理...',
+                status: 'processing'
+            });
+
+            try {
+                let currentEventType = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        // 📋 解析 SSE 事件类型
+                        if (line.startsWith('event: ')) {
+                            currentEventType = line.substring(7).trim();
+                            console.log(`🎯 [APIClient] SSE Event: ${currentEventType}`);
+                            continue;
+                        }
+                        
+                        // 📋 解析 SSE 数据
+                        if (line.startsWith('data: ')) {
+                            const dataStr = line.substring(6).trim();
+                            if (!dataStr) continue;
+
+                            try {
+                                const data = JSON.parse(dataStr);
+                                console.log(`📊 [APIClient] SSE Data for ${currentEventType}:`, data);
+                                
+                                // 🎯 根据事件类型和数据内容进行处理
+                                if (currentEventType === 'status') {
+                                    // 📊 处理状态更新事件
+                                    if (data.execution_status === 'processing') {
+                                        callbacks.onStatusUpdate?.({
+                                            progress: data.overall_progress || 0,
+                                            stage: data.current_stage || '处理中...',
+                                            status: 'processing'
+                                        });
+                                    }
+                                }
+                                
+                                // 🎉 处理完成事件
+                                else if (currentEventType === 'completed' && data.literature_id) {
+                                    console.log('✅ [APIClient] SSE submission completed:', data.literature_id);
+                                    callbacks.onCompleted?.({
+                                        literature_id: data.literature_id,
+                                        resource_url: data.resource_url || `/api/literature/${data.literature_id}`
+                                    });
+                                    break; // 完成后退出循环
+                                }
+                                
+                                // ❌ 处理错误事件（只记录，不退出）
+                                else if (currentEventType === 'error') {
+                                    console.log('⚠️ [APIClient] SSE error event received (not exiting):', data);
+                                    // 只更新错误信息到状态，但不退出循环等待最终状态
+                                }
+                                
+                                // 🚫 处理最终失败事件（退出循环）
+                                else if (currentEventType === 'failed') {
+                                    console.log('❌ [APIClient] SSE final failure event:', data);
+                                    callbacks.onError?.({
+                                        error_type: data.error_type || 'ProcessingError',
+                                        error: data.error || 'Literature processing failed',
+                                        details: data
+                                    });
+                                    break; // 最终失败后退出循环
+                                }
+                                
+                            } catch (parseError) {
+                                console.warn('⚠️ [APIClient] Failed to parse SSE data:', parseError);
+                            }
+                        }
+                    }
+                }
+            } catch (readerError) {
+                console.error('❌ [APIClient] SSE reader error:', readerError);
+                callbacks.onError?.({
+                    error_type: 'ConnectionError',
+                    error: 'SSE connection interrupted',
+                    details: readerError
+                });
+                return {
+                    success: false,
+                    submissionId,
+                    error: 'Connection interrupted'
+                };
+            }
+
+            return {
+                success: true,
+                submissionId
+            };
+
+        } catch (error) {
+            console.error('❌ [APIClient] SSE submission error:', error);
+            callbacks.onError?.({
+                error_type: 'SubmissionError',
+                error: error instanceof Error ? error.message : 'Unknown error',
+                details: error
+            });
+            
+            return {
+                success: false,
+                submissionId,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
     },
 };
 
