@@ -431,7 +431,6 @@ export const apiClient = {
                         // 📋 解析 SSE 事件类型
                         if (line.startsWith('event: ')) {
                             currentEventType = line.substring(7).trim();
-                            console.log(`🎯 [APIClient] SSE Event: ${currentEventType}`);
                             continue;
                         }
                         
@@ -442,7 +441,6 @@ export const apiClient = {
 
                             try {
                                 const data = JSON.parse(dataStr);
-                                console.log(`📊 [APIClient] SSE Data for ${currentEventType}:`, data);
                                 
                                 // 🎯 根据事件类型和数据内容进行处理
                                 if (currentEventType === 'status') {
@@ -458,7 +456,6 @@ export const apiClient = {
                                 
                                 // 🎉 处理完成事件
                                 else if (currentEventType === 'completed' && data.literature_id) {
-                                    console.log('✅ [APIClient] SSE submission completed:', data.literature_id);
                                     callbacks.onCompleted?.({
                                         literature_id: data.literature_id,
                                         resource_url: data.resource_url || `/api/literature/${data.literature_id}`
@@ -468,13 +465,11 @@ export const apiClient = {
                                 
                                 // ❌ 处理错误事件（只记录，不退出）
                                 else if (currentEventType === 'error') {
-                                    console.log('⚠️ [APIClient] SSE error event received (not exiting):', data);
                                     // 只更新错误信息到状态，但不退出循环等待最终状态
                                 }
                                 
                                 // 🚫 处理最终失败事件（退出循环）
                                 else if (currentEventType === 'failed') {
-                                    console.log('❌ [APIClient] SSE final failure event:', data);
                                     callbacks.onError?.({
                                         error_type: data.error_type || 'ProcessingError',
                                         error: data.error || 'Literature processing failed',

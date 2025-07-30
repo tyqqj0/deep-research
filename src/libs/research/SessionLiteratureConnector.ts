@@ -45,7 +45,7 @@ export class SessionLiteratureConnector {
   getTopicLiterature(): LibraryItem[] {
     // 🚀 每次都获取最新的状态，确保响应式更新
     const currentItems = useLibraryStore.getState().items;
-    
+
     if (!this.filterByTopic) {
       return currentItems;
     }
@@ -60,27 +60,27 @@ export class SessionLiteratureConnector {
    */
   private isTopicRelated(item: LibraryItem): boolean {
     const topicLower = this.topic.toLowerCase();
-    
+
     // 检查topics标签
     if (item.topics?.some(topic => topic.toLowerCase().includes(topicLower))) {
       return true;
     }
-    
+
     // 检查标题
     if (item.title.toLowerCase().includes(topicLower)) {
       return true;
     }
-    
+
     // 检查摘要
     if (item.abstract?.toLowerCase().includes(topicLower)) {
       return true;
     }
-    
-    // 检查关键词
-    if (item.keywords?.some(keyword => keyword.toLowerCase().includes(topicLower))) {
-      return true;
-    }
-    
+
+    // // 检查关键词
+    // if (item.keywords?.some((keyword: string) => keyword.toLowerCase().includes(topicLower))) {
+    //   return true;
+    // }
+
     return false;
   }
 
@@ -106,14 +106,14 @@ export class SessionLiteratureConnector {
       // 使用libraryStore的masterAddLiterature方法
       const result = await this.libraryStore.masterAddLiterature(itemData, {
         preCheckDuplicate: true,
-        onComplete: (itemId, result) => {
+        onComplete: (itemId: string, result: string) => {
           if (result === 'created') {
             console.log(`[SessionConnector] Successfully added literature: ${itemId}`);
           } else {
             console.log(`[SessionConnector] Duplicate literature detected: ${itemId}`);
           }
         },
-        onError: (error) => {
+        onError: (error: any) => {
           console.error(`[SessionConnector] Failed to add literature:`, error);
         }
       });
@@ -132,8 +132,8 @@ export class SessionLiteratureConnector {
    * 批量添加文献（通过URL列表）- 🚀 并行化版本
    */
   async batchAddFromUrls(urls: string[]): Promise<BatchAddResult> {
-    console.log(`🚀 [SessionConnector] Starting PARALLEL batch add for ${urls.length} URLs`);
-    
+    console.log(`🚀 [SessionConnector] Starting parallel batch add for ${urls.length} URLs`);
+
     const result: BatchAddResult = {
       success: 0,
       duplicates: 0,
@@ -156,24 +156,20 @@ export class SessionLiteratureConnector {
         topics: this.autoTag ? [this.topic] : []
       }));
 
-      console.log(`📦 [SessionConnector] Created ${itemsData.length} item data objects, calling parallel masterAddLiteratures`);
-
       // 🚀 一次性并行处理所有文献（利用底层的并行化处理）
       const batchResult = await this.libraryStore.masterAddLiteratures(itemsData);
-      
-      console.log(`✅ [SessionConnector] Parallel processing completed:`, batchResult);
 
       // 📊 转换结果格式以匹配 BatchAddResult 接口
       result.success = batchResult.totalAdded;
       result.errors = batchResult.totalErrors;
-      
+
       // 🔍 处理详细结果
-      batchResult.results.forEach((itemResult, index) => {
+      batchResult.results.forEach((itemResult: any, index: number) => {
         const url = urls[index];
-        
+
         if (itemResult.success) {
           // 成功添加，查找添加的项目
-          const addedItem = this.libraryStore.items.find(item => 
+          const addedItem = this.libraryStore.items.find((item: any) =>
             item.url === url || item.title.includes(url)
           );
           if (addedItem) {
@@ -188,15 +184,15 @@ export class SessionLiteratureConnector {
         }
       });
 
-      console.log(`🎊 [SessionConnector] Batch processing summary: ${result.success} success, ${result.duplicates} duplicates, ${result.errors} errors`);
+      console.log(`✅ [SessionConnector] Completed: ${result.success} success, ${result.errors} errors`);
 
     } catch (error) {
       console.error('❌ [SessionConnector] Batch add failed completely:', error);
-      
+
       // 全部失败的情况
       result.errors = urls.length;
       result.success = 0;
-      
+
       urls.forEach(url => {
         result.errorDetails.push({
           url,
@@ -270,8 +266,8 @@ export class SessionLiteratureConnector {
 
     literature.forEach(item => {
       // 统计来源
-      stats.bySource[item.source] = (stats.bySource[item.source] || 0) + 1;
-      
+      stats.bySource[item.source || ''] = (stats.bySource[item.source || ''] || 0) + 1;
+
       // 统计最近添加的
       if (new Date(item.createdAt).getTime() > oneDayAgo) {
         stats.recentlyAdded++;
@@ -318,7 +314,7 @@ export class SessionLiteratureConnector {
     if (options.topic !== undefined) this.topic = options.topic;
     if (options.autoTag !== undefined) this.autoTag = options.autoTag;
     if (options.filterByTopic !== undefined) this.filterByTopic = options.filterByTopic;
-    
+
     console.log('[SessionConnector] Config updated:', this.getConfig());
   }
 }

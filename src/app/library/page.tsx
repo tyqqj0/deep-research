@@ -320,8 +320,8 @@ export default function LibraryPage() {
                 </span>
               </div>
               <div className="flex-1">
-                <Select 
-                  value={topicFilter.length > 0 ? "custom" : "all"} 
+                <Select
+                  value={topicFilter.length > 0 ? "custom" : "all"}
                   onValueChange={(value) => {
                     if (value === "all") {
                       setTopicFilter([]);
@@ -330,8 +330,8 @@ export default function LibraryPage() {
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="选择要过滤的话题...">
-                      {topicFilter.length === 0 
-                        ? "显示所有话题" 
+                      {topicFilter.length === 0
+                        ? "显示所有话题"
                         : `已选择 ${topicFilter.length} 个话题`
                       }
                     </SelectValue>
@@ -360,7 +360,7 @@ export default function LibraryPage() {
                               <input
                                 type="checkbox"
                                 checked={topicFilter.includes(topic)}
-                                onChange={() => {}}
+                                onChange={() => { }}
                                 className="w-4 h-4 text-blue-600"
                               />
                               <span className="text-sm font-medium text-blue-800">
@@ -429,7 +429,7 @@ export default function LibraryPage() {
 
             <TabsContent value="discovery" className="space-y-4">
               <div className="max-w-2xl mx-auto">
-                <LiteratureDiscoveryPanel 
+                <LiteratureDiscoveryPanel
                   onDiscoveryComplete={(results) => {
                     // 刷新文献列表以显示新添加的文献
                     initialize();

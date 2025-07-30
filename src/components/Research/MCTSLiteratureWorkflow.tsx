@@ -137,36 +137,22 @@ export default function MCTSLiteratureWorkflow({
 
   // 本地状态
   const [isTreeMaximized, setIsTreeMaximized] = useState(false);
-  const [sessionLiterature, setSessionLiterature] = useState<LibraryItem[]>([]);
   const [workflowStarted, setWorkflowStarted] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [originalTasks, setOriginalTasks] = useState<Record<string, SearchTask>>({});
   const [isGeneratingMockData, setIsGeneratingMockData] = useState(false);
 
-  // 刷新会话文献列表 - 使用SessionLiteratureConnector
-  const refreshSessionLiterature = useCallback(() => {
-    const topicLiterature = sessionConnector.getTopicLiterature();
-
-    const sortedLiterature = topicLiterature.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
-    setSessionLiterature(sortedLiterature);
-
-    // 调试信息
-    console.log(`[MCTSWorkflow] 刷新会话文献: ${sortedLiterature.length} 篇，话题: ${topic}`);
-  }, [sessionConnector, libraryItems]); // 🚀 使用直接订阅的libraryItems而不是libraryStore.items
-
+  // 调试信息 - 显示会话文献数量变化
   useEffect(() => {
-    refreshSessionLiterature();
-  }, [refreshSessionLiterature]);
+    console.log(`[MCTSWorkflow] 会话文献更新: ${sessionLiteratureFromStore.length} 篇，话题: ${topic}`);
+  }, [sessionLiteratureFromStore.length, topic]);
 
   // 🌱 开始文献播种
   const handleLiteratureSeeding = useCallback(async () => {
     try {
       setWorkflowStarted(true);
       await runLiteratureSeeding(topic, reportPlan);
-      refreshSessionLiterature();
+      // 不需要手动刷新，sessionLiteratureFromStore会自动更新
     } catch (error) {
       console.error('Failed to start literature seeding:', error);
       if (error instanceof Error) {
@@ -175,7 +161,7 @@ export default function MCTSLiteratureWorkflow({
         toast.error(`文献播种失败: 发生未知错误`);
       }
     }
-  }, [topic, reportPlan, runLiteratureSeeding, refreshSessionLiterature]);
+  }, [topic, reportPlan, runLiteratureSeeding]);
 
   // 前往Library页面
   const handleViewLibrary = useCallback(() => {
@@ -230,8 +216,7 @@ export default function MCTSLiteratureWorkflow({
       // 使用SessionLiteratureConnector批量添加
       const result = await sessionConnector.batchAddFromUrls(mockUrls);
 
-      // 刷新文献列表
-      refreshSessionLiterature();
+      // 不需要手动刷新，sessionLiteratureFromStore会自动更新
 
       // 显示结果统计
       const resultMsg = `模拟数据生成完成：成功添加 ${result.success} 篇，重复 ${result.duplicates} 篇，失败 ${result.errors} 篇`;
@@ -251,7 +236,7 @@ export default function MCTSLiteratureWorkflow({
     } finally {
       setIsGeneratingMockData(false);
     }
-  }, [topic, sessionConnector, refreshSessionLiterature, isGeneratingMockData]);
+  }, [topic, sessionConnector, isGeneratingMockData]);
 
   // 检查是否有正在进行的任务
   const isRunning = status.includes('正在') || status.includes('生成');
@@ -376,7 +361,7 @@ export default function MCTSLiteratureWorkflow({
               {/* 1. 会话文献信息面板（上） - 增大到50%，确保内容完整显示 */}
               <div className="h-[37%] bg-white border-b border-gray-200">
                 <LiteratureInfoPanel
-                  sessionLiterature={sessionLiterature}
+                  sessionLiterature={sessionLiteratureFromStore}
                   topic={topic}
                   onViewLibrary={handleViewLibrary}
                   onSetAsRoot={handleSetAsRoot}

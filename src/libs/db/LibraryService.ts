@@ -25,7 +25,7 @@ import { generateLibraryItemId } from '../utils/uuid';
 import { z } from 'zod';
 
 // Import smart matching functionality
-import { 
+import {
   matchingEngine,
   citationLinker,
   referenceExtractor,
@@ -65,11 +65,11 @@ export class LibraryService {
   ): Promise<string> {
     try {
       console.log('🔍 [LibraryService] Starting intelligent duplicate check and merge process');
-      
+
       // 🔍 Step 1: 复用现有成熟MatchingEngine进行智能查重
       const existingItem = await matchingEngine.findItemByUrlOrDoi(
-        literatureData.url,
-        literatureData.doi,
+        literatureData.url || undefined,
+        literatureData.doi || undefined,
         literatureData.title,
         literatureData.authors,
         literatureData.year
@@ -77,33 +77,33 @@ export class LibraryService {
 
       if (existingItem) {
         console.log(`🤝 [LibraryService] Found duplicate item, performing intelligent merge: ${existingItem.title}`);
-        
+
         // 🤝 Step 2: 智能合并（合并新数据到现有项）
         const mergedData = await this.intelligentMerge(existingItem, literatureData);
-        
+
         // 📝 Step 3: 更新现有项
         await this.updateLibraryItem(existingItem.id, mergedData);
-        
+
         console.log(`✅ [LibraryService] Successfully merged with existing item: ${existingItem.id}`);
         return existingItem.id;
       } else {
         // 📚 Step 4: 创建新文献项
         console.log('📚 [LibraryService] No duplicate found, creating new literature item');
-        
+
         // 🔒 最终防御性检查：确保 authors 不为空
         const safeData = { ...literatureData };
         if (!safeData.authors || safeData.authors.length === 0) {
           console.warn('⚠️ [LibraryService] Authors array is empty in addOrUpdateLiteratureWithDuplicateCheck, applying fallback');
           safeData.authors = ['Unknown Author'];
         }
-        
+
         console.log('🔍 [LibraryService] Final data check before creation:', {
           title: safeData.title,
           authors: safeData.authors,
           authorsCount: safeData.authors?.length,
           year: safeData.year
         });
-        
+
         const newItem: LibraryItem = {
           id: generateLibraryItemId(),
           ...safeData,
@@ -112,7 +112,7 @@ export class LibraryService {
         };
 
         await this.addLibraryItem(newItem);
-        
+
         console.log(`✅ [LibraryService] Successfully created new item: ${newItem.id}`);
         return newItem.id;
       }
@@ -132,7 +132,7 @@ export class LibraryService {
    * - 内容：保留已有解析内容，补充缺失信息
    */
   private async intelligentMerge(
-    existingItem: LibraryItem, 
+    existingItem: LibraryItem,
     newData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<Partial<LibraryItem>> {
     const mergedData: Partial<LibraryItem> = {
@@ -144,17 +144,17 @@ export class LibraryService {
       mergedData.doi = newData.doi;
       console.log(`🔗 [Merge] Updated DOI: ${existingItem.doi} → ${newData.doi}`);
     }
-    
+
     if (newData.url && newData.url !== existingItem.url) {
       mergedData.url = newData.url;
       console.log(`🔗 [Merge] Updated URL: ${existingItem.url} → ${newData.url}`);
     }
 
     // 📝 标题：选择更完整的（长度更长且不是临时标题）
-    if (newData.title && 
-        newData.title.length > existingItem.title.length && 
-        !newData.title.startsWith('Processing: ') &&
-        !existingItem.title.startsWith('Processing: ')) {
+    if (newData.title &&
+      newData.title.length > existingItem.title.length &&
+      !newData.title.startsWith('Processing: ') &&
+      !existingItem.title.startsWith('Processing: ')) {
       mergedData.title = newData.title;
       console.log(`📝 [Merge] Updated title: ${existingItem.title} → ${newData.title}`);
     }
@@ -162,11 +162,11 @@ export class LibraryService {
     // 👥 作者：合并作者列表，去重
     if (newData.authors && newData.authors.length > 0) {
       const existingAuthors = existingItem.authors || [];
-      const newAuthors = newData.authors.filter(author => 
-        author !== 'Unknown Author' && 
+      const newAuthors = newData.authors.filter(author =>
+        author !== 'Unknown Author' &&
         !existingAuthors.includes(author)
       );
-      
+
       if (newAuthors.length > 0) {
         mergedData.authors = [...existingAuthors, ...newAuthors];
         console.log(`👥 [Merge] Merged authors: ${existingAuthors.length} + ${newAuthors.length} = ${mergedData.authors.length}`);
@@ -195,23 +195,23 @@ export class LibraryService {
     if (newData.parsedContent) {
       const existingParsed = existingItem.parsedContent || {};
       const newParsed = newData.parsedContent;
-      
+
       mergedData.parsedContent = {
         // 保留现有解析文本，除非新的更完整
-        extractedText: newParsed.extractedText && newParsed.extractedText.length > (existingParsed.extractedText?.length || 0) 
-          ? newParsed.extractedText 
+        extractedText: newParsed.extractedText && newParsed.extractedText.length > (existingParsed.extractedText?.length || 0)
+          ? newParsed.extractedText
           : existingParsed.extractedText,
-        
+
         // 合并引用文献列表
         extractedReferences: [
           ...(existingParsed.extractedReferences || []),
           ...(newParsed.extractedReferences || [])
-        ].filter((ref, index, arr) => 
+        ].filter((ref, index, arr) =>
           // 简单去重：基于引用文本
           arr.findIndex(r => JSON.stringify(r) === JSON.stringify(ref)) === index
         )
       };
-      
+
       console.log(`🔍 [Merge] Merged parsed content: ${(existingParsed.extractedReferences?.length || 0)} + ${(newParsed.extractedReferences?.length || 0)} references`);
     }
 
@@ -219,7 +219,7 @@ export class LibraryService {
     if (newData.topics && newData.topics.length > 0) {
       const existingTopics = existingItem.topics || [];
       const newTopics = newData.topics.filter(topic => !existingTopics.includes(topic));
-      
+
       if (newTopics.length > 0) {
         mergedData.topics = [...existingTopics, ...newTopics];
         console.log(`🏷️ [Merge] Merged topics: ${existingTopics.length} + ${newTopics.length} = ${mergedData.topics.length}`);
@@ -237,7 +237,7 @@ export class LibraryService {
       console.warn('⚠️ [LibraryService] Merged data has empty authors, applying fallback');
       mergedData.authors = ['Unknown Author'];
     }
-    
+
     console.log(`🤝 [LibraryService] Intelligent merge completed with ${Object.keys(mergedData).length} field updates`);
     console.log(`🔍 [LibraryService] Final merged authors: ${mergedData.authors}`);
     return mergedData;
@@ -249,10 +249,10 @@ export class LibraryService {
    * 仅在DOI、URL、Title发生变化时触发，减少不必要的查重开销
    */
   private shouldCheckDuplicate(
-    oldData: LibraryItem, 
+    oldData: LibraryItem,
     newData: Partial<LibraryItem>
   ): boolean {
-    return (
+    return !!(
       (newData.doi && newData.doi !== oldData.doi) ||
       (newData.url && newData.url !== oldData.url) ||
       (newData.title && newData.title !== oldData.title && !newData.title.startsWith('Processing: '))
@@ -293,12 +293,12 @@ export class LibraryService {
       // 检查是否需要查重
       if (this.shouldCheckDuplicate(existingItem, updateData)) {
         console.log('🔍 [LibraryService] Key fields changed, performing duplicate check');
-        
+
         // 构造完整的数据进行查重
         const fullData = { ...existingItem, ...updateData };
         const potentialDuplicate = await matchingEngine.findItemByUrlOrDoi(
-          fullData.url,
-          fullData.doi,
+          fullData.url || undefined,
+          fullData.doi || undefined,
           fullData.title,
           fullData.authors,
           fullData.year
@@ -307,14 +307,14 @@ export class LibraryService {
         // 如果找到重复项且不是自己
         if (potentialDuplicate && potentialDuplicate.id !== id) {
           console.log(`🤝 [LibraryService] Found duplicate during update, merging items: ${potentialDuplicate.id}`);
-          
+
           // 将更新数据合并到找到的重复项
           const mergedData = await this.intelligentMerge(potentialDuplicate, { ...existingItem, ...updateData });
           await this.updateLibraryItem(potentialDuplicate.id, mergedData);
-          
+
           // 删除原始项（已合并到重复项）
           await this.deleteLibraryItem(id);
-          
+
           // console.log(`✅ [LibraryService] Successfully merged items: ${id} → ${potentialDuplicate.id}`);
           return;
         }
@@ -323,7 +323,7 @@ export class LibraryService {
       // 没有重复，正常更新
       await this.updateLibraryItem(id, { ...updateData, updatedAt: new Date() });
       // console.log(`✅ [LibraryService] Successfully updated item: ${id}`);
-      
+
     } catch (error) {
       console.error(`❌ [LibraryService] Error in updateWithDuplicateCheck:`, error);
       throw error;
@@ -570,7 +570,7 @@ export class LibraryService {
   async getItemsByTopic(topic: string): Promise<LibraryItem[]> {
     try {
       const items = await this.db.library
-        .filter(item => item.topics && item.topics.includes(topic))
+        .filter(item => !!(item.topics && item.topics.includes(topic)))
         .toArray();
       return items;
     } catch (error) {

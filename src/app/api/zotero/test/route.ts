@@ -1,25 +1,41 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const authHeader = request.headers.get('Authorization');
-    
-    // Test data
-    const testData = {
-      request: {
-        url: request.url,
-        method: request.method,
-        headers: Object.fromEntries(request.headers.entries()),
-        searchParams: Object.fromEntries(searchParams.entries())
+    const { searchParams } = new URL(request.url);
+    const apiKey = searchParams.get('apiKey');
+    const userId = searchParams.get('userId');
+
+    if (!apiKey || !userId) {
+      return NextResponse.json(
+        { error: 'Missing API key or user ID' },
+        { status: 400 }
+      );
+    }
+
+    console.log('Zotero API Test: Fetching collections for user:', userId);
+
+    const zoteroApiUrl = `https://api.zotero.org/users/${userId}/collections`;
+
+    // 构造Zotero API请求
+    const response = await fetch(zoteroApiUrl, {
+      method: 'GET',
+      headers: {
+        'Zotero-API-Version': '3',
+        'Zotero-API-Key': apiKey,
       },
-      timestamp: new Date().toISOString(),
-      message: 'Proxy test endpoint working'
-    };
+    });
 
-    console.log('Proxy test endpoint called:', testData);
+    if (!response.ok) {
+      const errorData = await response.json();
+      return NextResponse.json(
+        { error: 'Zotero API Error', details: errorData },
+        { status: response.status }
+      );
+    }
 
-    return NextResponse.json(testData, {
+    const collections = await response.json();
+    return NextResponse.json(collections, {
       status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',

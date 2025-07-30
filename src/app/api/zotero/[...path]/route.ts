@@ -1,42 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
   try {
-    const { path } = params;
-    const searchParams = request.nextUrl.searchParams;
-    const authHeader = request.headers.get('Authorization');
-    
+    const { searchParams } = new URL(request.url);
+    const zoteroApiUrl = `https://api.zotero.org/${params.path.join('/')}?${searchParams.toString()}`;
+
+    const headers = new Headers(request.headers);
+
     console.log('Zotero proxy called with:', {
-      path,
+      path: params.path,
       url: request.url,
       method: request.method,
-      hasAuth: !!authHeader,
-      authPreview: authHeader ? authHeader.substring(0, 20) + '...' : 'none',
+      hasAuth: !!headers.get('Authorization'),
+      authPreview: headers.get('Authorization') ? headers.get('Authorization')!.substring(0, 20) + '...' : 'none',
       searchParams: Object.fromEntries(searchParams.entries())
     });
-    
-    if (!authHeader) {
+
+    if (!headers.get('Authorization')) {
       console.log('Missing authorization header');
       return NextResponse.json({ error: 'Authorization header required' }, { status: 401 });
     }
 
-    // Build the Zotero API URL
-    const zoteroPath = path.join('/');
-    const queryString = searchParams.toString();
-    const zoteroUrl = `https://api.zotero.org/${zoteroPath}${queryString ? `?${queryString}` : ''}`;
-
-    console.log('Proxying request:', {
-      originalPath: path,
-      zoteroPath,
-      zoteroUrl,
-      queryString
-    });
-
     // Forward the request to Zotero API
-    const response = await fetch(zoteroUrl, {
+    const response = await fetch(zoteroApiUrl, {
       method: 'GET',
       headers: {
-        'Authorization': authHeader,
+        'Authorization': headers.get('Authorization')!,
         'Content-Type': 'application/json',
         'Zotero-API-Version': '3',
         'User-Agent': 'Deep-Research-App/1.0'
@@ -55,23 +47,23 @@ export async function GET(request: NextRequest, { params }: { params: { path: st
     }
 
     const data = await response.json();
-    
+
     // Forward relevant headers
     const responseHeaders = new Headers();
     responseHeaders.set('Content-Type', 'application/json');
-    
+
     // Add CORS headers
     responseHeaders.set('Access-Control-Allow-Origin', '*');
     responseHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Zotero-API-Version');
-    
+
     // Copy important Zotero headers
     const importantHeaders = [
       'last-modified-version',
       'total-results',
       'link'
     ];
-    
+
     importantHeaders.forEach(header => {
       const value = response.headers.get(header);
       if (value) {
@@ -109,7 +101,7 @@ export async function POST(request: NextRequest, { params }: { params: { path: s
   try {
     const { path } = params;
     const authHeader = request.headers.get('Authorization');
-    
+
     if (!authHeader) {
       return NextResponse.json({ error: 'Authorization header required' }, { status: 401 });
     }

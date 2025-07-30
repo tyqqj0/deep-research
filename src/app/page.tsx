@@ -45,35 +45,7 @@ function Home() {
     setTheme(settingStore.theme);
   }, [theme, setTheme]);
 
-  // 🚀 启动实时更新（不需要完整初始化）- 确保主页面能接收数据库变化
-  useEffect(() => {
-    let cleanup: (() => void) | undefined;
-
-    const setupRealTimeUpdates = () => {
-      try {
-        console.log('📡 [MainPage] Starting real-time updates for library...');
-        
-        // 直接启动实时数据库订阅，不进行完整初始化避免阻塞
-        cleanup = libraryStore.startRealTimeUpdates();
-        
-        console.log('✅ [MainPage] Real-time updates started successfully');
-      } catch (error) {
-        console.error('❌ [MainPage] Failed to start real-time updates:', error);
-      }
-    };
-
-    // 使用 setTimeout 避免阻塞渲染
-    const timeoutId = setTimeout(setupRealTimeUpdates, 100);
-
-    // 清理函数
-    return () => {
-      clearTimeout(timeoutId);
-      if (cleanup) {
-        console.log('🧹 [MainPage] Cleaning up real-time updates...');
-        cleanup();
-      }
-    };
-  }, []);
+  // ✅ 库存储已在模块加载时自动初始化，无需重复初始化
 
   return (
     <div className="max-lg:max-w-screen-md max-w-screen-lg mx-auto px-4">
@@ -81,11 +53,11 @@ function Home() {
       <main>
         {/* 第一块：研究方向确定 - 始终显示 */}
         <DirectionFinding />
-        
+
         {/* 第二块：根据是否有研究主题来决定显示内容 */}
         {hasResearchTopic ? (
           // 🌱 有研究主题时：显示MCTS三面板布局
-          <MCTSLiteratureWorkflow 
+          <MCTSLiteratureWorkflow
             topic={taskStore.question}
             reportPlan={taskStore.reportPlan}
             onTopicChange={(newTopic) => taskStore.setQuestion(newTopic)}
@@ -95,7 +67,7 @@ function Home() {
           // 📚 无研究主题时：显示传统搜索结果
           <SearchResult />
         )}
-        
+
         {/* 第三块：最终报告 - 始终显示 */}
         <FinalReport />
       </main>

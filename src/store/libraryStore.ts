@@ -13,7 +13,7 @@
  * - 任务状态管理（已简化）
  * - 智能查重（已移至存储层）
  * 
- * 📊 从1900+行简化到约400行
+
  */
 
 import { create } from 'zustand';
@@ -34,6 +34,7 @@ interface LiteratureSource {
   url?: string;
   year?: number;
   journal?: string;
+  topics?: string[]; // 🏷️ 支持话题标签
 }
 
 // 📊 SSE提交状态接口
@@ -70,10 +71,10 @@ interface SimplifiedLibraryActions {
   // 🚀 核心操作
   initialize: () => Promise<void>;
   refreshItems: () => Promise<void>;
-  
+
   // 📡 SSE文献提交
   submitLiterature: (source: LiteratureSource) => Promise<void>;
-  
+
   // 📊 提交状态管理
   updateSubmissionStatus: (id: string, updates: Partial<LiteratureSubmissionState>) => void;
   completeSubmission: (id: string) => void;
@@ -89,6 +90,8 @@ interface SimplifiedLibraryActions {
   setSourceFilter: (source: LiteratureSourceEnum | 'all') => void;
   setSearchTerm: (term: string) => void;
   setTopicFilter: (topics: string[]) => void;
+  addTopicToFilter: (topic: string) => void;
+  removeTopicFromFilter: (topic: string) => void;
   getFilteredItems: () => LibraryItem[];
   loadAvailableTopics: () => Promise<void>;
 
@@ -96,6 +99,10 @@ interface SimplifiedLibraryActions {
   getItemDisplayState: (itemId: string) => TaskDisplayState | null;
   getItemDisplayStateByItem: (item: LibraryItem) => TaskDisplayState;
   clearError: () => void;
+
+  // 🔗 Zotero 相关（兼容性）
+  isZoteroConfigured: boolean;
+  zoteroSyncResult: any;
 
   // 🏗️ 向后兼容（保留重要的现有接口）
   masterAddLiterature: (itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>, options?: any) => Promise<any>;
@@ -114,39 +121,39 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   isLoading: false,
   error: null,
   isInitialized: false,
-  
+
   sourceFilter: 'all',
   searchTerm: '',
   topicFilter: [],
   availableTopics: [],
-  
+
   activeSubmissions: new Map(),
 
   // ==================== 核心操作 ====================
-  
+
   /**
    * 🚀 初始化应用
    */
   initialize: async () => {
     try {
       set({ isLoading: true, error: null });
-      
+
       // console.log('🚀 [LibraryStore] Initializing simplified store...');
-      
+
       // 📚 加载文献数据
       await get().refreshItems();
-      
+
       // 🏷️ 加载话题
       await get().loadAvailableTopics();
-      
+
       set({ isInitialized: true });
       // console.log('✅ [LibraryStore] Simplified store initialized successfully');
-      
+
     } catch (error) {
       console.error('❌ [LibraryStore] Initialization failed:', error);
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Initialization failed',
-        isLoading: false 
+        isLoading: false
       });
     }
   },
@@ -157,17 +164,17 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   refreshItems: async () => {
     try {
       // console.log('🔄 [LibraryStore] Refreshing items...');
-      
+
       const items = await libraryService.getAllLibraryItems();
       set({ items, isLoading: false });
-      
+
       // console.log(`✅ [LibraryStore] Loaded ${items.length} items`);
-      
+
     } catch (error) {
       console.error('❌ [LibraryStore] Failed to refresh items:', error);
-      set({ 
+      set({
         error: error instanceof Error ? error.message : 'Failed to refresh items',
-        isLoading: false 
+        isLoading: false
       });
     }
   },
@@ -177,12 +184,9 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
    */
   submitLiterature: async (source: LiteratureSource) => {
     const submissionId = `submission_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    try {
-      console.log('📡 [LibraryStore] Starting literature submission with immediate placeholder creation');
-      
-      // 🎯 Step 1: 立即创建占位文献
-      const placeholderItem: LibraryItem = {
+
+    // 🎯 Step 1: 立即创建占位文献（在try块外定义以便catch块访问）
+    const placeholderItem: LibraryItem = {
         id: generateLibraryItemId(),
         title: source.title || `Processing: ${source.url || source.doi || 'Unknown Literature'}`,
         authors: source.authors && source.authors.length > 0 ? source.authors : ['Unknown Author'],
@@ -192,7 +196,8 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
         publication: source.journal,
         abstract: null,
         source: 'import',
-        
+        topics: source.topics || undefined, // 🏷️ 保留话题标签
+
         // 🎯 设置等待处理的后端任务状态
         backendTask: {
           task_id: submissionId,
@@ -206,19 +211,30 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
           resource_url: null,
           error_info: null
         },
-        
+
         createdAt: new Date(),
         updatedAt: new Date()
       };
-      
+
+    try {
+      console.log('📡 [LibraryStore] Starting literature submission with immediate placeholder creation');
+
       // 🏗️ 立即添加占位文献到数据库和UI
       await libraryService.addLibraryItem(placeholderItem);
       await get().refreshItems(); // 刷新UI显示占位文献
-      
+
       // console.log(`✅ [LibraryStore] Created placeholder literature: ${placeholderItem.id}`);
-      
+
       // 📡 通过API层提交SSE请求
-      const result = await apiClient.submitLiteratureSSE(source, {
+      const apiSource = {
+        title: source.title || 'Untitled',
+        authors: source.authors || [],
+        doi: source.doi || undefined,
+        url: source.url || undefined,
+        year: source.year || new Date().getFullYear(),
+        journal: source.journal || undefined
+      };
+      const result = await apiClient.submitLiteratureSSE(apiSource, {
         // 📊 状态更新回调：更新占位文献的状态
         onStatusUpdate: async (data) => {
           try {
@@ -231,53 +247,61 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
                 status: data.status
               }
             });
-            
+
             // console.log(`🔄 [LibraryStore] Updated placeholder status: ${data.stage} (${data.progress}%)`);
           } catch (error) {
             console.error('❌ [LibraryStore] Failed to update placeholder status:', error);
           }
         },
-        
+
         // 🎉 完成回调：更新占位文献为完整数据
         onCompleted: async (data) => {
           console.log('🎉 [LibraryStore] Literature submission completed, updating placeholder:', data.literature_id);
-          
+
           try {
             // 🔄 获取完整文献数据
             const literatureData = await apiClient.getLiterature(data.literature_id);
-            
+
             // 🔄 准备更新数据（安全处理null值）
             const updateData: Partial<LibraryItem> = {
               title: literatureData.metadata?.title || literatureData.title || placeholderItem.title,
               authors: (() => {
                 // 🔍 安全处理authors字段
                 let authorsList = [];
-                
+
                 if (literatureData.metadata?.authors && Array.isArray(literatureData.metadata.authors)) {
                   authorsList = literatureData.metadata.authors
                     .map((a: any) => a?.name || (typeof a === 'string' ? a : null))
                     .filter(Boolean);
                 }
-                
+
                 if (authorsList.length === 0 && literatureData.authors && Array.isArray(literatureData.authors)) {
                   authorsList = literatureData.authors
                     .map((a: any) => typeof a === 'string' ? a : a?.name)
                     .filter(Boolean);
                 }
-                
+
                 return authorsList.length > 0 ? authorsList : placeholderItem.authors;
               })(),
               year: literatureData.metadata?.year || literatureData.year || placeholderItem.year,
               doi: literatureData.identifiers?.doi || literatureData.doi || placeholderItem.doi,
               url: literatureData.content?.pdf_url || literatureData.url || placeholderItem.url,
-              publication: literatureData.metadata?.journal || literatureData.journal || placeholderItem.publication,
-              abstract: literatureData.metadata?.abstract || null,
+              publication: literatureData.journal || placeholderItem.publication,
               
+              // 🔍 安全处理abstract字段 - 优先使用后端数据，保留原有数据作为后备
+              abstract: (literatureData.metadata as any)?.abstract || 
+                       (literatureData as any)?.abstract || 
+                       placeholderItem.abstract || 
+                       null,
+
+              // 🏷️ 保留原始话题标签，不被后端数据覆盖
+              topics: placeholderItem.topics || undefined,
+
               parsedContent: {
                 extractedText: literatureData.content?.has_grobid_fulltext ? 'Available' : undefined,
                 extractedReferences: Array.isArray(literatureData.references) ? literatureData.references : []
               },
-              
+
               // 🎆 更新为完成状态
               backendTask: {
                 task_id: submissionId,
@@ -291,28 +315,26 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
                 resource_url: data.resource_url,
                 error_info: null
               },
-              
+
               updatedAt: new Date()
             };
-            
+
             console.log('🔍 [LibraryStore] Updating placeholder with completed data:', {
               placeholderId: placeholderItem.id,
               title: updateData.title,
               authors: updateData.authors,
+              topics: updateData.topics, // 🏷️ 显示保留的话题标签
               literatureId: data.literature_id
             });
-            
+
             // 🔄 更新占位文献
             await get().updateLibraryItem(placeholderItem.id, updateData);
-            
-            toast.success('文献处理完成！', {
-              description: `${updateData.title} 已成功解析并更新`,
-              duration: 5000
-            });
-            
+
+            // 单个文献处理完成不显示 toast，避免过多提示
+
           } catch (error) {
             console.error('❌ [LibraryStore] Failed to update placeholder literature:', error);
-            
+
             // 🚑 更新失败，标记为错误状态
             await get().updateLibraryItem(placeholderItem.id, {
               backendTask: {
@@ -323,22 +345,22 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
                 error_info: { error: error instanceof Error ? error.message : 'Unknown error' }
               }
             });
-            
+
             toast.error('文献更新失败', {
               description: error instanceof Error ? error.message : 'Unknown error',
               duration: 8000
             });
           }
         },
-        
+
         // ❌ 错误回调：根据错误类型更新占位文献状态
         onError: async (error) => {
           console.log('❌ [LibraryStore] Literature submission failed:', error);
-          
+
           try {
             // 🎯 根据错误类型设置不同的状态字段
             let backendTaskUpdate: Partial<BackendTask>;
-            
+
             if (error.error_type === 'URLValidationError') {
               // 🔗 URL验证错误：设置URL验证状态字段
               backendTaskUpdate = {
@@ -346,6 +368,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
                 url_validation_status: 'failed',
                 url_validation_error: error.error || 'URL验证失败',
                 original_url: error.details?.original_url || source.url || null,
+                status: 'failed', // 确保status字段存在
                 current_stage: 'URL验证失败',
                 error_info: {
                   error_type: 'URLValidationError',
@@ -361,24 +384,24 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
                 execution_status: 'failed',
                 status: 'failed',
                 current_stage: '处理失败',
-                error_info: { 
+                error_info: {
                   error_type: error.error_type || 'SubmissionError',
-                  error: error.error || error.message || 'Unknown error',
+                  error: error.error || 'Unknown error',
                   details: error.details
                 }
               };
               console.log(`🚫 [LibraryStore] Processing failed for: ${placeholderItem.id}`);
             }
-            
+
             // 🔄 更新占位文献的状态
             await get().updateLibraryItem(placeholderItem.id, {
               backendTask: backendTaskUpdate
             });
-            
+
           } catch (updateError) {
             console.log('❌ [LibraryStore] Failed to update placeholder error state:', updateError);
           }
-          
+
           // 📢 显示错误提示
           get().failSubmission(submissionId, error);
         }
@@ -393,7 +416,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
               execution_status: 'failed',
               status: 'failed',
               current_stage: '提交失败',
-              error_info: { 
+              error_info: {
                 error_type: 'SubmissionError',
                 error: result.error || 'Submission failed'
               }
@@ -402,13 +425,13 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
         } catch (updateError) {
           console.log('❌ [LibraryStore] Failed to update placeholder on submission failure:', updateError);
         }
-        
+
         get().failSubmission(submissionId, { error: result.error || 'Submission failed' });
       }
 
     } catch (error) {
       console.log('❌ [LibraryStore] SSE submission error:', error);
-      
+
       // 🚑 捕获异常时，更新占位文献状态
       try {
         await get().updateLibraryItem(placeholderItem.id, {
@@ -417,7 +440,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
             execution_status: 'failed',
             status: 'failed',
             current_stage: '连接失败',
-            error_info: { 
+            error_info: {
               error_type: 'ConnectionError',
               error: error instanceof Error ? error.message : 'Unknown error'
             }
@@ -426,9 +449,9 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
       } catch (updateError) {
         console.log('❌ [LibraryStore] Failed to update placeholder on exception:', updateError);
       }
-      
-      get().failSubmission(submissionId, { 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+
+      get().failSubmission(submissionId, {
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   },
@@ -440,16 +463,16 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     set(state => {
       const newSubmissions = new Map(state.activeSubmissions);
       const existing = newSubmissions.get(id);
-      
+
       if (existing) {
         // 过滤掉undefined值以避免spread类型错误
         const filteredUpdates = Object.fromEntries(
           Object.entries(updates).filter(([_, value]) => value !== undefined)
         ) as Partial<LiteratureSubmissionState>;
-        
+
         newSubmissions.set(id, { ...existing, ...filteredUpdates });
       }
-      
+
       return { activeSubmissions: newSubmissions };
     });
   },
@@ -463,7 +486,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
       progress: 100,
       stage: '完成'
     });
-    
+
     // 🕐 3秒后移除
     setTimeout(() => {
       get().removeSubmission(id);
@@ -476,7 +499,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   failSubmission: (id: string, error: any) => {
     const submission = get().activeSubmissions.get(id);
     const errorMsg = error?.error || error?.message || 'Unknown error';
-    
+
     get().updateSubmissionStatus(id, {
       status: error?.error_type === 'URLValidationError' ? 'url_failed' : 'failed',
       stage: `失败: ${errorMsg}`
@@ -498,10 +521,10 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
         duration: 8000
       });
     }
-    
+
     // 🕐 5秒后移除
     setTimeout(() => {
-      get().removeSubmission(id);  
+      get().removeSubmission(id);
     }, 5000);
   },
 
@@ -563,10 +586,10 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
       // 批量删除
       const deletePromises = ids.map(id => libraryService.deleteLibraryItem(id));
       await Promise.all(deletePromises);
-      
+
       await get().refreshItems(); // 刷新UI
       // console.log(`✅ [LibraryStore] Successfully deleted ${ids.length} items`);
-      
+
       toast.success(`已删除 ${ids.length} 项文献`);
     } catch (error) {
       console.log(`❌ [LibraryStore] Failed to delete items:`, error);
@@ -592,44 +615,56 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     set({ topicFilter: topics });
   },
 
+  addTopicToFilter: (topic: string) => {
+    const { topicFilter } = get();
+    if (!topicFilter.includes(topic)) {
+      set({ topicFilter: [...topicFilter, topic] });
+    }
+  },
+
+  removeTopicFromFilter: (topic: string) => {
+    const { topicFilter } = get();
+    set({ topicFilter: topicFilter.filter(t => t !== topic) });
+  },
+
   /**
    * 🔍 获取过滤后的文献列表
    */
   getFilteredItems: () => {
     const { items, sourceFilter, searchTerm, topicFilter } = get();
-    
+
     return items.filter(item => {
       // 🎯 来源过滤
       if (sourceFilter !== 'all' && item.source !== sourceFilter) {
         return false;
       }
-      
+
       // 🔍 搜索词过滤
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
         const titleMatch = item.title.toLowerCase().includes(searchLower);
-        const authorMatch = item.authors.some(author => 
+        const authorMatch = item.authors.some(author =>
           author.toLowerCase().includes(searchLower)
         );
         const abstractMatch = item.abstract?.toLowerCase().includes(searchLower);
-        
+
         if (!titleMatch && !authorMatch && !abstractMatch) {
           return false;
         }
       }
-      
+
       // 🏷️ 主题过滤
       if (topicFilter.length > 0) {
         const itemTopics = item.topics || [];
-        const hasMatchingTopic = topicFilter.some(filterTopic => 
+        const hasMatchingTopic = topicFilter.some(filterTopic =>
           itemTopics.includes(filterTopic)
         );
-        
+
         if (!hasMatchingTopic) {
           return false;
         }
       }
-      
+
       return true;
     });
   },
@@ -641,16 +676,16 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     try {
       const items = await libraryService.getAllLibraryItems();
       const topicsSet = new Set<string>();
-      
+
       items.forEach(item => {
         if (item.topics) {
           item.topics.forEach(topic => topicsSet.add(topic));
         }
       });
-      
+
       const availableTopics = Array.from(topicsSet).sort();
       set({ availableTopics });
-      
+
       console.log(`🏷️ [LibraryStore] Loaded ${availableTopics.length} available topics`);
     } catch (error) {
       console.error('❌ [LibraryStore] Failed to load topics:', error);
@@ -679,6 +714,10 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     set({ error: null });
   },
 
+  // Zotero 相关方法（兼容性保留）
+  isZoteroConfigured: false,
+  zoteroSyncResult: null,
+
   // ==================== 向后兼容 ====================
 
   /**
@@ -686,31 +725,32 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
    * 现在委托给新的SSE提交方法
    */
   masterAddLiterature: async (
-    itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>, 
+    itemData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>,
     options?: any
   ) => {
     try {
       console.log('🔄 [LibraryStore] masterAddLiterature called, delegating to SSE submission');
-      
+
       // 🔄 转换为LiteratureSource格式
       const source: LiteratureSource = {
         title: itemData.title,
         authors: itemData.authors,
-        doi: itemData.doi,
-        url: itemData.url,
-        year: itemData.year,
-        journal: itemData.publication
+        doi: itemData.doi || undefined,
+        url: itemData.url || undefined,
+        year: itemData.year || undefined,
+        journal: itemData.publication || undefined,
+        topics: itemData.topics || undefined // 🏷️ 保留话题标签
       };
-      
+
       // 📡 委托给SSE提交
       await get().submitLiterature(source);
-      
+
       // 🎯 返回成功结果（向后兼容）
       return {
         success: true,
         processingMode: 'sse'
       };
-      
+
     } catch (error) {
       console.error('❌ [LibraryStore] masterAddLiterature failed:', error);
       return {
@@ -726,29 +766,26 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
    */
   masterAddLiteratures: async (itemsData: Omit<LibraryItem, 'id' | 'createdAt' | 'updatedAt'>[]) => {
     try {
-      console.log(`🚀 [LibraryStore] Starting PARALLEL batch processing for ${itemsData.length} items`);
-      
-      const results = [];
+      console.log(`🚀 [LibraryStore] Starting parallel batch processing for ${itemsData.length} items`);
+
+      const results: any[] = [];
       let totalAdded = 0;
       let totalErrors = 0;
-      
+
       // 🎯 并发控制：最多同时处理5个请求，避免压垮后端
       const CONCURRENT_LIMIT = 5;
       const batches = [];
-      
+
       // 📦 将数据分批处理
       for (let i = 0; i < itemsData.length; i += CONCURRENT_LIMIT) {
         const batch = itemsData.slice(i, i + CONCURRENT_LIMIT);
         batches.push(batch);
       }
-      
-      console.log(`📦 [LibraryStore] Processing ${batches.length} batches with max ${CONCURRENT_LIMIT} concurrent connections`);
-      
+
       // 🔄 批次间串行，批次内并行
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batch = batches[batchIndex];
-        console.log(`🔄 [LibraryStore] Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} items)`);
-        
+
         // 🚀 批次内并行处理
         const batchPromises = batch.map(async (itemData, itemIndex) => {
           const globalIndex = batchIndex * CONCURRENT_LIMIT + itemIndex;
@@ -770,16 +807,16 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
             };
           }
         });
-        
+
         // ⏳ 等待当前批次完成
         const batchResults = await Promise.allSettled(batchPromises);
-        
+
         // 📊 处理批次结果
         batchResults.forEach((settledResult, itemIndex) => {
           if (settledResult.status === 'fulfilled') {
             const result = settledResult.value;
             results.push(result);
-            
+
             if (result.success) {
               totalAdded++;
             } else {
@@ -799,19 +836,19 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
             totalErrors++;
           }
         });
-        
+
         // console.log(`✅ [LibraryStore] Batch ${batchIndex + 1} completed: ${batch.length} items processed`);
       }
 
       // 🎯 返回批量结果（向后兼容）
       const finalResult = {
-        results,
+        results: results as any[],
         totalAdded,
         totalErrors
       };
-      
+
       console.log(`🎊 [LibraryStore] Batch submission completed: ${totalAdded} added, ${totalErrors} errors`);
-      
+
       // 🎭 显示批量结果提示
       if (totalAdded > 0) {
         toast.success(`批量添加完成`, {
@@ -824,9 +861,9 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
           duration: 8000
         });
       }
-      
+
       return finalResult;
-      
+
     } catch (error) {
       console.error('❌ [LibraryStore] masterAddLiteratures failed:', error);
       return {
@@ -847,7 +884,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
    */
   startRealTimeUpdates: () => {
     console.log('🔄 [LibraryStore] Real-time updates requested - using SSE instead of polling');
-    
+
     // 在SSE架构中，实时更新通过submitLiterature的EventSource连接处理
     // 这里返回一个空的清理函数以保持接口兼容
     return () => {
