@@ -95,6 +95,9 @@ export default function MCTSLiteratureWorkflow({
 
   // 🌳 TreeBuilder Hook - SG-MCTS功能
   const treeBuilder = useTreeBuilder();
+  
+  // 🎯 使用当前构建的树ID，而不是props中的treeId
+  const currentTreeId = treeBuilder.currentTree?.id || treeId;
 
   // 🔗 会话文献连接件
   const sessionConnector = useMemo(() => {
@@ -180,10 +183,12 @@ export default function MCTSLiteratureWorkflow({
 
       await treeBuilder.startTreeBuilding(item, topic);
 
-      toast.success(`已将"${item.title}"设为根节点`, { id: 'tree-creation' });
+      toast.success(`已将"${item.title}"设为根节点，树可视化已更新`, { id: 'tree-creation' });
 
-      // 可选：切换到树可视化模式
+      // 确保在三面板模式下显示树（不自动最大化）
       setIsTreeMaximized(false);
+
+      console.log('🌳 [MCTSWorkflow] Tree created successfully with ID:', treeBuilder.currentTree?.id);
 
     } catch (error) {
       console.error('设置根节点失败:', error);
@@ -344,7 +349,7 @@ export default function MCTSLiteratureWorkflow({
               </CardHeader>
               <CardContent className="h-[calc(100%-80px)] p-6">
                 <TreeVisualization
-                  treeId={treeId}
+                  treeId={currentTreeId}
                   mode="edit"
                   height="100%"
                   showControls={true}
@@ -392,12 +397,28 @@ export default function MCTSLiteratureWorkflow({
                   {/* 集成的内容区域 */}
                   <CardContent className="h-[calc(100%-60px)] p-3 flex gap-3">
                     {/* 左侧：树可视化区域 */}
-                    <div className="flex-1 bg-white rounded-lg border border-green-100 flex items-center justify-center text-gray-500 shadow-sm">
-                      <div className="text-center">
-                        <TreePine className="h-8 w-8 mx-auto mb-2 text-green-400 opacity-60" />
-                        <p className="text-sm font-medium text-gray-600">知识树可视化</p>
-                        <p className="text-xs text-gray-400 mt-1">树状图将在此显示</p>
-                      </div>
+                    <div className="flex-1 bg-white rounded-lg border border-green-100 shadow-sm">
+                      {currentTreeId ? (
+                        <TreeVisualization
+                          treeId={currentTreeId}
+                          mode="view"
+                          height="100%"
+                          showControls={false}
+                          showMiniMap={false}
+                          showTreeSelector={false}
+                          showNodeStats={false}
+                          enablePhysics={true}
+                          className="w-full h-full rounded-lg"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-gray-500">
+                          <div className="text-center">
+                            <TreePine className="h-8 w-8 mx-auto mb-2 text-green-400 opacity-60" />
+                            <p className="text-sm font-medium text-gray-600">知识树可视化</p>
+                            <p className="text-xs text-gray-400 mt-1">点击"设为根节点"开始构建树</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* 右侧：MCTS控制区域 */}
