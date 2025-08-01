@@ -1,5 +1,6 @@
 import { LiteratureTree, MCTSNode } from '../db';
 import { generateNodeId } from '../utils/uuid';
+import { treeService } from './TreeService';
 
 export class TreeController {
   private tree: LiteratureTree;
@@ -131,8 +132,14 @@ export class TreeController {
     }
   }
 
-  // Persistence method
+  // 🎯 持久化方法 - 保存树到数据库
   async save(): Promise<void> {
-    await this.service.saveTree(this.tree);
+    try {
+      await treeService.updateTree(this.tree);
+      console.log(`💾 [TreeController] 树已保存到数据库: ${this.tree.id}`);
+    } catch (error) {
+      console.error(`❌ [TreeController] 保存树失败:`, error);
+      throw error;
+    }
   }
 }

@@ -332,6 +332,31 @@ export default function MCTSControlPanel({
             </Button>
           </div>
 
+          {/* 🎯 Debug按钮 */}
+          <div className="mt-2">
+            <Button
+              onClick={() => {
+                console.log('🎯 [DEBUG] 当前TreeBuilder状态:', {
+                  currentTreeId: treeBuilder.currentTreeId,
+                  currentSession: treeBuilder.currentSession,
+                  isBuilding: treeBuilder.isBuilding,
+                  currentIteration: treeBuilder.currentIteration,
+                  maxIterations: treeBuilder.maxIterations,
+                  buildingStatus: treeBuilder.buildingStatus,
+                  error: treeBuilder.error?.message
+                });
+                console.log('🎯 [DEBUG] TaskStore状态:', taskStore);
+                toast.info('Debug信息已输出到控制台');
+              }}
+              size="sm"
+              variant="ghost"
+              className="w-full flex items-center gap-1 text-xs"
+            >
+              <Brain className="h-3 w-3" />
+              🐛 Debug状态
+            </Button>
+          </div>
+
           {/* 暂停/恢复/停止按钮 */}
           <div className="flex gap-2">
             {canPause && (

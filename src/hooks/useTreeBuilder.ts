@@ -18,6 +18,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { MCTSNode, LibraryItem, LiteratureTree } from '@/libs/db';
 import { treeService } from '@/libs/tree/TreeService';
+import { createSessionLiteratureConnector } from '@/libs/research/SessionLiteratureConnector';
+import { TreeController } from '@/libs/tree/TreeController';
 import { MainPageTreeSession } from '@/libs/tree/MainPageTreeSession';
 import { libraryService } from '@/libs/db/LibraryService';
 import { useLibraryStore } from '@/store/libraryStore';
@@ -201,9 +203,24 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
       // 更新状态
       taskStore.runSingleIteration();
 
+      console.log('🎯 [TreeBuilder] 开始执行MCTS迭代', {
+        treeId: currentTree.id,
+        treeName: currentTree.name,
+        researchTopic: context.researchTopic,
+        currentIteration: taskStore.algorithmState?.currentIteration || 0
+      });
+
       // 执行MCTS迭代
       const result = await controllerRef.current.runSingleIteration(currentTree, context);
-      
+
+      console.log('✅ [TreeBuilder] MCTS迭代执行完成', {
+        selectedNodeId: result.selectedNode.id,
+        expandedNodeId: result.expandedNode?.id,
+        reward: result.reward,
+        hasNewNode: !!result.expandedNode,
+        executionTime: result.executionTime
+      });
+
       // 🎯 更新状态和统计（使用TaskStore）
       taskStore.addIterationResult(result);
 
@@ -401,8 +418,32 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
     researchTopic: string
   ) => {
     try {
-      // 🎯 创建模块化算法套件
-      const modularAlgorithms = createDefaultModularAlgorithmSuite();
+      // 🎯 创建SessionLiteratureConnector
+      const taskStore = useTaskStore.getState();
+      const sessionConnector = createSessionLiteratureConnector({
+        topic: taskStore.question || taskStore.title || 'MCTS研究',
+        autoTag: true,
+        filterByTopic: true
+      });
+
+      console.log('🔧 [TreeBuilder] 创建SessionLiteratureConnector完成');
+
+      // 🎯 创建模块化算法套件（注入SessionConnector）
+      console.log('🔧 [TreeBuilder] 创建模块化算法套件...');
+      const modularAlgorithms = createDefaultModularAlgorithmSuite(sessionConnector);
+
+      console.log('🔧 [TreeBuilder] 模块化算法套件创建完成:', {
+        thinker: !!modularAlgorithms.thinker,
+        formulator: !!modularAlgorithms.formulator,
+        citer: !!modularAlgorithms.citer,
+        validator: !!modularAlgorithms.validator,
+        locator: !!modularAlgorithms.locator,
+        rewardCalculator: !!modularAlgorithms.rewardCalculator,
+        expander: !!modularAlgorithms.expander,
+        thinkerType: modularAlgorithms.thinker?.constructor?.name,
+        thinkerMethods: Object.getOwnPropertyNames(Object.getPrototypeOf(modularAlgorithms.thinker)),
+        hasSessionConnector: !!sessionConnector
+      });
 
       // 创建默认MCTS配置
       const config = {
@@ -414,8 +455,25 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
         batchSize: 3
       };
 
+      // 🎯 获取当前树并创建TreeController
+      const currentTree = await getCurrentTree();
+      if (!currentTree) {
+        throw new Error('无法获取当前树，无法创建TreeController');
+      }
+
+      console.log('🌳 [TreeBuilder] 创建TreeController...');
+      const treeController = new TreeController(currentTree, libraryService);
+      console.log('🌳 [TreeBuilder] TreeController创建完成');
+
       // 创建模块化控制器实例
-      controllerRef.current = new SGMCTSController(modularAlgorithms, config);
+      console.log('🔧 [TreeBuilder] 创建SGMCTSController...');
+      controllerRef.current = new SGMCTSController(
+        modularAlgorithms,
+        config,
+        treeController,
+        currentTree
+      );
+      console.log('🔧 [TreeBuilder] SGMCTSController创建完成');
 
       taskStore.updateBuildingStatus('模块化MCTS控制器已初始化');
 

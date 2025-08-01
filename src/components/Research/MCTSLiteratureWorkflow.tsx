@@ -213,16 +213,61 @@ export default function MCTSLiteratureWorkflow({
 
     try {
       // 预定义的模拟URL列表 - 包含一些无效URL来测试错误处理
+      // const mockUrls = [
+      //   'https://arxiv.org/abs/2301.00001', // 示例arXiv论文
+      //   'https://fake-journal.com/article/123456', // 🔗 测试无效URL
+      //   'https://www.nature.com/articles/s41586-023-00001-0', // Nature文章
+      //   'https://science.sciencemag.org/content/379/6628/123', // Science文章
+      //   'https://invalid-domain-test.fake/paper/123', // 🔗 测试无效域名
+      //   'https://link.springer.com/article/10.1007/s00000-023-00001-0', // Springer文章
+      //   'https://www.cell.com/cell/fulltext/S0092-8674(23)00001-0', // Cell期刊
+      //   'https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0000001' // PLOS ONE
+      // ];
       const mockUrls = [
-        'https://arxiv.org/abs/2301.00001', // 示例arXiv论文
-        'https://fake-journal.com/article/123456', // 🔗 测试无效URL
-        'https://www.nature.com/articles/s41586-023-00001-0', // Nature文章
-        'https://science.sciencemag.org/content/379/6628/123', // Science文章
-        'https://invalid-domain-test.fake/paper/123', // 🔗 测试无效域名
-        'https://link.springer.com/article/10.1007/s00000-023-00001-0', // Springer文章
-        'https://www.cell.com/cell/fulltext/S0092-8674(23)00001-0', // Cell期刊
-        'https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0000001' // PLOS ONE
+        // --- Part 1: 基石与经典 (Foundations & Classics) ---
+        // 'https://proceedings.neurips.cc/paper/1986/file/2838023a778dfa2b039863695321fed1-Paper.pdf',
+        'https://ieeexplore.ieee.org/document/726791',
+        // 'https://papers.nips.cc/paper/2012/hash/c399862d3b9d6b76c8436e924a68c45b-Abstract.html',
+
+        // --- Part 2: 序列模型与RNN时代 (Sequence Models & The RNN Era) ---
+        'https://arxiv.org/abs/1409.3215',
+        'https://arxiv.org/abs/1406.1078',
+        'https://arxiv.org/abs/1409.0473',
+
+        // --- Part 3: 注意力与Transformer的革命 (The Attention & Transformer Revolution) ---
+        'https://arxiv.org/abs/1706.03762',
+        'https://arxiv.org/abs/1810.04805',
+
+        // --- Part 4: GPT系列与大语言模型 (The GPT Series & LLMs) ---
+        // 'https://s3-us-west-2.amazonaws.com/openai-assets/research-covers/language-unsupervised/language_understanding_paper.pdf',
+        // 'https://d4mucfpksywv.cloudfront.net/better-language-models/language-models.pdf',
+        'https://arxiv.org/abs/2005.14165',
+        'https://arxiv.org/abs/2203.02155',
+
+        // --- Part 5: RAG与模型增强技术 (RAG & Model Enhancement) ---
+        'https://arxiv.org/abs/2005.11401',
+        'https://arxiv.org/abs/2201.11903',
+        'https://arxiv.org/abs/2106.09685',
+
+        // --- Part 6: 当代开源模型与创新 (Modern Open Models & Innovations) ---
+        'https://arxiv.org/abs/2302.13971',
+        'https://arxiv.org/abs/2307.09288',
+        'https://arxiv.org/abs/2401.02385',
+        'https://arxiv.org/abs/2311.16101',
+        'https://arxiv.org/abs/2101.03961',
+        'https://arxiv.org/abs/2401.04088',
+
+        // --- Part 7: 其他重要期刊/来源 (Other Important Venues) ---
+        // 'https://www.nature.com/articles/s41586-021-03819-2',
+        // 'https://www.science.org/doi/10.1126/science.abq1158',
+        // 'https://www.cell.com/cancer-cell/fulltext/S1535-6108(20)30154-3',
+
+        // --- Part 8: 测试/边缘情况URL (Testing & Edge Cases) ---
+        // 'https://arxiv.org/abs/9999.99999',
+        // 'https://fake-journal-of-science.my-domain/article/123456',
+        // 'http://example.com/not-a-paper.html'
       ];
+
 
       console.log(`[MockDataGen] 开始为话题 "${topic}" 生成模拟数据`);
 

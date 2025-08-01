@@ -146,15 +146,15 @@ export class LibraryService {
   async deleteLibraryItem(id: string): Promise<void> {
     try {
       // 🗑️ 首先删除所有相关的引用关系
-      console.log(`🗑️ Deleting all citations related to item: ${id}`);
+      // console.log(`🗑️ Deleting all citations related to item: ${id}`);
 
       // 删除该文献作为源头的引用 (sourceItemId)
       const sourceCount = await this.db.citations.where('sourceItemId').equals(id).delete();
-      console.log(`🗑️ Deleted ${sourceCount} citations where this item was the source`);
+      // console.log(`🗑️ Deleted ${sourceCount} citations where this item was the source`);
 
       // 删除该文献作为目标的引用 (targetItemId)
       const targetCount = await this.db.citations.where('targetItemId').equals(id).delete();
-      console.log(`🗑️ Deleted ${targetCount} citations where this item was the target`);
+      // console.log(`🗑️ Deleted ${targetCount} citations where this item was the target`);
 
       // 🗑️ 最后删除文献本身
       const count = await this.db.library.where('id').equals(id).delete();
@@ -818,11 +818,11 @@ export class LibraryService {
 
           const score = this.calculateMatchScore(extractedRef, newItem);
           if (score > 0.6) { // 🎯 使用和 findMatchingLiterature 相同的更严格阈值
-            console.log(`🔗 [BACKWARD] Creating backward link: ${existingItem.title} → ${newItem.title} (score: ${score.toFixed(3)})`);
+            // console.log(`🔗 [BACKWARD] Creating backward link: ${existingItem.title} → ${newItem.title} (score: ${score.toFixed(3)})`);
             const created = await this.createCitationLink(existingItem.id, newItem.id);
             if (created) backwardLinks++;
           } else {
-            console.log(`⏭️ [BACKWARD] Skipping low-score match: ${existingItem.title} → ${newItem.title} (score: ${score.toFixed(3)}, threshold: 0.6)`);
+            // console.log(`⏭️ [BACKWARD] Skipping low-score match: ${existingItem.title} → ${newItem.title} (score: ${score.toFixed(3)}, threshold: 0.6)`);
           }
         }
       }

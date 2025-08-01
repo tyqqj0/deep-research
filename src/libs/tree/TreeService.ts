@@ -135,6 +135,15 @@ export class TreeService {
         throw new Error(`Parent node ${parentNodeId} not found in tree`);
       }
 
+      // 🎯 临时修复：如果libraryItemId不是有效UUID，生成一个新的
+      // let validLibraryItemId = libraryItemId;
+      // const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      // if (!uuidRegex.test(libraryItemId)) {
+      //   validLibraryItemId = crypto.randomUUID();
+      //   console.warn(`⚠️ [TreeService] 非UUID格式的libraryItemId: ${libraryItemId}, 已转换为: ${validLibraryItemId}`);
+      // }
+
       // 创建新节点
       const newNode: MCTSNode = {
         id: generateNodeId(),

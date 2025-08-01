@@ -26,6 +26,7 @@ import {
 import { MCTSNode, LibraryItem, LiteratureTree } from '@/libs/db';
 import { treeService } from '@/libs/tree/TreeService';
 import { libraryService } from '@/libs/db/LibraryService';
+import { TreeController } from '@/libs/tree/TreeController';
 
 // 导入新的模块化组件
 import { IThinker } from './algorithms/modules/Thinker';
@@ -97,8 +98,12 @@ export class SGMCTSController {
   private locator: ILocator;
   private rewardCalculator: IRewardCalculator;
   private modularExpander: IExpander;
-  
+
   private config: MCTSConfig;
+
+  // 🎯 真实树控制器 - 替代内存树管理
+  private treeController: TreeController;
+  private currentTree: LiteratureTree;
 
   // 执行状态
   private executionState: SGMCTSExecutionState;
@@ -106,8 +111,13 @@ export class SGMCTSController {
   private shouldStop: boolean = false;
   private shouldPause: boolean = false;
 
-  // 🎯 统一构造函数 - 只支持模块化算法
-  constructor(algorithms: ModularAlgorithms, config: MCTSConfig) {
+  // 🎯 统一构造函数 - 只支持模块化算法 + TreeController
+  constructor(
+    algorithms: ModularAlgorithms,
+    config: MCTSConfig,
+    treeController: TreeController,
+    tree: LiteratureTree
+  ) {
     this.config = config;
 
     // 🎯 初始化模块化算法组件
@@ -118,6 +128,12 @@ export class SGMCTSController {
     this.locator = algorithms.locator;
     this.rewardCalculator = algorithms.rewardCalculator;
     this.modularExpander = algorithms.expander;
+
+    // 🎯 初始化真实树控制器
+    this.treeController = treeController;
+    this.currentTree = tree;
+
+    console.log(`🌳 [SGMCTSController] 使用真实TreeController，树ID: ${tree.id}, 根节点: ${tree.rootNodeId}`);
 
     // 初始化状态
     this.executionState = {
@@ -142,25 +158,40 @@ export class SGMCTSController {
    * @returns 迭代结果
    */
   async runSingleIteration(
-    tree: LiteratureTree, 
+    tree: LiteratureTree,
     context: EvaluationContext
   ): Promise<MCTSIterationResult> {
     const startTime = Date.now();
     this.executionState.error = null;
-    
+
+    console.log('🚀 [SGMCTSController] 开始单次MCTS迭代', {
+      treeId: tree.id,
+      researchTopic: context.researchTopic,
+      currentPath: context.currentPath.map(n => n.id)
+    });
+
     try {
       // 检查中断信号
       if (this.shouldStop) {
         throw new AlgorithmError('执行被用户停止', 'controller');
       }
-      
+
       if (this.shouldPause) {
         this.executionState.phase = 'idle';
         throw new AlgorithmError('执行被用户暂停', 'controller');
       }
 
       // 🎯 统一使用模块化算法
-      return await this.runModularIteration(tree, context, startTime);
+      const result = await this.runModularIteration(tree, context, startTime);
+
+      console.log('✅ [SGMCTSController] MCTS迭代完成', {
+        selectedNodeId: result.selectedNode.id,
+        expandedNodeId: result.expandedNode?.id,
+        reward: result.reward,
+        executionTime: result.executionTime
+      });
+
+      return result;
       
     } catch (error) {
       this.executionState.error = error as Error;
@@ -309,41 +340,50 @@ export class SGMCTSController {
   // ==================== 模块化阶段实现 ====================
 
   /**
-   * 模块化选择阶段 - 使用Locator进行节点选择
+   * 🎯 模块化选择阶段 - 使用TreeController进行节点选择
    */
   private async modularSelectionPhase(
     tree: LiteratureTree,
     context: EvaluationContext
   ): Promise<MCTSNode> {
     const startTime = Date.now();
-    
+
     try {
-      let currentNode = tree.nodes[tree.rootNodeId];
+      console.log(`🔍 [SGMCTSController] 开始选择阶段，使用TreeController`);
+
+      // 🎯 使用TreeController的智能选择
+      let currentNode = this.treeController.getNode(tree.rootNodeId);
       if (!currentNode) {
         throw new AlgorithmError('根节点不存在', 'locator');
       }
 
       const path: MCTSNode[] = [currentNode];
-      
-      // 使用Locator进行智能节点选择
+
+      // 🎯 使用TreeController进行智能节点选择
       while (true) {
-        const children = Object.values(tree.nodes).filter(
-          node => node.parentId === currentNode.id
-        );
-        
+        const children = this.treeController.getChildren(currentNode.id);
+
         if (children.length === 0) {
+          console.log(`🔍 [SGMCTSController] 到达叶子节点: ${currentNode.id}`);
           break;
         }
-        
-        // 使用Locator选择最佳节点
-        const selectionResult = await this.locator!.selectBestNode(
-          children,
-          context
+
+        // 🎯 使用TreeController的findBestChild方法
+        const bestChild = this.treeController.findBestChild(
+          currentNode.id,
+          this.config.explorationConstant || 1.41
         );
-        
-        currentNode = selectionResult.selectedNode;
+
+        if (!bestChild) {
+          console.log(`🔍 [SGMCTSController] 无法找到最佳子节点，停在: ${currentNode.id}`);
+          break;
+        }
+
+        currentNode = bestChild;
         path.push(currentNode);
-        
+
+        console.log(`🔍 [SGMCTSController] 选择节点: ${currentNode.id}, 访问次数: ${currentNode.visits}`);
+
         if (currentNode.visits === 0 || path.length > this.config.maxDepth) {
           break;
         }
@@ -413,21 +453,33 @@ export class SGMCTSController {
         }
       );
       
-      // 将扩展结果中的节点添加到树中
+      // 🎯 将扩展结果中的节点添加到TreeController中
       for (const expandedNode of expansionResult.expandedNodes) {
         if (expandedNode.node.id.startsWith('temp_')) {
-          // 创建真实的树节点
-          const literature = expandedNode.citations[0]?.literature;
-          if (literature) {
-            const newNode = await treeService.addNodeToTree(
-              tree.id,
+          // 🎯 使用TreeController创建真实的树节点
+          const citation = expandedNode.citations[0];
+          if (citation) {
+            console.log('🌳 [SGMCTSController] 使用TreeController创建节点:', {
+              parentId: selectedNode.id,
+              literatureId: citation.literatureId,
+              literatureTitle: citation.literature?.title,
+              isValidUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(citation.literatureId)
+            });
+
+            // 🎯 使用TreeController添加子节点
+            const newNode = this.treeController.addChild(
               selectedNode.id,
-              literature.id
+              citation.literatureId
             );
-            
+
+            console.log(`✅ [SGMCTSController] TreeController创建节点成功: ${newNode.id}`);
+
+            // 🎯 保存到数据库
+            await this.treeController.save();
+
             // 更新扩展节点中的ID
             expandedNode.node = newNode;
-            
+
             // 更新统计信息
             this.statistics.nodeStatistics.nodesCreated += 1;
           }
@@ -544,7 +596,71 @@ export class SGMCTSController {
 
   // 🗑️ 传统evaluationPhase已移除
 
-  // 🗑️ 传统backpropagationPhase已移除
+  /**
+   * 🎯 反向传播阶段 - 使用TreeController更新节点统计信息
+   */
+  private async backpropagationPhase(
+    node: MCTSNode,
+    reward: number,
+    tree: LiteratureTree
+  ): Promise<void> {
+    const startTime = Date.now();
+
+    try {
+      console.log('🔄 [SGMCTSController] 开始反向传播，使用TreeController', {
+        nodeId: node.id,
+        reward: reward
+      });
+
+      // 🎯 使用TreeController的内置反向传播方法
+      // TreeController已经有_backpropagate方法，但是私有的
+      // 我们手动实现，但使用TreeController的节点访问
+
+      let currentNode = this.treeController.getNode(node.id);
+      if (!currentNode) {
+        throw new Error(`节点不存在: ${node.id}`);
+      }
+
+      // 🎯 向上传播，更新所有祖先节点
+      while (currentNode) {
+        // 更新访问次数和胜利次数
+        currentNode.visits += 1;
+        currentNode.wins += reward;
+
+        console.log(`🔄 [SGMCTSController] 更新节点统计: ${currentNode.id}, visits: ${currentNode.visits}, wins: ${currentNode.wins.toFixed(3)}`);
+
+        // 移动到父节点
+        if (currentNode.parentId === null) {
+          break;
+        }
+        currentNode = this.treeController.getNode(currentNode.parentId);
+      }
+
+      // 🎯 保存更新到数据库
+      await this.treeController.save();
+
+      const executionTime = Date.now() - startTime;
+
+      // 获取最终的节点统计信息
+      const finalNode = this.treeController.getNode(node.id);
+      const finalReward = finalNode ? finalNode.wins / finalNode.visits : reward;
+
+      console.log('✅ [SGMCTSController] 反向传播完成', {
+        nodeId: node.id,
+        finalReward: finalReward,
+        visits: finalNode?.visits || 1,
+        executionTime
+      });
+
+      // 更新统计信息
+      this.statistics.phaseStatistics.backpropagation.totalTime += executionTime;
+      this.statistics.phaseStatistics.backpropagation.count += 1;
+
+    } catch (error) {
+      console.error('❌ [SGMCTSController] 反向传播失败:', error);
+      throw new AlgorithmError(`反向传播失败: ${error.message}`, 'backpropagation');
+    }
+  }
 
   // ==================== 控制方法 ====================
 

@@ -8,6 +8,7 @@
 import { MCTSNode, LibraryItem } from '@/libs/db';
 import { EvaluationContext } from '../interfaces';
 import { DirectionFormulation } from './Formulator';
+import { SessionLiteratureConnector } from '../../../research/SessionLiteratureConnector';
 
 export interface CitationResult {
   citations: Citation[];
@@ -59,6 +60,8 @@ export interface ICiter {
 }
 
 export class DefaultCiter implements ICiter {
+  constructor(private sessionConnector?: SessionLiteratureConnector) {}
+
   async findRelevantLiterature(
     formulations: DirectionFormulation[],
     context: EvaluationContext
@@ -66,28 +69,20 @@ export class DefaultCiter implements ICiter {
     const startTime = Date.now();
 
     try {
-      const allCitations: Citation[] = [];
+      console.log(`📚 [DefaultCiter] 开始文献检索，表述数量: ${formulations.length}`);
 
-      // 为每个表述检索文献
-      for (const formulation of formulations) {
-        const citations = await this.searchByFormulation(formulation, context);
-        allCitations.push(...citations);
+      // 🎯 优先使用真实数据
+      if (this.sessionConnector) {
+        return await this.searchWithRealData(formulations, context, startTime);
       }
 
-      // 去重和排序
-      const filteredCitations = await this.filterCitations(allCitations, 10);
-      const executionTime = Date.now() - startTime;
-
-      return {
-        citations: filteredCitations,
-        searchSummary: `通过${formulations.length}个表述检索，发现${allCitations.length}篇相关文献`,
-        totalFound: allCitations.length,
-        confidence: this.calculateSearchConfidence(filteredCitations),
-        executionTime
-      };
+      // 🔄 降级到假数据（保持向后兼容）
+      console.warn(`⚠️ [DefaultCiter] SessionConnector未提供，使用假数据`);
+      return await this.searchWithMockData(formulations, context, startTime);
 
     } catch (error) {
-      throw new Error(`Citation search failed: ${error.message}`);
+      console.error(`❌ [DefaultCiter] 文献检索失败:`, error);
+      throw new Error(`Citation search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -214,15 +209,17 @@ export class DefaultCiter implements ICiter {
     for (let i = 0; i < resultCount; i++) {
       const relevantKeywords = keywords.slice(0, Math.min(3, keywords.length));
       
+      const newId = crypto.randomUUID();
+      console.log(`🔧 [DefaultCiter] 生成假数据ID: ${newId} (searchType: ${searchType})`);
+
       mockResults.push({
-        id: `${searchType}_result_${Date.now()}_${i}`,
+        id: newId, // 🎯 使用真正的UUID而不是自定义格式
         title: this.generateRelevantTitle(query, relevantKeywords, searchType),
         authors: this.generateRelevantAuthors(),
         abstract: this.generateRelevantAbstract(query, relevantKeywords),
-        status: 'parsed',
-        topics: relevantKeywords.slice(0, 2),
+        associatedSessions: relevantKeywords.slice(0, 2),
         url: `https://example.com/${searchType}_${i}`,
-        filePath: null,
+        year: new Date().getFullYear(),
         createdAt: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000), // 随机过去一年内的日期
         updatedAt: new Date()
       });
@@ -255,7 +252,7 @@ export class DefaultCiter implements ICiter {
       ]
     };
     
-    const typeTemplates = templates[searchType] || templates.title;
+    const typeTemplates = templates[searchType as keyof typeof templates] || templates.title;
     return typeTemplates[Math.floor(Math.random() * typeTemplates.length)];
   }
 
@@ -291,14 +288,13 @@ export class DefaultCiter implements ICiter {
   private getFallbackResults(formulation: DirectionFormulation, context: EvaluationContext): Citation[] {
     // 降级结果：返回一个基础的引用
     const fallbackLiterature: LibraryItem = {
-      id: `fallback_${Date.now()}`,
+      id: crypto.randomUUID(), // 🎯 使用UUID
       title: `${formulation.originalTitle}相关研究综述`,
       authors: ['研究团队'],
       abstract: `关于${formulation.formulation}的综合性研究，涵盖了${formulation.keywords.slice(0, 2).join('、')}等关键领域。`,
-      status: 'parsed',
-      topics: formulation.keywords.slice(0, 2),
+      associatedSessions: formulation.keywords.slice(0, 2),
       url: '',
-      filePath: null,
+      year: new Date().getFullYear(),
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -327,11 +323,154 @@ export class DefaultCiter implements ICiter {
 
   private calculateSearchConfidence(citations: Citation[]): number {
     if (citations.length === 0) return 0;
-    
+
     const avgRelevance = citations.reduce((sum, c) => sum + c.relevanceScore, 0) / citations.length;
     const diversityBonus = Math.min(citations.length / 10, 0.2); // 多样性奖励
-    
+
     return Math.min(avgRelevance + diversityBonus, 1.0);
+  }
+
+  /**
+   * 🎯 使用真实数据进行文献检索
+   */
+  private async searchWithRealData(
+    formulations: DirectionFormulation[],
+    context: EvaluationContext,
+    startTime: number
+  ): Promise<CitationResult> {
+    const allCitations: Citation[] = [];
+    let totalFound = 0;
+
+    // 获取当前节点的被引文献列表
+    let currentNodeId: string;
+
+    if (context.currentPath.length > 0) {
+      // 使用路径中的最后一个节点
+      currentNodeId = context.currentPath[context.currentPath.length - 1].id;
+    } else {
+      // 如果路径为空，说明是根节点，需要从其他地方获取
+      console.warn(`⚠️ [DefaultCiter] 路径为空，无法获取当前节点ID，降级到假数据`);
+      return await this.searchWithMockData(formulations, context, startTime);
+    }
+
+    // 🎯 获取treeId - 从SessionConnector获取当前树ID
+    const treeId = this.sessionConnector!.getCurrentTreeId();
+
+    const availableLiterature = await this.sessionConnector!.getAvailableCitedByLiterature(
+      currentNodeId,
+      treeId || ''
+    );
+
+    console.log(`📚 [DefaultCiter] 获取到${availableLiterature.length}篇可用被引文献`);
+
+    if (availableLiterature.length === 0) {
+      console.warn(`⚠️ [DefaultCiter] 当前节点无可用被引文献，降级到假数据`);
+      return await this.searchWithMockData(formulations, context, startTime);
+    }
+
+    // 为每个表述匹配相关文献
+    for (const formulation of formulations) {
+      const matchedLiterature = await this.matchFormulationWithLiterature(
+        formulation,
+        availableLiterature
+      );
+
+      const citations = this.formatAsCitations(matchedLiterature, formulation);
+      allCitations.push(...citations);
+      totalFound += citations.length;
+    }
+
+    // 🎯 去重和过滤
+    const filteredCitations = await this.filterCitations(allCitations, 10);
+
+    const executionTime = Date.now() - startTime;
+    const searchSummary = `通过${formulations.length}个表述检索，从${availableLiterature.length}篇被引文献中发现${totalFound}篇相关文献`;
+
+    return {
+      citations: filteredCitations,
+      searchSummary,
+      totalFound,
+      confidence: 0.8, // 真实数据置信度更高
+      executionTime
+    };
+  }
+
+  /**
+   * 🔄 使用假数据进行文献检索（向后兼容）
+   */
+  private async searchWithMockData(
+    formulations: DirectionFormulation[],
+    context: EvaluationContext,
+    startTime: number
+  ): Promise<CitationResult> {
+    const allCitations: Citation[] = [];
+
+    // 为每个表述检索文献
+    for (const formulation of formulations) {
+      const citations = await this.searchByFormulation(formulation, context);
+      allCitations.push(...citations);
+    }
+
+    // 去重和排序
+    const filteredCitations = await this.filterCitations(allCitations, 10);
+    const executionTime = Date.now() - startTime;
+
+    return {
+      citations: filteredCitations,
+      searchSummary: `通过${formulations.length}个表述检索，发现${allCitations.length}篇相关文献`,
+      totalFound: allCitations.length,
+      confidence: this.calculateSearchConfidence(filteredCitations),
+      executionTime
+    };
+  }
+
+  /**
+   * 🎯 匹配表述与文献
+   */
+  private async matchFormulationWithLiterature(
+    formulation: DirectionFormulation,
+    literature: LibraryItem[]
+  ): Promise<LibraryItem[]> {
+    console.log(`🔍 [DefaultCiter] 匹配表述与${literature.length}篇文献: ${formulation.formulation}`);
+
+    // 方案1: 简单关键词匹配
+    const keywords = formulation.keywords.map(k => k.toLowerCase());
+
+    const matchedLiterature = literature.filter(item => {
+      const title = item.title.toLowerCase();
+      const abstract = item.abstract?.toLowerCase() || '';
+
+      // 检查是否有关键词匹配
+      const hasKeywordMatch = keywords.some(keyword =>
+        title.includes(keyword) || abstract.includes(keyword)
+      );
+
+      // 检查表述本身的匹配
+      const formulationWords = formulation.formulation.toLowerCase().split(/\s+/);
+      const hasFormulationMatch = formulationWords.some(word =>
+        word.length > 2 && (title.includes(word) || abstract.includes(word))
+      );
+
+      return hasKeywordMatch || hasFormulationMatch;
+    });
+
+    console.log(`✅ [DefaultCiter] 匹配到${matchedLiterature.length}篇相关文献`);
+    return matchedLiterature;
+  }
+
+  /**
+   * 🎯 格式化为Citation对象
+   */
+  private formatAsCitations(literature: LibraryItem[], formulation: DirectionFormulation): Citation[] {
+    return literature.map(item => ({
+      literatureId: item.id,
+      literature: item,
+      relevanceScore: 0.7, // 真实数据的基础相关性
+      matchedFormulation: formulation.formulation,
+      matchedKeywords: formulation.keywords.slice(0, 3),
+      retrievalMethod: 'text' as const,
+      reasoning: '基于被引文献的真实数据匹配'
+    }));
   }
 }
 
@@ -567,7 +706,7 @@ export class SemanticCiter implements ICiter {
 
     for (let i = 0; i < resultCount; i++) {
       results.push({
-        id: `semantic_${Date.now()}_${i}`,
+        id: crypto.randomUUID(), // 🎯 使用UUID
         title: this.generateSemanticTitle(formulation, context),
         authors: this.generateSemanticAuthors(),
         abstract: this.generateSemanticAbstract(formulation, context),
@@ -912,7 +1051,7 @@ export class NLICiter implements ICiter {
 
     for (let i = 0; i < resultCount; i++) {
       results.push({
-        id: `nli_${Date.now()}_${i}`,
+        id: crypto.randomUUID(), // 🎯 使用UUID
         title: this.generateNLITitle(formulation, context),
         authors: this.generateNLIAuthors(),
         abstract: this.generateNLIAbstract(formulation, context),

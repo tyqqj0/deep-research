@@ -5,11 +5,15 @@
  * 自动处理话题相关的文献筛选、标签管理、批量操作等功能
  */
 
-import { LibraryItem } from '@/libs/db';
+import { LibraryItem, MCTSNode } from '@/libs/db';
 import { useLibraryStore } from '@/store/libraryStore';
+import { useTaskStore } from '@/store/task';
+import { useHistoryStore } from '@/store/history';
 import { libraryService } from '@/libs/db/LibraryService';
+import { treeService } from '@/libs/tree/TreeService';
 import { generateLibraryItemId } from '@/libs/utils/uuid';
 import { toast } from 'sonner';
+import { MainPageTreeSession } from '@/libs/tree/MainPageTreeSession';
 
 export interface SessionLiteratureOptions {
   topic: string;
@@ -111,7 +115,7 @@ export class SessionLiteratureConnector {
     try {
       // 自动添加话题标签
       if (this.autoTag) {
-        const topics = itemData.topics || [];
+        const topics = itemData.topic || [];
         if (!topics.includes(this.topic)) {
           topics.push(this.topic);
         }
@@ -322,6 +326,138 @@ export class SessionLiteratureConnector {
     };
   }
 
+  // ==================== MCTS相关方法 ====================
+
+  /**
+   * 🎯 获取当前节点的被引文献列表 (用于MCTS扩展)
+   */
+  async getCitedByLiterature(nodeId: string): Promise<LibraryItem[]> {
+    try {
+      console.log(`🔍 [SessionConnector] 获取节点被引文献: ${nodeId}`);
+
+      // 1. 通过nodeId获取对应的literatureId
+      const node = await this.getNodeById(nodeId);
+      if (!node || !node.libraryItemId) {
+        console.warn(`⚠️ [SessionConnector] 节点不存在或无文献ID: ${nodeId}`);
+        return [];
+      }
+
+      // 2. 调用LibraryService获取引用关系
+      const { citedBy } = await libraryService.getCitationRelationships(node.libraryItemId);
+
+      console.log(`✅ [SessionConnector] 找到${citedBy.length}篇被引文献`);
+      return citedBy;
+
+    } catch (error) {
+      console.error(`❌ [SessionConnector] 获取被引文献失败:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * 🎯 检查文献是否已在当前研究树中
+   */
+  async isLiteratureInTree(literatureId: string, treeId: string): Promise<boolean> {
+    try {
+      // 获取树的所有节点
+      const tree = await treeService.getTreeById(treeId);
+      if (!tree) {
+        return false;
+      }
+
+      // 检查是否有节点使用了这个文献ID
+      const nodeIds = Object.keys(tree.nodes);
+      for (const nodeId of nodeIds) {
+        const node = tree.nodes[nodeId];
+        if (node.libraryItemId === literatureId) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      console.error(`❌ [SessionConnector] 检查文献是否在树中失败:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 🎯 获取路径上所有节点的文献信息 (用于Think阶段)
+   */
+  async getPathLiteratureData(path: MCTSNode[]): Promise<LibraryItem[]> {
+    try {
+      console.log(`🔍 [SessionConnector] 获取路径文献数据，路径长度: ${path.length}`);
+
+      const literatureData: LibraryItem[] = [];
+
+      for (const node of path) {
+        if (node.libraryItemId) {
+          const literature = await libraryService.getLibraryItemById(node.libraryItemId);
+          if (literature) {
+            literatureData.push(literature);
+          }
+        }
+      }
+
+      console.log(`✅ [SessionConnector] 获取到${literatureData.length}篇路径文献`);
+      return literatureData;
+
+    } catch (error) {
+      console.error(`❌ [SessionConnector] 获取路径文献数据失败:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * 🎯 过滤未在树中出现的被引文献
+   */
+  async getAvailableCitedByLiterature(nodeId: string, treeId: string): Promise<LibraryItem[]> {
+    try {
+      console.log(`🔍 [SessionConnector] 获取可用被引文献: nodeId=${nodeId}, treeId=${treeId}`);
+
+      const citedBy = await this.getCitedByLiterature(nodeId);
+      const available: LibraryItem[] = [];
+
+      for (const literature of citedBy) {
+        const inTree = await this.isLiteratureInTree(literature.id, treeId);
+        if (!inTree) {
+          available.push(literature);
+        }
+      }
+
+      console.log(`✅ [SessionConnector] 找到${available.length}篇可用被引文献 (总共${citedBy.length}篇)`);
+      return available;
+
+    } catch (error) {
+      console.error(`❌ [SessionConnector] 获取可用被引文献失败:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * 🔍 辅助方法：通过nodeId获取节点信息
+   */
+  private async getNodeById(nodeId: string): Promise<MCTSNode | null> {
+    try {
+      // 这里需要通过某种方式获取节点信息
+      // 可能需要传入treeId或者从当前上下文获取
+      const taskStore = useTaskStore.getState();
+      const currentTreeId = taskStore.treeId;
+
+      if (!currentTreeId) {
+        console.warn(`⚠️ [SessionConnector] 无法获取当前树ID`);
+        return null;
+      }
+
+      const tree = await treeService.getTreeById(currentTreeId);
+      return tree?.nodes[nodeId] || null;
+
+    } catch (error) {
+      console.error(`❌ [SessionConnector] 获取节点失败:`, error);
+      return null;
+    }
+  }
+
   /**
    * 更新连接件配置
    */
@@ -331,6 +467,13 @@ export class SessionLiteratureConnector {
     if (options.filterByTopic !== undefined) this.filterByTopic = options.filterByTopic;
 
     console.log('[SessionConnector] Config updated:', this.getConfig());
+  }
+
+  /**
+   * 🎯 获取当前会话的树ID（公开方法）
+   */
+  getCurrentTreeId(): string | null {
+    return MainPageTreeSession.getInstance().getCurrentTreeId();
   }
 }
 

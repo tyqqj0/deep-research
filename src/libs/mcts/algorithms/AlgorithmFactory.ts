@@ -166,9 +166,14 @@ export class AlgorithmFactory implements IAlgorithmFactory {
         { availableTypes: this.getAvailableThinkers() }
       );
     }
-    
+
     try {
-      return new ThinkerClass(config);
+      // 🎯 支持SessionConnector依赖注入
+      if (config && config.sessionConnector) {
+        return new ThinkerClass(config.sessionConnector);
+      } else {
+        return new ThinkerClass(config);
+      }
     } catch (error) {
       throw new AlgorithmError(
         `创建思考器失败: ${error.message}`,
@@ -208,9 +213,14 @@ export class AlgorithmFactory implements IAlgorithmFactory {
         { availableTypes: this.getAvailableCiters() }
       );
     }
-    
+
     try {
-      return new CiterClass(config);
+      // 🎯 支持SessionConnector依赖注入
+      if (config && config.sessionConnector) {
+        return new CiterClass(config.sessionConnector);
+      } else {
+        return new CiterClass(config);
+      }
     } catch (error) {
       throw new AlgorithmError(
         `创建引用器失败: ${error.message}`,
@@ -292,9 +302,21 @@ export class AlgorithmFactory implements IAlgorithmFactory {
         { availableTypes: this.getAvailableModularExpanders() }
       );
     }
-    
+
     try {
-      return new ExpanderClass(config);
+      // 🎯 修复：正确传递依赖注入参数
+      if (config && config.thinker && config.formulator && config.citer && config.validator && config.rewardCalculator) {
+        return new ExpanderClass(
+          config.thinker,
+          config.formulator,
+          config.citer,
+          config.validator,
+          config.rewardCalculator
+        );
+      } else {
+        // 兼容旧的配置方式
+        return new ExpanderClass(config);
+      }
     } catch (error) {
       throw new AlgorithmError(
         `创建模块化扩展器失败: ${error.message}`,
@@ -457,19 +479,30 @@ export class AlgorithmFactory implements IAlgorithmFactory {
   // 创建细粒度模块化算法套件
   createModularAlgorithmSuite(configuration: ModularAlgorithmConfiguration) {
     try {
+      // 🎯 传递SessionConnector到各个模块
+      const thinkerConfig = {
+        ...configuration.thinker.config,
+        sessionConnector: (configuration as any).sessionConnector
+      };
+
+      const citerConfig = {
+        ...configuration.citer.config,
+        sessionConnector: (configuration as any).sessionConnector
+      };
+
       const thinker = this.createThinker(
         configuration.thinker.type,
-        configuration.thinker.config
+        thinkerConfig
       );
-      
+
       const formulator = this.createFormulator(
         configuration.formulator.type,
         configuration.formulator.config
       );
-      
+
       const citer = this.createCiter(
         configuration.citer.type,
-        configuration.citer.config
+        citerConfig
       );
       
       const validator = this.createValidator(
@@ -778,10 +811,15 @@ export function createDefaultAlgorithmSuite() {
 }
 
 // 便利函数：创建默认模块化算法套件
-export function createDefaultModularAlgorithmSuite() {
-  return algorithmFactory.createModularAlgorithmSuite(
-    algorithmFactory.getDefaultModularConfiguration()
-  );
+export function createDefaultModularAlgorithmSuite(sessionConnector?: any) {
+  const config = algorithmFactory.getDefaultModularConfiguration();
+
+  // 🎯 如果提供了SessionConnector，注入到配置中
+  if (sessionConnector) {
+    config.sessionConnector = sessionConnector;
+  }
+
+  return algorithmFactory.createModularAlgorithmSuite(config);
 }
 
 // 便利函数：创建LLM增强的模块化算法套件

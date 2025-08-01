@@ -120,10 +120,23 @@ export class DefaultExpander implements IExpander {
       console.log(`🚀 开始扩展节点 ${parentNode.id}`);
 
       // Phase 1: Think - 生成研究方向
-      console.log('🧠 Phase 1: 思考推理...');
+      console.log('🧠 [TVC] Phase 1: 思考推理开始...', {
+        parentNodeId: parentNode.id,
+        parentTitle: parentNode.literatureItem?.title,
+        pathLength: context.currentPath.length
+      });
+
       const thinkingResult = await this.thinker.generateDirections(parentNode, context);
-      
+
+      console.log('🧠 [TVC] 思考结果:', {
+        directionsCount: thinkingResult.directions.length,
+        pathSummary: thinkingResult.pathSummary,
+        confidence: thinkingResult.confidence,
+        executionTime: thinkingResult.executionTime
+      });
+
       if (thinkingResult.directions.length === 0) {
+        console.warn('⚠️ [TVC] 思考阶段未生成任何研究方向');
         return this.createFailureResult('思考阶段未生成任何研究方向', startTime);
       }
 
@@ -132,23 +145,37 @@ export class DefaultExpander implements IExpander {
         .sort((a, b) => b.confidence - a.confidence)
         .slice(0, config.maxCandidates);
 
-      console.log(`🧠 生成了 ${selectedDirections.length} 个研究方向`);
+      console.log(`🧠 [TVC] 选择了 ${selectedDirections.length} 个高置信度研究方向:`,
+        selectedDirections.map(d => ({ title: d.title, confidence: d.confidence }))
+      );
 
       // Phase 2: Verbalize - 生成表述
-      console.log('📝 Phase 2: 表述生成...');
+      console.log('📝 [TVC] Phase 2: 表述生成开始...');
       const formulationResult = await this.formulator.formulateDirections(selectedDirections, context);
 
+      console.log('📝 [TVC] 表述结果:', {
+        formulationsCount: formulationResult.formulations.length,
+        confidence: formulationResult.confidence,
+        executionTime: formulationResult.executionTime,
+        formulations: formulationResult.formulations.map(f => f.formulation)
+      });
+
       if (formulationResult.formulations.length === 0) {
+        console.warn('⚠️ [TVC] 表述阶段未生成任何有效表述');
         return this.createFailureResult('表述阶段未生成任何有效表述', startTime);
       }
 
-      console.log(`📝 生成了 ${formulationResult.formulations.length} 个表述`);
-
       // Phase 3: Cite - 检索文献
-      console.log('📚 Phase 3: 文献检索...');
+      console.log('📚 [TVC] Phase 3: 文献检索开始...');
       const citationResult = await this.citer.findRelevantLiterature(formulationResult.formulations, context);
 
-      console.log(`📚 检索到 ${citationResult.citations.length} 个引用`);
+      console.log('📚 [TVC] 检索结果:', {
+        citationsCount: citationResult.citations.length,
+        totalFound: citationResult.totalFound,
+        confidence: citationResult.confidence,
+        executionTime: citationResult.executionTime,
+        searchSummary: citationResult.searchSummary
+      });
 
       // Phase 4: Validate & Reward - 验证和评分
       console.log('✅ Phase 4: 验证和评分...');

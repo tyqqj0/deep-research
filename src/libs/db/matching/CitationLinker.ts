@@ -131,11 +131,11 @@ export class CitationLinker {
 
           const score = this.matchingEngine['similarityCalculator'].calculateMatchScore(extractedRef, newItem);
           if (score > 0.6) { // 🎯 使用和 findMatchingLiterature 相同的更严格阈值
-            console.log(`🔗 [BACKWARD] Creating backward link: ${existingItem.title} → ${newItem.title} (score: ${score.toFixed(3)})`);
+            // console.log(`🔗 [BACKWARD] Creating backward link: ${existingItem.title} → ${newItem.title} (score: ${score.toFixed(3)})`);
             const created = await this.createCitationLink(existingItem.id, newItem.id);
             if (created) backwardLinks++;
           } else {
-            console.log(`⏭️ [BACKWARD] Skipping low-score match: ${existingItem.title} → ${newItem.title} (score: ${score.toFixed(3)}, threshold: 0.6)`);
+            // console.log(`⏭️ [BACKWARD] Skipping low-score match: ${existingItem.title} → ${newItem.title} (score: ${score.toFixed(3)}, threshold: 0.6)`);
           }
         }
       }

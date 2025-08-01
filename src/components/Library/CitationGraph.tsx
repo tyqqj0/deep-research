@@ -254,7 +254,7 @@ function CitationGraph({ onNodeClick, className, onExpandToggle }: CitationGraph
             // 🎯 优先使用store中的数据，确保数据一致性
             const items = allItems.length > 0 ? allItems : await libraryService.getAllLibraryItems();
             if (items.length === 0) {
-                console.log('[Graph] ⚠️ No items found, clearing graph');
+                // console.log('[Graph] ⚠️ No items found, clearing graph');
                 setNodes([]);
                 setEdges([]);
                 return;
