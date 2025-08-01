@@ -365,18 +365,18 @@ export function AddLiteratureForm({ open, onClose }: AddLiteratureFormProps) {
               )}
               
               {/* 研究话题建议 */}
-              {availableTopics.filter(topic => !watchedTopics?.includes(topic)).length > 0 && (
+              {availableTopics.filter(session => !watchedTopics?.includes(session.id)).length > 0 && (
                 <div className="space-y-1">
                   <p className="text-xs text-blue-600 font-medium">🎯 相关研究话题（点击添加）：</p>
                   <div className="flex flex-wrap gap-1">
-                    {availableTopics.filter(topic => !watchedTopics?.includes(topic)).slice(0, 10).map(topic => (
+                    {availableTopics.filter(session => !watchedTopics?.includes(session.id)).slice(0, 10).map(session => (
                       <Badge
-                        key={topic}
+                        key={session.id}
                         variant="default"
                         className="cursor-pointer hover:opacity-80 text-xs bg-blue-100 text-blue-800 hover:bg-blue-200"
-                        onClick={() => addExistingTopic(topic)}
+                        onClick={() => addExistingTopic(session.id)}
                       >
-                        🎯 {topic.length > 25 ? topic.substring(0, 25) + "..." : topic}
+                        🎯 {session.displayName.length > 25 ? session.displayName.substring(0, 25) + "..." : session.displayName}
                       </Badge>
                     ))}
                   </div>

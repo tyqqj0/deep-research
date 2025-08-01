@@ -420,8 +420,8 @@ export class TreePhysics {
 
     // 启动调试信息
     const physicsParams = getPhysicsParamsForZoom(this.currentZoomLevel);
-    console.log(`🌳 TreePhysics STARTED - Mode: ${this.currentZoomLevel.toUpperCase()}`);
-    console.log(`📐 Layer separation: ${physicsParams.LAYER_SEPARATION}px | Sibling spacing: ${physicsParams.SIBLING_SPACING}px`);
+    // console.log(`🌳 TreePhysics STARTED - Mode: ${this.currentZoomLevel.toUpperCase()}`);
+    // console.log(`📐 Layer separation: ${physicsParams.LAYER_SEPARATION}px | Sibling spacing: ${physicsParams.SIBLING_SPACING}px`);
 
     // 存储到全局以便调试
     (window as any).tree_simulation = this.simulation;

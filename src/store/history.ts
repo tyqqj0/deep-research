@@ -30,6 +30,35 @@ export const useHistoryStore = create(
       save: (taskStore) => {
         // Save tasks with a title or question immediately upon creation
         if (taskStore.title || taskStore.question) {
+          const topicKey = taskStore.title || taskStore.question;
+
+          // 🎯 检查是否已存在相同话题的记录，避免重复保存
+          const existingRecord = get().history.find(record =>
+            (record.title || record.question) === topicKey
+          );
+
+          if (existingRecord) {
+            console.log("[HistoryStore] Topic already exists, updating instead of creating new:", {
+              existingId: existingRecord.id,
+              topic: topicKey
+            });
+            // 更新现有记录而不是创建新记录
+            const updatedHistory = get().history.map(item => {
+              if (item.id === existingRecord.id) {
+                return {
+                  ...clone(taskStore),
+                  id: existingRecord.id,
+                  createdAt: existingRecord.createdAt,
+                  updatedAt: Date.now(),
+                } as ResearchHistory;
+              }
+              return item;
+            });
+            set(() => ({ history: updatedHistory }));
+            return existingRecord.id;
+          }
+
+          // 创建新记录
           const id = nanoid();
           const newHistory: ResearchHistory = {
             ...clone(taskStore),
@@ -37,7 +66,7 @@ export const useHistoryStore = create(
             createdAt: Date.now(),
           };
           set((state) => ({ history: [newHistory, ...state.history] }));
-          console.log("[HistoryStore] Saved history:", { id, title: taskStore.title, question: taskStore.question });
+          console.log("[HistoryStore] Saved new history:", { id, title: taskStore.title, question: taskStore.question });
           return id;
         }
         return "";

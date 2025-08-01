@@ -11,6 +11,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useLibraryStore } from "@/store/libraryStore";
+import { useTaskStore } from "@/store/task";
+import { useHistoryStore } from "@/store/history";
+import { treeService } from "@/libs/tree/TreeService";
+import { MainPageTreeSession } from "@/libs/tree/MainPageTreeSession";
 import { LITERATURE_SOURCES, SOURCE_METADATA } from "@/libs/db/constants";
 import { LiteratureList } from "@/components/Library/LiteratureList";
 import { AddLiteratureForm } from "@/components/Library/AddLiteratureForm";
@@ -36,6 +40,9 @@ export default function LibraryPage() {
   const [showPdfUpload, setShowPdfUpload] = useState(false);
   const [isGraphExpanded, setIsGraphExpanded] = useState(false); // 添加图谱展开状态
 
+  // 🎯 初始化主页面树会话管理器
+  const treeSession = MainPageTreeSession.getInstance();
+
   const {
     userInfo: zoteroUserInfo,
     collections: zoteroCollections,
@@ -49,6 +56,7 @@ export default function LibraryPage() {
 
   const {
     items,
+    trees,
     isLoading,
     error,
     sourceFilter,
@@ -56,6 +64,8 @@ export default function LibraryPage() {
     topicFilter,
     availableTopics,
     initialize,
+    refreshItems,
+    selectTree,
     setSourceFilter,
     setSearchTerm,
     setTopicFilter,
@@ -70,6 +80,9 @@ export default function LibraryPage() {
 
   // Use useMemo to ensure filteredItems updates when items change
   const filteredItems = useMemo(() => getFilteredItems(), [items, sourceFilter, searchTerm, topicFilter, getFilteredItems]);
+
+  // 🎯 全局树管理状态
+  const [selectedTreeId, setSelectedTreeId] = useState<string | null>(null);
 
   useEffect(() => {
     const initializeAsync = async () => {
@@ -343,28 +356,28 @@ export default function LibraryPage() {
                         <div className="px-2 py-1 text-xs font-medium text-blue-600 border-b bg-blue-50">
                           🎯 研究话题（点击切换）
                         </div>
-                        {availableTopics.map(topic => (
+                        {availableTopics.map(session => (
                           <div
-                            key={topic}
+                            key={session.id}
                             className="flex items-center gap-2 px-2 py-2 hover:bg-blue-50 cursor-pointer"
                             onClick={(e) => {
                               e.preventDefault();
-                              if (topicFilter.includes(topic)) {
-                                removeTopicFromFilter(topic);
+                              if (topicFilter.includes(session.id)) {
+                                removeTopicFromFilter(session.id);
                               } else {
-                                addTopicToFilter(topic);
+                                addTopicToFilter(session.id);
                               }
                             }}
                           >
                             <div className="flex items-center space-x-2 flex-1">
                               <input
                                 type="checkbox"
-                                checked={topicFilter.includes(topic)}
+                                checked={topicFilter.includes(session.id)}
                                 onChange={() => { }}
                                 className="w-4 h-4 text-blue-600"
                               />
                               <span className="text-sm font-medium text-blue-800">
-                                🎯 {topic.length > 35 ? topic.substring(0, 35) + "..." : topic}
+                                🎯 {session.displayName.length > 35 ? session.displayName.substring(0, 35) + "..." : session.displayName}
                               </span>
                             </div>
                           </div>
@@ -417,9 +430,36 @@ export default function LibraryPage() {
                   }
                 }}
                 onBulkDelete={handleBulkDelete}
-                onSelectForTree={(item) => {
-                  // TODO: Implement tree selection
-                  toast.info(t('library.common.addLiteratureToTreeComingSoon', { title: item.title }));
+                onSelectForTree={async (item) => {
+                  try {
+                    // 🎯 使用MainPageTreeSession进行简化的会话树创建
+                    console.log(`🌱 开始为文献创建会话树:`, item.title);
+                    
+                    // 🎯 确保当前有话题标题，优先使用question
+                    const taskStore = useTaskStore.getState();
+                    if (!taskStore.title) {
+                      // 优先使用question作为title，如果question也没有，才使用文献标题
+                      const topicTitle = taskStore.question || `研究：${item.title}`;
+                      taskStore.setTitle(topicTitle);
+                      console.log(`🎯 设置话题标题: ${topicTitle}`);
+                    }
+                    
+                    // 使用会话管理器创建树
+                    const treeId = await treeSession.createTree(item.id);
+                    
+                    // 刷新UI以显示新树
+                    await refreshItems();
+                    
+                    console.log('✅ 会话树创建完成:', {
+                      treeId,
+                      itemTitle: item.title,
+                      topic: taskStore.title
+                    });
+                    
+                  } catch (error) {
+                    console.error('❌ 创建会话树失败:', error);
+                    // toast已经在MainPageTreeSession中处理了
+                  }
                 }}
                 onItemClick={(item) => {
                   handleEditLiterature(item);
@@ -449,6 +489,7 @@ export default function LibraryPage() {
                 </CardHeader>
                 <CardContent>
                   <TreeVisualization
+                    treeId={undefined}
                     mode="edit"
                     height="700px"
                     showControls={true}
@@ -461,14 +502,75 @@ export default function LibraryPage() {
                     }}
                     onTreeChange={(treeId) => {
                       console.log('Tree changed:', treeId);
+                      setSelectedTreeId(treeId);
                     }}
-                    onNodeAdd={(parentId, itemId) => {
-                      console.log('Node added:', parentId, itemId);
+                    onNodeAdd={async (parentId, itemId) => {
+                      try {
+                        console.log('Adding node to tree:', { parentId, itemId });
+                        // TODO: 实现添加节点逻辑
+                      } catch (error) {
+                        console.error('Failed to add node:', error);
+                      }
                     }}
-                    onNodeDelete={(nodeId) => {
-                      console.log('Node deleted:', nodeId);
+                    onNodeDelete={async (nodeId) => {
+                      try {
+                        console.log('Deleting node:', nodeId);
+                        // TODO: 实现删除节点逻辑
+                      } catch (error) {
+                        console.error('Failed to delete node:', error);
+                      }
                     }}
                   />
+                  
+                  {/* 🗑️ 全局树管理功能 */}
+                  <div className="mt-4 pt-2 border-t">
+                    <div className="flex gap-2 items-center">
+                      <Button
+                        onClick={async () => {
+                          if (!selectedTreeId) {
+                            toast.warning('请先在上方选择一个树');
+                            return;
+                          }
+
+                          if (confirm(`确定要删除选中的文献树吗？\n\n树ID: ${selectedTreeId.substring(0, 8)}...\n\n此操作不可撤销。`)) {
+                            try {
+                              // 🎯 删除选中的树
+                              await treeService.deleteTree(selectedTreeId);
+
+                              // 🎯 如果删除的树正好是当前会话的树，清理会话状态
+                              const currentSessionTreeId = treeSession.getCurrentTreeId();
+                              if (currentSessionTreeId === selectedTreeId) {
+                                treeSession.clearCurrentSession();
+                                console.log('🧹 已清理相关的会话状态');
+                              }
+
+                              // 清除选择状态
+                              setSelectedTreeId(null);
+
+                              // 刷新树列表
+                              await refreshItems();
+
+                              toast.success('文献树已删除');
+                            } catch (error) {
+                              console.error('删除树失败:', error);
+                              toast.error(`删除失败: ${error instanceof Error ? error.message : '未知错误'}`);
+                            }
+                          }
+                        }}
+                        variant="destructive"
+                        size="sm"
+                        disabled={!selectedTreeId}
+                      >
+                        🗑️ 删除选中的树
+                      </Button>
+
+                      {selectedTreeId && (
+                        <div className="text-sm text-gray-600">
+                          已选择: {selectedTreeId.substring(0, 8)}...
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

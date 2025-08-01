@@ -45,7 +45,7 @@ const formSchema = z.object({
   zoteroKey: z.string().optional(),
   doi: z.string().optional(),
   url: z.string().url().optional().or(z.literal("")),
-  topics: z.array(z.string()).optional(), // 🏷️ 添加topics字段
+  associatedSessions: z.array(z.string()).optional(), // 🔗 关联的研究会话
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -176,7 +176,8 @@ const ReferenceItem = ({ reference, index, onEdit }: ReferenceItemProps) => {
 export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiteratureFormProps) {
   const { t } = useTranslation();
   const [authorInput, setAuthorInput] = useState("");
-  const [topicsInput, setTopicsInput] = useState(""); // 🏷️ topics输入状态
+  const [sessionInput, setSessionInput] = useState(""); // 🔗 会话输入状态
+  const [showCustomSessionInput, setShowCustomSessionInput] = useState(false); // 🔗 是否显示自定义输入框
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("metadata");
   const [isTextExpanded, setIsTextExpanded] = useState(true);
@@ -185,7 +186,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
   const [editingReference, setEditingReference] = useState<{ index: number; reference: any } | null>(null);
   const [isAddingReference, setIsAddingReference] = useState(false);
 
-  const { updateLibraryItem, updateExtractedReference, addExtractedReference, autoExtractMetadata, setAutoExtractMetadata, availableTopics, loadAvailableTopics } = useLibraryStore();
+  const { updateLibraryItem, updateExtractedReference, addExtractedReference, availableTopics, loadAvailableTopics } = useLibraryStore();
 
   const {
     register,
@@ -205,13 +206,13 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
       abstract: "",
       summary: "",
       zoteroKey: "",
-      topics: [], // 🏷️ 默认为空数组
+      associatedSessions: [], // 🔗 默认为空数组
     },
   });
 
   const watchedAuthors = watch("authors");
   const watchedSource = watch("source");
-  const watchedTopics = watch("topics"); // 🏷️ 监听topics变化
+  const watchedSessions = watch("associatedSessions"); // 🔗 监听关联会话变化
 
   // Reset form when item changes
   useEffect(() => {
@@ -227,15 +228,23 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
         zoteroKey: item.zoteroKey || "",
         doi: item.doi || "",
         url: item.url || "",
-        topics: item.topics || [], // 🏷️ 设置topics
+        associatedSessions: item.associatedSessions || [], // 🔗 设置关联会话
       });
     }
   }, [item, open, reset]);
 
+  // 🎯 加载可用话题列表
+  useEffect(() => {
+    if (open) {
+      loadAvailableTopics().catch(console.error);
+    }
+  }, [open, loadAvailableTopics]);
+
   const handleClose = () => {
     reset();
     setAuthorInput("");
-    setTopicsInput(""); // 🏷️ 重置topics输入
+    setSessionInput(""); // 🔗 重置会话输入
+    setShowCustomSessionInput(false); // 🔗 重置自定义输入框显示状态
     setActiveTab("metadata");
     onClose();
   };
@@ -308,31 +317,65 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
     setValue("authors", newAuthors);
   };
 
-  // 🏷️ Topics管理函数
-  const addTopic = () => {
-    if (topicsInput.trim()) {
-      const currentTopics = watchedTopics || [];
-      if (!currentTopics.includes(topicsInput.trim())) {
-        const newTopics = [...currentTopics, topicsInput.trim()];
-        setValue("topics", newTopics);
-        setTopicsInput("");
-        // 更新可用topics列表
-        loadAvailableTopics().catch(console.error);
+  // 🔗 研究会话管理函数
+  const addSession = () => {
+    if (sessionInput.trim()) {
+      // 🎯 创建新的会话记录
+      const { useHistoryStore } = require('@/store/history');
+      const { useTaskStore } = require('@/store/task');
+
+      const historyStore = useHistoryStore.getState();
+      const taskStore = useTaskStore.getState();
+
+      // 创建新的会话数据
+      const newSessionData = {
+        ...taskStore,
+        question: sessionInput.trim(),
+        title: '', // 新会话暂时没有title
+      };
+
+      // 保存到历史记录，获取新的会话ID
+      const newSessionId = historyStore.save(newSessionData);
+
+      if (newSessionId) {
+        const currentSessions = watchedSessions || [];
+        if (!currentSessions.includes(newSessionId)) {
+          const newSessions = [...currentSessions, newSessionId];
+          setValue("associatedSessions", newSessions);
+        }
       }
+
+      setSessionInput("");
+      setShowCustomSessionInput(false);
+
+      // 刷新可用会话列表
+      loadAvailableTopics().catch(console.error);
     }
   };
 
-  const removeTopic = (index: number) => {
-    const currentTopics = watchedTopics || [];
-    const newTopics = currentTopics.filter((_, i) => i !== index);
-    setValue("topics", newTopics);
+  const removeSession = (index: number) => {
+    const currentSessions = watchedSessions || [];
+    const newSessions = currentSessions.filter((_: any, i: any) => i !== index);
+    setValue("associatedSessions", newSessions);
   };
 
-  const addExistingTopic = (topic: string) => {
-    const currentTopics = watchedTopics || [];
-    if (!currentTopics.includes(topic)) {
-      const newTopics = [...currentTopics, topic];
-      setValue("topics", newTopics);
+  // 🎯 根据会话ID获取显示名称
+  const getSessionDisplayName = (sessionId: string): string => {
+    // 先从availableTopics中查找
+    const session = availableTopics.find(s => s.id === sessionId);
+    if (session) {
+      return session.displayName;
+    }
+
+    // 如果找不到，可能是旧数据（直接存储的是title），直接返回
+    return sessionId;
+  };
+
+  const addExistingSession = (sessionId: string) => {
+    const currentSessions = watchedSessions || [];
+    if (!currentSessions.includes(sessionId)) {
+      const newSessions = [...currentSessions, sessionId];
+      setValue("associatedSessions", newSessions);
     }
   };
 
@@ -353,7 +396,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
         zoteroKey: data.zoteroKey || undefined,
         doi: data.doi || undefined,
         url: data.url || undefined,
-        topics: data.topics || undefined, // 🏷️ 包含topics数据
+        associatedSessions: data.associatedSessions || undefined, // 🔗 包含关联会话数据
       });
 
       toast.success(t('library.editLiteratureForm.literatureUpdatedSuccess'));
@@ -544,73 +587,136 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                 </div>
               </div>
 
-              {/* 🏷️ Topics */}
+              {/* 🔗 关联研究会话 */}
               <div className="space-y-2">
-                <Label>🏷️ 话题标签</Label>
+                <Label>🔗 关联研究会话</Label>
+                <p className="text-xs text-gray-600">将此文献关联到相关的研究会话中</p>
+
+                {/* 下拉菜单选择话题 */}
                 <div className="flex gap-2">
-                  <Input
-                    value={topicsInput}
-                    onChange={(e) => setTopicsInput(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addTopic();
+                  <Select
+                    value=""
+                    onValueChange={(value) => {
+                      if (value === "custom") {
+                        // 切换到自定义输入模式
+                        setShowCustomSessionInput(true);
+                        setSessionInput("");
+                      } else if (value) {
+                        addExistingSession(value);
                       }
                     }}
-                    placeholder="输入话题标签（按Enter添加）"
-                    className="flex-1"
-                  />
-                  <Button 
-                    type="button" 
-                    onClick={addTopic}
-                    variant="outline"
-                    size="sm"
                   >
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="选择研究会话..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* 自定义输入选项 */}
+                      <SelectItem value="custom">
+                        <div className="flex items-center gap-2">
+                          <Plus className="h-4 w-4" />
+                          添加新会话...
+                        </div>
+                      </SelectItem>
+
+                      {/* 分隔线 */}
+                      {availableTopics.length > 0 && (
+                        <div className="border-t my-1" />
+                      )}
+
+                      {/* 现有研究会话列表 */}
+                      {availableTopics
+                        .filter(session => !watchedSessions?.includes(session.id))
+                        .map(session => (
+                          <SelectItem key={session.id} value={session.id}>
+                            <div className="flex items-center gap-2">
+                              <span className="text-blue-600">🔬</span>
+                              <span className="truncate max-w-[200px]">
+                                {session.displayName}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+
+                      {/* 无可用会话时的提示 */}
+                      {availableTopics.filter(session => !watchedSessions?.includes(session.id)).length === 0 && (
+                        <div className="px-2 py-1 text-xs text-gray-500">
+                          暂无可关联的研究会话
+                        </div>
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
-                
-                {/* Topics Tags */}
+
+                {/* 自定义输入框（条件显示） */}
+                {showCustomSessionInput && (
+                  <div className="flex gap-2">
+                    <Input
+                      value={sessionInput}
+                      onChange={(e) => setSessionInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addSession();
+                        }
+                        if (e.key === 'Escape') {
+                          setSessionInput("");
+                          setShowCustomSessionInput(false);
+                        }
+                      }}
+                      placeholder="输入新研究会话名称（按Enter添加，Esc取消）"
+                      className="flex-1"
+                      autoFocus
+                    />
+                    <Button
+                      type="button"
+                      onClick={addSession}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setSessionInput("");
+                        setShowCustomSessionInput(false);
+                      }}
+                      variant="ghost"
+                      size="sm"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* 已关联的研究会话 */}
                 <div className="space-y-2">
-                  {/* 当前选择的topics */}
-                  {watchedTopics && watchedTopics.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {watchedTopics.map((topic, index) => (
-                        <Badge
-                          key={index}
-                          variant="default"
-                          className="flex items-center gap-1 pr-1"
-                        >
-                          {topic}
-                          <button
-                            type="button"
-                            onClick={() => removeTopic(index)}
-                            className="ml-1 hover:bg-red-500 hover:text-white rounded-full p-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* 研究话题建议 */}
-                  {availableTopics.filter(topic => !watchedTopics?.includes(topic)).length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-xs text-blue-600 font-medium">🎯 相关研究话题（点击添加）：</p>
-                      <div className="flex flex-wrap gap-1">
-                        {availableTopics.filter(topic => !watchedTopics?.includes(topic)).slice(0, 10).map(topic => (
+                  {watchedSessions && watchedSessions.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-600 mb-2">已关联的研究会话：</p>
+                      <div className="flex flex-wrap gap-2">
+                        {watchedSessions.map((session, index) => (
                           <Badge
-                            key={topic}
+                            key={index}
                             variant="default"
-                            className="cursor-pointer hover:opacity-80 text-xs bg-blue-100 text-blue-800 hover:bg-blue-200"
-                            onClick={() => addExistingTopic(topic)}
+                            className="flex items-center gap-1 pr-1 bg-blue-100 text-blue-800"
                           >
-                            🎯 {topic.length > 25 ? topic.substring(0, 25) + "..." : topic}
+                            🔬 {getSessionDisplayName(session)}
+                            <button
+                              type="button"
+                              onClick={() => removeSession(index)}
+                              className="ml-1 hover:bg-red-500 hover:text-white rounded-full p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </Badge>
                         ))}
                       </div>
                     </div>
+                  )}
+
+                  {(!watchedSessions || watchedSessions.length === 0) && (
+                    <p className="text-xs text-gray-400 italic">尚未关联任何研究会话</p>
                   )}
                 </div>
               </div>
@@ -627,7 +733,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
               </div>
 
               {/* Summary */}
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <Label htmlFor="summary">{t('library.editLiteratureForm.summary')}</Label>
                 <Textarea
                   id="summary"
@@ -635,7 +741,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                   placeholder={t('library.editLiteratureForm.enterSummary')}
                   rows={3}
                 />
-              </div>
+              </div> */}
 
               {/* Zotero Key (only show if source is zotero) */}
               {watchedSource === 'zotero' && (
@@ -651,7 +757,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
               )}
 
               {/* Auto-Extract Metadata Setting - TODO: Move to global settings */}
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              {/* <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <div className="flex items-center gap-3">
                   <Checkbox
                     id="auto-extract"
@@ -670,7 +776,7 @@ export function EditLiteratureForm({ open, onClose, item, onSuccess }: EditLiter
                 <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
                   {t('library.editLiteratureForm.autoExtractMetadataDescription')}
                 </p>
-              </div>
+              </div> */}
 
               {/* Metadata Display */}
               <div className="p-3 bg-muted rounded-lg text-sm text-muted-foreground">

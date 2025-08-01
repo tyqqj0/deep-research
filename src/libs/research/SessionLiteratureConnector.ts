@@ -40,6 +40,15 @@ export class SessionLiteratureConnector {
   }
 
   /**
+   * 🎯 获取当前会话ID
+   */
+  private getSessionId(): string {
+    const { useTaskStore } = require('@/store/task');
+    const taskStore = useTaskStore.getState();
+    return taskStore.id;
+  }
+
+  /**
    * 获取当前话题相关的文献列表
    */
   getTopicLiterature(): LibraryItem[] {
@@ -56,13 +65,19 @@ export class SessionLiteratureConnector {
   }
 
   /**
-   * 判断文献是否与当前话题相关
+   * 🎯 判断文献是否与当前会话相关
    */
   private isTopicRelated(item: LibraryItem): boolean {
-    const topicLower = this.topic.toLowerCase();
+    const currentSessionId = this.getSessionId();
 
-    // 检查topics标签
-    if (item.topics?.some(topic => topic.toLowerCase().includes(topicLower))) {
+    // 🎯 优先检查会话ID关联
+    if (item.associatedSessions?.includes(currentSessionId)) {
+      return true;
+    }
+
+    // 🔄 兼容性：检查是否有基于topic名称的关联
+    const topicLower = this.topic.toLowerCase();
+    if (item.associatedSessions?.some(session => session.toLowerCase().includes(topicLower))) {
       return true;
     }
 
@@ -153,7 +168,7 @@ export class SessionLiteratureConnector {
         year: new Date().getFullYear(), // 提供默认年份
         url: url.trim(),
         source: 'import', // 使用有效的source值
-        topics: this.autoTag ? [this.topic] : []
+        associatedSessions: this.autoTag ? [this.getSessionId()] : []
       }));
 
       // 🚀 一次性并行处理所有文献（利用底层的并行化处理）

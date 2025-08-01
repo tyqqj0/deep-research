@@ -18,9 +18,10 @@
 
 import { create } from 'zustand';
 import { liveQuery } from 'dexie';
-import { LibraryItem, db, BackendTask } from '../libs/db';
+import { LibraryItem, LiteratureTree, db, BackendTask } from '../libs/db';
 import { LITERATURE_SOURCES, LiteratureSource as LiteratureSourceEnum } from '../libs/db/constants';
 import { libraryService } from '../libs/db/LibraryService';
+import { TreeController } from '../libs/tree/TreeController';
 import { apiClient } from '../libs/api';
 import { toast } from 'sonner';
 import { taskStateManager, type TaskDisplayState } from '../libs/task/TaskStateManager';
@@ -34,7 +35,7 @@ interface LiteratureSource {
   url?: string;
   year?: number;
   journal?: string;
-  topics?: string[]; // 🏷️ 支持话题标签
+  associatedSessions?: string[]; // 🔗 支持关联研究会话
 }
 
 // 📊 SSE提交状态接口
@@ -55,15 +56,18 @@ interface LiteratureSubmissionState {
 interface SimplifiedLibraryState {
   // 📚 核心数据
   items: LibraryItem[];
+  trees: LiteratureTree[];
+  activeTreeController: TreeController | null;
   isLoading: boolean;
   error: string | null;
   isInitialized: boolean;
+  treeVersion: number; // Version number to trigger UI updates
 
   // 🔍 搜索和过滤
   sourceFilter: LiteratureSourceEnum | 'all';
   searchTerm: string;
   topicFilter: string[];
-  availableTopics: string[];
+  availableTopics: Array<{id: string, displayName: string}>;
 
   // 📡 SSE提交状态（仅用于UI显示）
   activeSubmissions: Map<string, LiteratureSubmissionState>;
@@ -74,6 +78,7 @@ interface SimplifiedLibraryActions {
   // 🚀 核心操作
   initialize: () => Promise<void>;
   refreshItems: () => Promise<void>;
+  refreshTrees: () => Promise<void>;
 
   // 📡 SSE文献提交
   submitLiterature: (source: LiteratureSource) => Promise<void>;
@@ -103,6 +108,10 @@ interface SimplifiedLibraryActions {
   getItemDisplayStateByItem: (item: LibraryItem) => TaskDisplayState;
   clearError: () => void;
 
+  // 🌳 树状态管理
+  selectTree: (treeId: string) => Promise<void>;
+  runMCTS: () => Promise<void>;
+
   // 🔗 Zotero 相关（兼容性）
   isZoteroConfigured: boolean;
   zoteroSyncResult: any;
@@ -121,9 +130,12 @@ type LibraryStore = SimplifiedLibraryState & SimplifiedLibraryActions;
 export const useLibraryStore = create<LibraryStore>((set, get) => ({
   // ==================== 初始化状态 ====================
   items: [],
+  trees: [],
+  activeTreeController: null,
   isLoading: false,
   error: null,
   isInitialized: false,
+  treeVersion: 0,
 
   sourceFilter: 'all',
   searchTerm: '',
@@ -146,8 +158,14 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
       // 📚 加载文献数据
       await get().refreshItems();
 
+      // 🌳 加载树数据
+      await get().refreshTrees();
+
       // 🏷️ 加载话题
       await get().loadAvailableTopics();
+
+      // 🧹 启动时自动清理无效的树引用
+      await get().cleanupInvalidTreeReferences();
 
       set({ isInitialized: true });
       // console.log('✅ [LibraryStore] Simplified store initialized successfully');
@@ -183,6 +201,26 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   },
 
   /**
+   * 🌳 刷新树列表
+   */
+  refreshTrees: async () => {
+    try {
+      // console.log('🌳 [LibraryStore] Refreshing trees...');
+
+      const trees = await libraryService.getAllTrees();
+      set({ trees });
+
+      // console.log(`✅ [LibraryStore] Loaded ${trees.length} trees`);
+
+    } catch (error) {
+      console.error('❌ [LibraryStore] Failed to refresh trees:', error);
+      set({
+        error: error instanceof Error ? error.message : 'Failed to refresh trees'
+      });
+    }
+  },
+
+  /**
    * 📡 提交文献到SSE接口（立即创建占位文献）
    */
   submitLiterature: async (source: LiteratureSource) => {
@@ -202,7 +240,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
         publication: source.journal,
         abstract: null,
         source: 'import',
-        topics: source.topics || undefined, // 🏷️ 保留话题标签
+        associatedSessions: source.associatedSessions || undefined, // 🔗 保留关联会话
 
         // 🎯 设置等待处理的后端任务状态
         backendTask: {
@@ -318,8 +356,8 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
                        placeholderItem.abstract || 
                        null,
 
-              // 🏷️ 保留原始话题标签，不被后端数据覆盖
-              topics: placeholderItem.topics || undefined,
+              // 🔗 保留原始关联会话，不被后端数据覆盖
+              associatedSessions: placeholderItem.associatedSessions || undefined,
 
               parsedContent: {
                 extractedText: literatureData.content?.has_grobid_fulltext ? 'Available' : undefined,
@@ -347,12 +385,27 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
               placeholderId: placeholderItem.id,
               title: updateData.title,
               authors: updateData.authors,
-              topics: updateData.topics, // 🏷️ 显示保留的话题标签
+              associatedSessions: updateData.associatedSessions, // 🔗 显示保留的关联会话
               literatureId: data.literature_id
             });
 
             // 🔄 更新占位文献
             await get().updateLibraryItem(placeholderItem.id, updateData);
+
+            // 🔗 自动链接引文（在文献更新成功后进行）
+            try {
+              console.log('🔗 [LibraryStore] Starting automatic citation linking for:', placeholderItem.id);
+              const linkResult = await libraryService.linkNewItemBidirectionally(placeholderItem.id);
+              console.log(`✅ [LibraryStore] Citation linking completed: ${linkResult.forwardLinks} forward, ${linkResult.backwardLinks} backward links`);
+              
+              // 如果有引文链接，刷新数据以显示关联关系
+              if (linkResult.forwardLinks > 0 || linkResult.backwardLinks > 0) {
+                await get().refreshItems();
+              }
+            } catch (linkError) {
+              console.warn('⚠️ [LibraryStore] Citation linking failed, but literature was successfully added:', linkError);
+              // 引文链接失败不应该影响主要功能，继续正常流程
+            }
 
             // 🔌 清理activeSubmissions中的完成项
             get().completeSubmission(submissionId);
@@ -573,6 +626,35 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     });
   },
 
+  /**
+   * 🎯 根据会话ID获取显示名称
+   */
+  getSessionDisplayName: async (sessionId: string): Promise<string> => {
+    try {
+      // 先从当前的availableTopics中查找
+      const availableTopics = get().availableTopics;
+      const session = availableTopics.find(s => s.id === sessionId);
+      if (session) {
+        return session.displayName;
+      }
+
+      // 如果没找到，直接从HistoryStore查找
+      const { useHistoryStore } = await import('@/store/history');
+      const historyStore = useHistoryStore.getState();
+      const historyRecord = historyStore.history.find(record => record.id === sessionId);
+
+      if (historyRecord) {
+        return historyRecord.title || historyRecord.question || '未命名会话';
+      }
+
+      // 如果还是没找到，可能是旧数据（直接存储的是title），直接返回
+      return sessionId;
+    } catch (error) {
+      console.error('❌ [LibraryStore] Failed to get session display name:', error);
+      return sessionId;
+    }
+  },
+
   // ==================== 基础CRUD（委托给存储层）====================
 
   /**
@@ -729,14 +811,14 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
         }
       }
 
-      // 🏷️ 主题过滤
+      // 🔗 研究会话过滤
       if (topicFilter.length > 0) {
-        const itemTopics = item.topics || [];
-        const hasMatchingTopic = topicFilter.some(filterTopic =>
-          itemTopics.includes(filterTopic)
+        const itemSessions = item.associatedSessions || [];
+        const hasMatchingSession = topicFilter.some(filterSession =>
+          itemSessions.includes(filterSession)
         );
 
-        if (!hasMatchingTopic) {
+        if (!hasMatchingSession) {
           return false;
         }
       }
@@ -746,25 +828,75 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   },
 
   /**
-   * 🏷️ 加载可用主题
+   * 🔗 加载可用的研究会话（用于文献关联）
    */
   loadAvailableTopics: async () => {
     try {
-      const items = await libraryService.getAllLibraryItems();
-      const topicsSet = new Set<string>();
+      // console.log('🔍 [DEBUG] loadAvailableTopics called');
 
-      items.forEach(item => {
-        if (item.topics) {
-          item.topics.forEach(topic => topicsSet.add(topic));
-        }
-      });
+      // 🎯 从HistoryStore获取所有历史研究会话
+      const { useHistoryStore } = await import('@/store/history');
+      const historyStore = useHistoryStore.getState();
 
-      const availableTopics = Array.from(topicsSet).sort();
+      // console.log('🔍 [DEBUG] HistoryStore state:', {
+      //   historyLength: historyStore.history.length,
+      //   historyTitles: historyStore.history.map(r => r.title),
+      //   fullHistory: historyStore.history
+      // });
+
+      // 🔍 详细分析每条历史记录的结构
+      // historyStore.history.forEach((record, index) => {
+      //   console.log(`🔍 [DEBUG] History Record ${index}:`, {
+      //     id: record.id,
+      //     title: record.title,
+      //     question: record.question,
+      //     createdAt: record.createdAt,
+      //     hasTitle: !!record.title,
+      //     hasQuestion: !!record.question,
+      //     titleType: typeof record.title,
+      //     questionType: typeof record.question,
+      //     allKeys: Object.keys(record)
+      //   });
+      // });
+
+      // 🎯 修复：返回包含ID和显示名称的会话对象
+      const availableTopics = historyStore.history
+        .filter(record => record.title || record.question) // 过滤空记录
+        .map(record => ({
+          id: record.id,
+          displayName: record.title || record.question || '未命名会话'
+        }))
+        .filter((session, index, array) =>
+          // 基于displayName去重，保留第一个
+          array.findIndex(s => s.displayName === session.displayName) === index
+        )
+        .sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+      console.log('🔍 [DEBUG] Processed availableTopics:', availableTopics);
+
       set({ availableTopics });
-
-      console.log(`🏷️ [LibraryStore] Loaded ${availableTopics.length} available topics`);
+      console.log(`🔗 [LibraryStore] Loaded ${availableTopics.length} research sessions for association`);
     } catch (error) {
-      console.error('❌ [LibraryStore] Failed to load topics:', error);
+      console.error('❌ [LibraryStore] Failed to load research sessions:', error);
+      // 降级处理：如果无法加载历史记录，至少提供当前会话
+      try {
+        const { useTaskStore } = await import('@/store/task');
+        const taskStore = useTaskStore.getState();
+        const currentTitle = taskStore.title || taskStore.question;
+        const availableTopics = currentTitle ? [{
+          id: taskStore.id,
+          displayName: currentTitle
+        }] : [];
+
+        console.log('🔍 [DEBUG] Fallback - TaskStore title:', currentTitle);
+        console.log('🔍 [DEBUG] Fallback - availableTopics:', availableTopics);
+
+        set({ availableTopics });
+        console.log(`🔗 [LibraryStore] Fallback: Using current session only`);
+      } catch (fallbackError) {
+        console.error('❌ [LibraryStore] Fallback also failed:', fallbackError);
+        set({ availableTopics: [] });
+      }
     }
   },
 
@@ -788,6 +920,142 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  /**
+   * 🧹 清理无效的树引用（启动时自动调用）
+   */
+  cleanupInvalidTreeReferences: async () => {
+    try {
+      console.log('🧹 [LibraryStore] 开始启动时状态验证和清理...');
+
+      // 导入必要的模块（避免循环依赖）
+      const { useTaskStore } = await import('@/store/task');
+      const { useHistoryStore } = await import('@/store/history');
+      const { treeService } = await import('@/libs/tree/TreeService');
+
+      const taskStore = useTaskStore.getState();
+      const historyStore = useHistoryStore.getState();
+
+      let cleanupCount = 0;
+      let validationCount = 0;
+
+      // 1. 🎯 验证TaskStore中的当前树ID（核心持久化状态）
+      if (taskStore.treeId) {
+        validationCount++;
+        try {
+          const tree = await treeService.getTreeById(taskStore.treeId);
+          if (!tree) {
+            console.log(`🧹 [启动清理] TaskStore中的树ID无效: ${taskStore.treeId}`);
+            taskStore.setTreeId(undefined);
+            taskStore.clearAlgorithmState();
+            cleanupCount++;
+          } else {
+            console.log(`✅ [启动验证] TaskStore中的树ID有效: ${taskStore.treeId}`);
+          }
+        } catch (error) {
+          console.log(`🧹 [启动清理] TaskStore中的树ID验证失败: ${taskStore.treeId}`);
+          taskStore.setTreeId(undefined);
+          taskStore.clearAlgorithmState();
+          cleanupCount++;
+        }
+      }
+
+      // 2. 🎯 验证历史记录中的树ID引用（辅助状态）
+      for (const record of historyStore.history) {
+        if (record.treeId) {
+          validationCount++;
+          try {
+            const tree = await treeService.getTreeById(record.treeId);
+            if (!tree) {
+              console.log(`🧹 [启动清理] 历史记录中的树ID无效: ${record.treeId} (话题: ${record.title})`);
+              const updatedRecord = { ...record, treeId: undefined };
+              historyStore.update(record.id, updatedRecord);
+              cleanupCount++;
+            }
+          } catch (error) {
+            console.log(`🧹 [启动清理] 历史记录中的树ID验证失败: ${record.treeId} (话题: ${record.title})`);
+            const updatedRecord = { ...record, treeId: undefined };
+            historyStore.update(record.id, updatedRecord);
+            cleanupCount++;
+          }
+        }
+      }
+
+      // 3. 🎯 报告清理结果
+      if (validationCount === 0) {
+        console.log('ℹ️ [LibraryStore] 启动时未发现需要验证的树引用');
+      } else if (cleanupCount === 0) {
+        console.log(`✅ [LibraryStore] 启动验证完成，所有 ${validationCount} 个树引用都有效`);
+      } else {
+        console.log(`✅ [LibraryStore] 启动清理完成，验证了 ${validationCount} 个引用，清理了 ${cleanupCount} 个无效引用`);
+      }
+
+    } catch (error) {
+      console.error('❌ [LibraryStore] 启动时状态验证失败:', error);
+    }
+  },
+
+  // ==================== 树状态管理 ====================
+
+  /**
+   * 🌳 选择树
+   */
+  selectTree: async (treeId: string) => {
+    try {
+      set({ isLoading: true, error: null });
+
+      const treeData = await libraryService.getTreeById(treeId);
+
+      if (!treeData) {
+        throw new Error(`Tree with id ${treeId} not found`);
+      }
+
+      const newController = new TreeController(treeData, libraryService);
+
+      set({
+        activeTreeController: newController,
+        isLoading: false,
+        treeVersion: get().treeVersion + 1
+      });
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to select tree'
+      });
+    }
+  },
+
+  /**
+   * 🚀 运行MCTS模拟
+   */
+  runMCTS: async () => {
+    try {
+      const { activeTreeController } = get();
+
+      if (!activeTreeController) {
+        throw new Error('No active tree controller. Please select a tree first.');
+      }
+
+      set({ isLoading: true, error: null });
+
+      // Run MCTS simulation
+      activeTreeController.runSimulation();
+
+      // Save the updated tree
+      await activeTreeController.save();
+
+      // Update the tree version to trigger UI updates
+      set({
+        isLoading: false,
+        treeVersion: get().treeVersion + 1
+      });
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to run MCTS simulation'
+      });
+    }
   },
 
   // Zotero 相关方法（兼容性保留）
@@ -815,7 +1083,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
         url: itemData.url || undefined,
         year: itemData.year || undefined,
         journal: itemData.publication || undefined,
-        topics: itemData.topics || undefined // 🏷️ 保留话题标签
+        associatedSessions: itemData.associatedSessions || undefined // 🔗 保留关联会话
       };
 
       // 📡 委托给SSE提交

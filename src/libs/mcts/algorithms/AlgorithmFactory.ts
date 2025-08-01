@@ -27,11 +27,42 @@ import {
   DefaultSelectionStrategy
 } from './DefaultAlgorithms';
 
+// 导入新的细粒度模块
+import { IThinker, DefaultThinker, LLMThinker } from './modules/Thinker';
+import { IFormulator, DefaultFormulator, LLMFormulator } from './modules/Formulator';
+import { ICiter, DefaultCiter, SemanticCiter, NLICiter } from './modules/Citer';
+import { IValidator, DefaultValidator, LLMValidator } from './modules/Validator';
+import { ILocator, DefaultLocator, LLMLocator, AdaptiveLocator } from './modules/Locator';
+import { IRewardCalculator, DefaultRewardCalculator, MLRewardCalculator, LLMRewardCalculator } from './modules/RewardCalculator';
+import { IExpander, DefaultExpander, AdvancedExpander } from './modules/Expander';
+
 // 算法实现注册表
 interface AlgorithmRegistry {
+  // 传统的三大组件（向后兼容）
   evaluators: Map<string, new (config?: any) => NodeEvaluator>;
   expanders: Map<string, new (config?: any) => NodeExpander>;
   selectors: Map<string, new (config?: any) => SelectionStrategy>;
+  
+  // 新的细粒度模块
+  thinkers: Map<string, new (config?: any) => IThinker>;
+  formulators: Map<string, new (config?: any) => IFormulator>;
+  citers: Map<string, new (config?: any) => ICiter>;
+  validators: Map<string, new (config?: any) => IValidator>;
+  locators: Map<string, new (config?: any) => ILocator>;
+  rewardCalculators: Map<string, new (config?: any) => IRewardCalculator>;
+  modularExpanders: Map<string, new (config?: any) => IExpander>;
+}
+
+// 细粒度模块配置接口
+export interface ModularAlgorithmConfiguration {
+  thinker: { type: string; config?: any };
+  formulator: { type: string; config?: any };
+  citer: { type: string; config?: any };
+  validator: { type: string; config?: any };
+  locator: { type: string; config?: any };
+  rewardCalculator: { type: string; config?: any };
+  expander: { type: string; config?: any };
+  global?: any;
 }
 
 export class AlgorithmFactory implements IAlgorithmFactory {
@@ -39,13 +70,24 @@ export class AlgorithmFactory implements IAlgorithmFactory {
 
   constructor() {
     this.registry = {
+      // 传统组件
       evaluators: new Map(),
       expanders: new Map(),
-      selectors: new Map()
+      selectors: new Map(),
+      
+      // 细粒度模块
+      thinkers: new Map(),
+      formulators: new Map(),
+      citers: new Map(),
+      validators: new Map(),
+      locators: new Map(),
+      rewardCalculators: new Map(),
+      modularExpanders: new Map()
     };
     
     // 注册默认算法
     this.registerDefaultAlgorithms();
+    this.registerModularAlgorithms();
   }
 
   // ==================== 算法创建方法 ====================
@@ -113,6 +155,155 @@ export class AlgorithmFactory implements IAlgorithmFactory {
     }
   }
 
+  // ==================== 细粒度模块创建方法 ====================
+
+  createThinker(type: string, config?: any): IThinker {
+    const ThinkerClass = this.registry.thinkers.get(type);
+    if (!ThinkerClass) {
+      throw new AlgorithmError(
+        `未知的思考器类型: ${type}`,
+        'thinker',
+        { availableTypes: this.getAvailableThinkers() }
+      );
+    }
+    
+    try {
+      return new ThinkerClass(config);
+    } catch (error) {
+      throw new AlgorithmError(
+        `创建思考器失败: ${error.message}`,
+        'thinker',
+        { type, config, error }
+      );
+    }
+  }
+
+  createFormulator(type: string, config?: any): IFormulator {
+    const FormulatorClass = this.registry.formulators.get(type);
+    if (!FormulatorClass) {
+      throw new AlgorithmError(
+        `未知的表述器类型: ${type}`,
+        'formulator',
+        { availableTypes: this.getAvailableFormulators() }
+      );
+    }
+    
+    try {
+      return new FormulatorClass(config);
+    } catch (error) {
+      throw new AlgorithmError(
+        `创建表述器失败: ${error.message}`,
+        'formulator',
+        { type, config, error }
+      );
+    }
+  }
+
+  createCiter(type: string, config?: any): ICiter {
+    const CiterClass = this.registry.citers.get(type);
+    if (!CiterClass) {
+      throw new AlgorithmError(
+        `未知的引用器类型: ${type}`,
+        'citer',
+        { availableTypes: this.getAvailableCiters() }
+      );
+    }
+    
+    try {
+      return new CiterClass(config);
+    } catch (error) {
+      throw new AlgorithmError(
+        `创建引用器失败: ${error.message}`,
+        'citer',
+        { type, config, error }
+      );
+    }
+  }
+
+  createValidator(type: string, config?: any): IValidator {
+    const ValidatorClass = this.registry.validators.get(type);
+    if (!ValidatorClass) {
+      throw new AlgorithmError(
+        `未知的验证器类型: ${type}`,
+        'validator',
+        { availableTypes: this.getAvailableValidators() }
+      );
+    }
+    
+    try {
+      return new ValidatorClass(config);
+    } catch (error) {
+      throw new AlgorithmError(
+        `创建验证器失败: ${error.message}`,
+        'validator',
+        { type, config, error }
+      );
+    }
+  }
+
+  createLocator(type: string, config?: any): ILocator {
+    const LocatorClass = this.registry.locators.get(type);
+    if (!LocatorClass) {
+      throw new AlgorithmError(
+        `未知的定位器类型: ${type}`,
+        'locator',
+        { availableTypes: this.getAvailableLocators() }
+      );
+    }
+    
+    try {
+      return new LocatorClass(config);
+    } catch (error) {
+      throw new AlgorithmError(
+        `创建定位器失败: ${error.message}`,
+        'locator',
+        { type, config, error }
+      );
+    }
+  }
+
+  createRewardCalculator(type: string, config?: any): IRewardCalculator {
+    const RewardCalculatorClass = this.registry.rewardCalculators.get(type);
+    if (!RewardCalculatorClass) {
+      throw new AlgorithmError(
+        `未知的奖励计算器类型: ${type}`,
+        'rewardCalculator',
+        { availableTypes: this.getAvailableRewardCalculators() }
+      );
+    }
+    
+    try {
+      return new RewardCalculatorClass(config);
+    } catch (error) {
+      throw new AlgorithmError(
+        `创建奖励计算器失败: ${error.message}`,
+        'rewardCalculator',
+        { type, config, error }
+      );
+    }
+  }
+
+  createModularExpander(type: string, config?: any): IExpander {
+    const ExpanderClass = this.registry.modularExpanders.get(type);
+    if (!ExpanderClass) {
+      throw new AlgorithmError(
+        `未知的模块化扩展器类型: ${type}`,
+        'modularExpander',
+        { availableTypes: this.getAvailableModularExpanders() }
+      );
+    }
+    
+    try {
+      return new ExpanderClass(config);
+    } catch (error) {
+      throw new AlgorithmError(
+        `创建模块化扩展器失败: ${error.message}`,
+        'modularExpander',
+        { type, config, error }
+      );
+    }
+  }
+
   // ==================== 算法发现方法 ====================
 
   getAvailableEvaluators(): string[] {
@@ -125,6 +316,35 @@ export class AlgorithmFactory implements IAlgorithmFactory {
 
   getAvailableSelectors(): string[] {
     return Array.from(this.registry.selectors.keys());
+  }
+
+  // 细粒度模块发现方法
+  getAvailableThinkers(): string[] {
+    return Array.from(this.registry.thinkers.keys());
+  }
+
+  getAvailableFormulators(): string[] {
+    return Array.from(this.registry.formulators.keys());
+  }
+
+  getAvailableCiters(): string[] {
+    return Array.from(this.registry.citers.keys());
+  }
+
+  getAvailableValidators(): string[] {
+    return Array.from(this.registry.validators.keys());
+  }
+
+  getAvailableLocators(): string[] {
+    return Array.from(this.registry.locators.keys());
+  }
+
+  getAvailableRewardCalculators(): string[] {
+    return Array.from(this.registry.rewardCalculators.keys());
+  }
+
+  getAvailableModularExpanders(): string[] {
+    return Array.from(this.registry.modularExpanders.keys());
   }
 
   // ==================== 算法注册方法 ====================
@@ -148,6 +368,56 @@ export class AlgorithmFactory implements IAlgorithmFactory {
       console.warn(`选择策略类型 ${type} 已存在，将被覆盖`);
     }
     this.registry.selectors.set(type, selectorClass);
+  }
+
+  // 细粒度模块注册方法
+  registerThinker(type: string, thinkerClass: new (config?: any) => IThinker): void {
+    if (this.registry.thinkers.has(type)) {
+      console.warn(`思考器类型 ${type} 已存在，将被覆盖`);
+    }
+    this.registry.thinkers.set(type, thinkerClass);
+  }
+
+  registerFormulator(type: string, formulatorClass: new (config?: any) => IFormulator): void {
+    if (this.registry.formulators.has(type)) {
+      console.warn(`表述器类型 ${type} 已存在，将被覆盖`);
+    }
+    this.registry.formulators.set(type, formulatorClass);
+  }
+
+  registerCiter(type: string, citerClass: new (config?: any) => ICiter): void {
+    if (this.registry.citers.has(type)) {
+      console.warn(`引用器类型 ${type} 已存在，将被覆盖`);
+    }
+    this.registry.citers.set(type, citerClass);
+  }
+
+  registerValidator(type: string, validatorClass: new (config?: any) => IValidator): void {
+    if (this.registry.validators.has(type)) {
+      console.warn(`验证器类型 ${type} 已存在，将被覆盖`);
+    }
+    this.registry.validators.set(type, validatorClass);
+  }
+
+  registerLocator(type: string, locatorClass: new (config?: any) => ILocator): void {
+    if (this.registry.locators.has(type)) {
+      console.warn(`定位器类型 ${type} 已存在，将被覆盖`);
+    }
+    this.registry.locators.set(type, locatorClass);
+  }
+
+  registerRewardCalculator(type: string, rewardCalculatorClass: new (config?: any) => IRewardCalculator): void {
+    if (this.registry.rewardCalculators.has(type)) {
+      console.warn(`奖励计算器类型 ${type} 已存在，将被覆盖`);
+    }
+    this.registry.rewardCalculators.set(type, rewardCalculatorClass);
+  }
+
+  registerModularExpander(type: string, expanderClass: new (config?: any) => IExpander): void {
+    if (this.registry.modularExpanders.has(type)) {
+      console.warn(`模块化扩展器类型 ${type} 已存在，将被覆盖`);
+    }
+    this.registry.modularExpanders.set(type, expanderClass);
   }
 
   // ==================== 配置驱动的算法套件创建 ====================
@@ -178,6 +448,77 @@ export class AlgorithmFactory implements IAlgorithmFactory {
     } catch (error) {
       throw new AlgorithmError(
         `创建算法套件失败: ${error.message}`,
+        'factory',
+        { configuration, error }
+      );
+    }
+  }
+
+  // 创建细粒度模块化算法套件
+  createModularAlgorithmSuite(configuration: ModularAlgorithmConfiguration) {
+    try {
+      const thinker = this.createThinker(
+        configuration.thinker.type,
+        configuration.thinker.config
+      );
+      
+      const formulator = this.createFormulator(
+        configuration.formulator.type,
+        configuration.formulator.config
+      );
+      
+      const citer = this.createCiter(
+        configuration.citer.type,
+        configuration.citer.config
+      );
+      
+      const validator = this.createValidator(
+        configuration.validator.type,
+        configuration.validator.config
+      );
+      
+      const locator = this.createLocator(
+        configuration.locator.type,
+        configuration.locator.config
+      );
+      
+      const rewardCalculator = this.createRewardCalculator(
+        configuration.rewardCalculator.type,
+        configuration.rewardCalculator.config
+      );
+      
+      // 创建带有依赖注入的扩展器
+      const expanderConfig = {
+        ...configuration.expander.config,
+        thinker,
+        formulator,
+        citer,
+        validator,
+        rewardCalculator
+      };
+      
+      const expander = this.createModularExpander(
+        configuration.expander.type,
+        expanderConfig
+      );
+
+      return {
+        // 细粒度模块
+        thinker,
+        formulator,
+        citer,
+        validator,
+        locator,
+        rewardCalculator,
+        expander,
+        
+        // 全局配置
+        config: configuration.global
+      };
+      
+    } catch (error) {
+      throw new AlgorithmError(
+        `创建模块化算法套件失败: ${error.message}`,
         'factory',
         { configuration, error }
       );
@@ -249,21 +590,128 @@ export class AlgorithmFactory implements IAlgorithmFactory {
     };
   }
 
+  // 获取默认的模块化配置
+  getDefaultModularConfiguration(): ModularAlgorithmConfiguration {
+    return {
+      thinker: {
+        type: 'default',
+        config: {
+          maxDirections: 5,
+          diversityThreshold: 0.3,
+          minConfidence: 0.6
+        }
+      },
+      formulator: {
+        type: 'default',
+        config: {
+          maxVariants: 3,
+          keywordThreshold: 0.5
+        }
+      },
+      citer: {
+        type: 'default',
+        config: {
+          maxCitations: 10,
+          diversityWeight: 0.3,
+          relevanceThreshold: 0.6
+        }
+      },
+      validator: {
+        type: 'default',
+        config: {
+          qualityThreshold: 0.6,
+          duplicationThreshold: 0.8,
+          validateTVC: true
+        }
+      },
+      locator: {
+        type: 'default',
+        config: {
+          explorationConstant: 1.41,
+          semanticWeight: 0.3,
+          adaptiveExploration: false
+        }
+      },
+      rewardCalculator: {
+        type: 'default',
+        config: {
+          importanceWeight: 0.4,
+          citationWeight: 0.3,
+          pathWeight: 0.3,
+          useNormalization: true
+        }
+      },
+      expander: {
+        type: 'default',
+        config: {
+          maxCandidates: 5,
+          minValidationScore: 0.6,
+          minRewardThreshold: 0.5,
+          enableParallelProcessing: true,
+          skipLowQualityNodes: false
+        }
+      },
+      global: {
+        llmModel: 'gpt-3.5-turbo',
+        temperature: 0.3,
+        maxTokens: 2000,
+        enableCaching: true,
+        enableLogging: true
+      }
+    };
+  }
+
   // ==================== 私有辅助方法 ====================
 
   private registerDefaultAlgorithms(): void {
     // 注册默认算法实现
     this.registerEvaluator('default', DefaultNodeEvaluator);
+    this.registerEvaluator('llm-enhanced', DefaultNodeEvaluator); // 🎯 添加缺失的类型
     this.registerEvaluator('graph-based', DefaultNodeEvaluator); // 暂时复用
     this.registerEvaluator('hybrid', DefaultNodeEvaluator); // 暂时复用
-    
+
     this.registerExpander('default', DefaultNodeExpander);
+    this.registerExpander('tvc-process', DefaultNodeExpander); // 🎯 添加缺失的类型
     this.registerExpander('citation-based', DefaultNodeExpander); // 暂时复用
     this.registerExpander('semantic', DefaultNodeExpander); // 暂时复用
-    
+
     this.registerSelector('default', DefaultSelectionStrategy);
+    this.registerSelector('sg-uct', DefaultSelectionStrategy); // 🎯 添加缺失的类型
     this.registerSelector('traditional-uct', DefaultSelectionStrategy); // 暂时复用
-    this.registerSelector('sg-uct', DefaultSelectionStrategy); // 暂时复用
+    this.registerSelector('adaptive', DefaultSelectionStrategy); // 暂时复用
+  }
+
+  private registerModularAlgorithms(): void {
+    // 注册Thinker模块
+    this.registerThinker('default', DefaultThinker);
+    this.registerThinker('llm', LLMThinker);
+    
+    // 注册Formulator模块
+    this.registerFormulator('default', DefaultFormulator);
+    this.registerFormulator('llm', LLMFormulator);
+    
+    // 注册Citer模块
+    this.registerCiter('default', DefaultCiter);
+    this.registerCiter('semantic', SemanticCiter);
+    this.registerCiter('nli', NLICiter);
+    
+    // 注册Validator模块
+    this.registerValidator('default', DefaultValidator);
+    this.registerValidator('llm', LLMValidator);
+    
+    // 注册Locator模块
+    this.registerLocator('default', DefaultLocator);
+    this.registerLocator('llm', LLMLocator);
+    this.registerLocator('adaptive', AdaptiveLocator);
+    
+    // 注册RewardCalculator模块
+    this.registerRewardCalculator('default', DefaultRewardCalculator);
+    this.registerRewardCalculator('ml', MLRewardCalculator);
+    this.registerRewardCalculator('llm', LLMRewardCalculator);
+    
+    // 注册模块化Expander
+    this.registerModularExpander('default', DefaultExpander);
+    this.registerModularExpander('advanced', AdvancedExpander);
   }
 
   private getAlgorithmDescription(category: string, type: string): string {
@@ -327,4 +775,37 @@ export function createDefaultAlgorithmSuite() {
   return algorithmFactory.createAlgorithmSuite(
     algorithmFactory.getDefaultConfiguration()
   );
+}
+
+// 便利函数：创建默认模块化算法套件
+export function createDefaultModularAlgorithmSuite() {
+  return algorithmFactory.createModularAlgorithmSuite(
+    algorithmFactory.getDefaultModularConfiguration()
+  );
+}
+
+// 便利函数：创建LLM增强的模块化算法套件
+export function createLLMEnhancedAlgorithmSuite(llmApiKey: string) {
+  const config = algorithmFactory.getDefaultModularConfiguration();
+  
+  // 使用LLM增强版本
+  config.thinker.type = 'llm';
+  config.thinker.config = { ...config.thinker.config, llmApiKey };
+  
+  config.formulator.type = 'llm';
+  config.formulator.config = { ...config.formulator.config, llmApiKey };
+  
+  config.citer.type = 'semantic'; // 使用语义检索
+  config.citer.config = { ...config.citer.config };
+  
+  config.validator.type = 'llm';
+  config.validator.config = { ...config.validator.config, llmApiKey };
+  
+  config.locator.type = 'llm';
+  config.locator.config = { ...config.locator.config, llmApiKey };
+  
+  config.rewardCalculator.type = 'llm';
+  config.rewardCalculator.config = { ...config.rewardCalculator.config, llmApiKey };
+  
+  return algorithmFactory.createModularAlgorithmSuite(config);
 }

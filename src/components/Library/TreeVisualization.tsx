@@ -426,7 +426,7 @@ const TreeVisualizationInner = memo((props: TreeVisualizationProps) => {
     onNodeDelete
   } = props;
 
-  // 状态管理
+  // 状态管理 - 简化回原始逻辑
   const [selectedTreeId, setSelectedTreeId] = useState<string | undefined>(propTreeId);
   const [nodes, setNodes, defaultOnNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -453,8 +453,6 @@ const TreeVisualizationInner = memo((props: TreeVisualizationProps) => {
 
   const { items: libraryItems, trees, initialize } = useLibraryStore();
   const reactFlowInstance = useReactFlow();
-
-
 
   // 初始化物理引擎
   useEffect(() => {
@@ -628,7 +626,7 @@ const TreeVisualizationInner = memo((props: TreeVisualizationProps) => {
     setEdges(layoutedEdges);
   }, [tree, treeNodes, selectedNode, mode, showNodeStats, getNodeLiteratureItem, getLayoutedElements]);
 
-  // 处理树选择
+  // 处理树选择 - 简化回原始逻辑
   const handleTreeSelect = useCallback((treeId: string) => {
     setSelectedTreeId(treeId);
     onTreeChange?.(treeId);

@@ -145,9 +145,64 @@ const buildingStatus = useTreeBuilderStore(state => state.buildingStatus);
 const currentIteration = useTreeBuilderStore(state => state.currentIteration);
 ```
 
+## 框架扩展能力
+
+### 1. 树可视化详细状态框扩展
+```typescript
+// 扩展节点状态类型 (TreeBuilderStore)
+nodeStates: Map<string, {
+  phase: 'idle' | 'selecting' | 'thinking' | 'citing' | 'validating';
+  progress: number;
+  candidates: LibraryItem[];
+  tvcDetails: { thinking: string; formulations: string[]; citations: LibraryItem[]; };
+}>;
+
+// 动态状态框组件 (TreeVisualization)
+const NodeStatusOverlay = ({ nodeId, status }) => (
+  <div className="absolute z-50 bg-white border-2 p-4 rounded-lg shadow-lg">
+    <ProgressBar phase={status.phase} progress={status.progress} />
+    <CandidatesList items={status.candidates} />
+    <TvcDetailsPanel details={status.tvcDetails} />
+  </div>
+);
+```
+
+### 2. 后端化构建流程
+```typescript
+// 远程控制器适配 (src/libs/mcts/remote/)
+export class RemoteMCTSController implements IMCTSController {
+  async runSingleIteration(tree, context) {
+    const response = await fetch('/api/mcts/iterate', {
+      method: 'POST',
+      body: JSON.stringify({ treeId: tree.id, context })
+    });
+    return response.json();
+  }
+}
+```
+
+### 3. 并行节点扩展支持
+```typescript
+// 并行执行控制器
+export class ParallelMCTSController {
+  private readonly maxConcurrency = 3;
+  
+  async runParallelIterations(nodes: MCTSNode[]) {
+    const batches = this.createBatches(nodes, this.maxConcurrency);
+    // 批量并行执行，资源控制
+  }
+}
+```
+
 ## 实现优先级
 
-1. **Phase 1**: 提取现有`NodeExpander`为独立的TVC模块链
-2. **Phase 2**: 实现`Thinker`→`Formulator`→`Citer`流程  
-3. **Phase 3**: 添加`Validator`验证层
-4. **Phase 4**: 优化实时状态更新和UI反馈
+1. **Phase 1**: 创建细粒度算法模块文件结构
+2. **Phase 2**: 实现`Thinker`模块 - LLM思考推理
+3. **Phase 3**: 实现`Formulator`模块 - LLM表述生成  
+4. **Phase 4**: 实现`Citer`模块 - 文献引用检索
+5. **Phase 5**: 实现`Validator`模块 - 扩展验证
+6. **Phase 6**: 实现`Locator`模块 - 节点定位
+7. **Phase 7**: 实现`RewardCalculator`模块 - 奖励计算
+8. **Phase 8**: 实现`Expander`协调器 - 整合TVC流程
+9. **Phase 9**: 更新`AlgorithmFactory`支持新模块
+10. **Phase 10**: 集成到`SGMCTSController`并测试

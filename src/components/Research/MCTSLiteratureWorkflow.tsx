@@ -95,9 +95,9 @@ export default function MCTSLiteratureWorkflow({
 
   // 🌳 TreeBuilder Hook - SG-MCTS功能
   const treeBuilder = useTreeBuilder();
-  
-  // 🎯 使用当前构建的树ID，而不是props中的treeId
-  const currentTreeId = treeBuilder.currentTree?.id || treeId;
+
+  // 🎯 使用TaskStore中的全局树ID
+  const currentTreeId = treeBuilder.currentTreeId || treeId;
 
   // 🔗 会话文献连接件
   const sessionConnector = useMemo(() => {
@@ -108,28 +108,35 @@ export default function MCTSLiteratureWorkflow({
     });
   }, [topic]);
 
-  // 🚀 直接计算会话文献，不依赖SessionLiteratureConnector的内部状态
+  // 🚀 直接计算会话文献，基于会话ID精确匹配
   const sessionLiteratureFromStore = useMemo(() => {
     if (!topic || !topic.trim()) return [];
-    
-    const topicLower = topic.toLowerCase();
+
+    // 🎯 获取当前会话ID
+    const currentSessionId = taskStore.id;
+    if (!currentSessionId) return [];
+
     const filteredItems = libraryItems.filter(item => {
-      // 检查topics标签
-      if (item.topics?.some(itemTopic => itemTopic.toLowerCase().includes(topicLower))) {
+      // 🎯 优先检查会话ID关联（精确匹配）
+      if (item.associatedSessions?.includes(currentSessionId)) {
         return true;
       }
-      // 检查标题
+
+      // 🔄 兼容性：检查是否有基于topic名称的关联（旧数据）
+      const topicLower = topic.toLowerCase();
+      if (item.associatedSessions?.some((session: string) => session.toLowerCase().includes(topicLower))) {
+        return true;
+      }
+
+      // 🔍 内容匹配（作为补充）
       if (item.title.toLowerCase().includes(topicLower)) {
         return true;
       }
-      // 检查摘要
       if (item.abstract?.toLowerCase().includes(topicLower)) {
         return true;
       }
-      // 检查关键词
-      if (item.keywords?.some(keyword => keyword.toLowerCase().includes(topicLower))) {
-        return true;
-      }
+      //   return true;
+      // }
       return false;
     });
 
@@ -147,7 +154,7 @@ export default function MCTSLiteratureWorkflow({
 
   // 调试信息 - 显示会话文献数量变化
   useEffect(() => {
-    console.log(`[MCTSWorkflow] 会话文献更新: ${sessionLiteratureFromStore.length} 篇，话题: ${topic}`);
+    // console.log(`[MCTSWorkflow] 会话文献更新: ${sessionLiteratureFromStore.length} 篇，话题: ${topic}`);
   }, [sessionLiteratureFromStore.length, topic]);
 
   // 🌱 开始文献播种
@@ -181,14 +188,15 @@ export default function MCTSLiteratureWorkflow({
     try {
       toast.loading('正在创建知识树...', { id: 'tree-creation' });
 
-      await treeBuilder.startTreeBuilding(item, topic);
+      // 🎯 获取创建的树ID
+      const createdTreeId = await treeBuilder.startTreeBuilding(item, topic);
 
       toast.success(`已将"${item.title}"设为根节点，树可视化已更新`, { id: 'tree-creation' });
 
       // 确保在三面板模式下显示树（不自动最大化）
       setIsTreeMaximized(false);
 
-      console.log('🌳 [MCTSWorkflow] Tree created successfully with ID:', treeBuilder.currentTree?.id);
+      console.log('🌳 [MCTSWorkflow] Tree created successfully with ID:', createdTreeId);
 
     } catch (error) {
       console.error('设置根节点失败:', error);
@@ -247,19 +255,19 @@ export default function MCTSLiteratureWorkflow({
   const isRunning = status.includes('正在') || status.includes('生成');
   const hasActiveTasks = taskStore.tasks.length > 0;
 
-  // 🐛 只要有topic就显示完整面板，不需要等待工作流开始
-  const shouldShowLayout = !!(topic && topic.trim());
+  // 🐛 只要有研究方案就显示完整面板，不需要等待工作流开始
+  const shouldShowLayout = !!(reportPlan && reportPlan.trim());
 
   // 只在状态变化时输出调试信息
   useEffect(() => {
-    console.log('🔧 [MCTSWorkflow] UI状态变化:', {
-      topic,
-      hasActiveTasks,
-      isRunning,
-      shouldShowLayout,
-      tasksCount: taskStore.tasks.length,
-      status: status.slice(0, 100)
-    });
+    // console.log('🔧 [MCTSWorkflow] UI状态变化:', {
+    //   topic,
+    //   hasActiveTasks,
+    //   isRunning,
+    //   shouldShowLayout,
+    //   tasksCount: taskStore.tasks.length,
+    //   status: status.slice(0, 100)
+    // });
   }, [topic, hasActiveTasks, isRunning, shouldShowLayout, taskStore.tasks.length, status]);
 
   return (
@@ -370,7 +378,7 @@ export default function MCTSLiteratureWorkflow({
                   topic={topic}
                   onViewLibrary={handleViewLibrary}
                   onSetAsRoot={handleSetAsRoot}
-                  hasActiveTreeBuilding={treeBuilder.isBuilding || !!treeBuilder.currentSession}
+                  hasActiveTreeBuilding={!!treeBuilder.currentTreeId}
                   onGenerateMockData={handleGenerateMockData}
                   className="h-full"
                 />

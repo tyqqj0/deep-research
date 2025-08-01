@@ -17,7 +17,8 @@
       "Bash(rm:*)",
       "Bash(cp:*)",
       "Bash(curl:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }

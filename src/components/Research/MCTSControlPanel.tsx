@@ -52,6 +52,9 @@ import {
 } from 'lucide-react';
 import { TreeBuilderData, TreeBuilderActions } from '@/hooks/useTreeBuilder';
 import { toast } from 'sonner';
+import { treeService } from '@/libs/tree/TreeService';
+import { useTaskStore } from '@/store/task';
+import { useHistoryStore } from '@/store/history';
 
 // ==================== 组件接口 ====================
 
@@ -69,6 +72,7 @@ export default function MCTSControlPanel({
   
   // 本地状态
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+  const taskStore = useTaskStore();
   const [selectedPreset, setSelectedPreset] = useState('default');
 
   // ==================== 执行控制处理函数 ====================
@@ -131,9 +135,81 @@ export default function MCTSControlPanel({
     treeBuilder.switchAlgorithmPreset(preset);
   }, [treeBuilder]);
 
+  // 🗑️ 智能删除当前树
+  const handleDeleteCurrentTree = useCallback(async () => {
+    const currentTreeId = treeBuilder.currentTreeId;
+
+    if (!currentTreeId) {
+      // 🎯 没有树ID时，提供状态清理选项
+      if (confirm('当前没有关联的树。是否清理算法状态和相关数据？')) {
+        try {
+          // 停止当前构建
+          if (treeBuilder.isBuilding) {
+            treeBuilder.stopBuilding();
+          }
+
+          // 清理所有相关状态
+          taskStore.setTreeId(undefined);
+          taskStore.clearAlgorithmState();
+
+          toast.success('状态已清理');
+        } catch (error) {
+          console.error('清理状态失败:', error);
+          toast.error('清理状态失败');
+        }
+      }
+      return;
+    }
+
+    if (confirm(`确定要删除当前文献树吗？\n\n树ID: ${currentTreeId.substring(0, 8)}...\n\n此操作不可撤销，将同时清除算法状态和历史记录。`)) {
+      try {
+        // 停止当前构建
+        if (treeBuilder.isBuilding) {
+          treeBuilder.stopBuilding();
+        }
+
+        // 🎯 容错删除：即使树不存在也要清理状态
+        let deleteSuccess = false;
+        try {
+          await treeService.deleteTree(currentTreeId);
+          deleteSuccess = true;
+          console.log(`✅ 成功删除树: ${currentTreeId}`);
+        } catch (deleteError) {
+          console.warn(`⚠️ 删除树失败，但继续清理状态: ${deleteError.message}`);
+        }
+
+        // 🎯 无论删除是否成功，都要清理状态
+        taskStore.setTreeId(undefined);
+        taskStore.clearAlgorithmState();
+
+        // 🎯 更新历史记录，移除对已删除树的引用
+        const currentTitle = taskStore.title;
+        if (currentTitle) {
+          const updatedState = taskStore.backup();
+          const historyStore = useHistoryStore.getState();
+          const existingHistory = historyStore.history.find(record => record.title === currentTitle);
+
+          if (existingHistory) {
+            historyStore.update(existingHistory.id, updatedState);
+            console.log('🧹 已更新历史记录，移除树引用');
+          }
+        }
+
+        if (deleteSuccess) {
+          toast.success('文献树已删除，状态已清理');
+        } else {
+          toast.success('状态已清理（树可能已不存在）');
+        }
+      } catch (error) {
+        console.error('操作失败:', error);
+        toast.error('操作失败，请重试');
+      }
+    }
+  }, [treeBuilder, taskStore]);
+
   // ==================== 状态计算 ====================
 
-  const progressPercent = treeBuilder.maxIterations > 0 ? 
+  const progressPercent = treeBuilder.maxIterations > 0 ?
     (treeBuilder.currentIteration / treeBuilder.maxIterations) * 100 : 0;
 
   const canExecute = !treeBuilder.isBuilding && !!treeBuilder.currentSession;
@@ -216,7 +292,7 @@ export default function MCTSControlPanel({
               </div>
               <div className="text-center p-2 bg-white/50 rounded border">
                 <div className="font-semibold text-purple-600">
-                  {treeBuilder.statistics.averageIterationTime.toFixed(0)}ms
+                  {(treeBuilder.statistics?.averageIterationTime || 0).toFixed(0)}ms
                 </div>
                 <div className="text-gray-500">平均耗时</div>
               </div>
@@ -363,22 +439,22 @@ export default function MCTSControlPanel({
                   <div className="flex justify-between">
                     <span>成功率:</span>
                     <span className="font-medium">
-                      {treeBuilder.statistics.totalIterations > 0 ? 
-                        ((treeBuilder.statistics.successfulExpansions / treeBuilder.statistics.totalIterations) * 100).toFixed(1) : 0}%
+                      {(treeBuilder.statistics?.totalIterations || 0) > 0 ?
+                        (((treeBuilder.statistics?.successfulExpansions || 0) / (treeBuilder.statistics?.totalIterations || 1)) * 100).toFixed(1) : 0}%
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span>节点创建:</span>
-                    <span className="font-medium">{treeBuilder.statistics.nodesGenerated || 0}</span>
+                    <span className="font-medium">{treeBuilder.statistics?.nodesGenerated || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>最大深度:</span>
-                    <span className="font-medium">{treeBuilder.statistics.maxTreeDepth || 0}</span>
+                    <span className="font-medium">{treeBuilder.statistics?.maxTreeDepth || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>总构建时间:</span>
                     <span className="font-medium">
-                      {(treeBuilder.statistics.totalBuildingTime / 1000).toFixed(1)}s
+                      {((treeBuilder.statistics?.totalBuildingTime || 0) / 1000).toFixed(1)}s
                     </span>
                   </div>
                 </div>
@@ -421,6 +497,22 @@ export default function MCTSControlPanel({
               <div>研究主题: {treeBuilder.currentSession.researchTopic}</div>
               <div>开始时间: {new Date(treeBuilder.currentSession.startTime).toLocaleTimeString()}</div>
               <div>会话ID: {treeBuilder.currentSession.id.substring(0, 8)}...</div>
+              {treeBuilder.currentTreeId && (
+                <div>树ID: {treeBuilder.currentTreeId.substring(0, 8)}...</div>
+              )}
+            </div>
+
+            {/* 🗑️ 树管理按钮 */}
+            <div className="mt-2 pt-2 border-t border-blue-200">
+              <Button
+                onClick={handleDeleteCurrentTree}
+                variant="destructive"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                disabled={treeBuilder.isBuilding}
+              >
+                🗑️ 删除当前树
+              </Button>
             </div>
           </div>
         )}

@@ -18,13 +18,16 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { MCTSNode, LibraryItem, LiteratureTree } from '@/libs/db';
 import { treeService } from '@/libs/tree/TreeService';
+import { MainPageTreeSession } from '@/libs/tree/MainPageTreeSession';
 import { libraryService } from '@/libs/db/LibraryService';
-import { useTreeBuilderStore } from '@/store/treeBuilderStore';
 import { useLibraryStore } from '@/store/libraryStore';
+import { useTaskStore } from '@/store/task';
+// 🎯 导入默认算法配置
+import { defaultAlgorithmConfig } from '@/store/task';
 import { SGMCTSController } from '@/libs/mcts/SGMCTSController';
-import { 
-  createDefaultAlgorithmSuite, 
-  algorithmFactory 
+import {
+  createDefaultModularAlgorithmSuite,
+  algorithmFactory
 } from '@/libs/mcts/algorithms/AlgorithmFactory';
 import { 
   MCTSIterationResult, 
@@ -36,22 +39,23 @@ import {
 // ==================== Hook返回类型定义 ====================
 
 export interface TreeBuilderData {
-  // 当前状态
+  // 🎯 算法状态（从TaskStore.algorithmState读取）
   isBuilding: boolean;
   buildingStatus: string;
-  currentSession: any;
+  currentSession: any | null;
   currentIteration: number;
   maxIterations: number;
-  
-  // 树和节点数据
-  currentTree: LiteratureTree | null;
-  selectedNode: MCTSNode | null;
+  algorithmConfig: any;
   iterationHistory: MCTSIterationResult[];
-  
+
+  // 树和节点数据 - 使用TaskStore统一管理
+  currentTreeId: string | undefined; // 🎯 从TaskStore读取的树ID
+  selectedNode: MCTSNode | null;
+
   // 实时统计
   statistics: any;
   realtimeMetrics: any;
-  
+
   // 错误状态
   error: Error | null;
   canResume: boolean;
@@ -59,7 +63,7 @@ export interface TreeBuilderData {
 
 export interface TreeBuilderActions {
   // 构建会话管理
-  startTreeBuilding: (rootItem: LibraryItem, researchTopic: string) => Promise<void>;
+  startTreeBuilding: (rootItem: LibraryItem, researchTopic: string) => Promise<string>;
   pauseBuilding: () => void;
   resumeBuilding: () => void;
   stopBuilding: () => void;
@@ -88,144 +92,179 @@ export interface TreeBuilderActions {
 export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
   // ==================== 状态管理 ====================
   
-  const treeBuilderStore = useTreeBuilderStore();
   const libraryStore = useLibraryStore();
-  
-  // 本地状态
-  const [currentTree, setCurrentTree] = useState<LiteratureTree | null>(null);
+  const taskStore = useTaskStore(); // 🎯 主要状态管理器
+
+  // 本地状态 - 移除currentTree，改用全局TaskStore.treeId
   const [error, setError] = useState<Error | null>(null);
   
   // 控制器实例引用
   const controllerRef = useRef<SGMCTSController | null>(null);
   const isExecutingRef = useRef<boolean>(false);
   
+  // ==================== 工具方法 ====================
+
+  /**
+   * 🎯 获取当前树对象（使用MainPageTreeSession的fallback机制）
+   */
+  const getCurrentTree = useCallback(async (): Promise<LiteratureTree | null> => {
+    try {
+      // 🎯 使用MainPageTreeSession的getCurrentTree方法，它包含自动fallback逻辑
+      const treeSession = MainPageTreeSession.getInstance();
+      return await treeSession.getCurrentTree();
+    } catch (error) {
+      console.error('获取当前树失败:', error);
+      return null;
+    }
+  }, [taskStore.treeId]);
+
   // ==================== 树构建核心方法 ====================
-  
+
   /**
    * 开始树构建会话
    * 创建新树并初始化MCTS控制器
+   * @returns 创建的树ID
    */
   const startTreeBuilding = useCallback(async (
-    rootItem: LibraryItem, 
+    rootItem: LibraryItem,
     researchTopic: string
-  ) => {
+  ): Promise<string> => {
     try {
       setError(null);
-      treeBuilderStore.updateBuildingStatus('正在初始化树构建会话...');
-      
+
+      // 🎯 初始化算法状态（如果还没有）
+      if (!taskStore.algorithmState) {
+        taskStore.initializeAlgorithmState(researchTopic);
+      }
+
+      taskStore.updateBuildingStatus('正在初始化树构建会话...');
+
       // 1. 创建新的文献树
       const treeName = `${researchTopic} - ${new Date().toLocaleString()}`;
       const newTree = await treeService.createTree(treeName, rootItem.id);
-      setCurrentTree(newTree);
-      
-      // 2. 启动构建会话
-      const sessionId = await treeBuilderStore.startBuildingSession(
-        rootItem, 
-        researchTopic, 
+
+      // 2. 启动构建会话（TaskStore统一管理）
+      const sessionId = await taskStore.startBuildingSession(
+        rootItem,
+        researchTopic,
         newTree.id
       );
-      
+
       // 3. 初始化MCTS控制器
       await initializeMCTSController(newTree, rootItem, researchTopic);
-      
+
       // 4. 更新状态
-      treeBuilderStore.updateBuildingStatus(`会话 ${sessionId.substring(0, 8)} 已创建，等待执行指令`);
-      
+      taskStore.updateBuildingStatus(`会话 ${sessionId.substring(0, 8)} 已创建，等待执行指令`);
+
       toast.success(`树构建会话已创建: ${treeName}`);
-      
+
+      // 🎯 返回创建的树ID
+      return newTree.id;
+
     } catch (error) {
       console.error('启动树构建失败:', error);
       const errorMsg = error instanceof Error ? error.message : '未知错误';
       setError(new Error(`启动失败: ${errorMsg}`));
-      treeBuilderStore.handleError(new Error(errorMsg));
+      taskStore.updateBuildingStatus(`初始化失败: ${errorMsg}`);
       toast.error(`启动失败: ${errorMsg}`);
+      throw error; // 重新抛出错误，让调用者知道失败了
     }
-  }, [treeBuilderStore]);
+  }, [taskStore]);
 
   /**
    * 执行单次MCTS迭代
    */
   const runSingleIteration = useCallback(async (): Promise<MCTSIterationResult | null> => {
-    if (!controllerRef.current || !currentTree || !treeBuilderStore.currentSession) {
+    if (!controllerRef.current || !taskStore.treeId || !taskStore.algorithmState?.currentSession) {
       toast.warning('请先启动树构建会话');
       return null;
     }
-    
+
     if (isExecutingRef.current) {
       toast.warning('正在执行中，请等待完成');
       return null;
     }
-    
+
     try {
       isExecutingRef.current = true;
       setError(null);
-      
+
+      // 🎯 获取当前树对象
+      const currentTree = await getCurrentTree();
+      if (!currentTree) {
+        throw new Error('无法获取当前树对象');
+      }
+
       // 准备评估上下文
       const context = await prepareEvaluationContext();
-      
+
       // 更新状态
-      await treeBuilderStore.runSingleIteration();
-      
+      taskStore.runSingleIteration();
+
       // 执行MCTS迭代
       const result = await controllerRef.current.runSingleIteration(currentTree, context);
       
-      // 更新状态和统计
-      treeBuilderStore.addIterationResult(result);
-      treeBuilderStore.updateStatistics({
-        totalIterations: treeBuilderStore.statistics.totalIterations + 1,
-        successfulExpansions: treeBuilderStore.statistics.successfulExpansions + (result.expandedNode ? 1 : 0)
-      });
-      
+      // 🎯 更新状态和统计（使用TaskStore）
+      taskStore.addIterationResult(result);
+
       // 刷新树数据
       await refreshCurrentTree();
-      
+
       // 更新状态
-      treeBuilderStore.updateBuildingStatus(
-        `第 ${treeBuilderStore.currentIteration} 次迭代完成 ` +
+      taskStore.updateBuildingStatus(
+        `第 ${taskStore.algorithmState?.currentIteration || 0} 次迭代完成 ` +
         `(奖励: ${result.reward.toFixed(3)}, ` +
         `${result.expandedNode ? '新节点已创建' : '未扩展'})`
       );
-      
+
       return result;
-      
+
     } catch (error) {
       console.error('MCTS迭代执行失败:', error);
       const errorMsg = error instanceof Error ? error.message : '迭代执行失败';
       setError(new Error(errorMsg));
-      treeBuilderStore.handleError(new Error(errorMsg));
+      taskStore.updateBuildingStatus(`迭代失败: ${errorMsg}`);
       return null;
     } finally {
       isExecutingRef.current = false;
     }
-  }, [currentTree, treeBuilderStore]);
+  }, [taskStore, getCurrentTree]);
 
   /**
    * 连续执行多次迭代
    */
   const runContinuousBuilding = useCallback(async () => {
-    if (!controllerRef.current || !currentTree || !treeBuilderStore.currentSession) {
+    if (!controllerRef.current || !taskStore.treeId || !taskStore.algorithmState?.currentSession) {
       toast.warning('请先启动树构建会话');
       return;
     }
-    
+
     if (isExecutingRef.current) {
       toast.warning('正在执行中，请等待完成');
       return;
     }
-    
+
     try {
       isExecutingRef.current = true;
       setError(null);
-      
+
+      // 🎯 获取当前树对象
+      const currentTree = await getCurrentTree();
+      if (!currentTree) {
+        throw new Error('无法获取当前树对象');
+      }
+
       // 开始连续构建
-      await treeBuilderStore.runContinuousBuilding();
-      
+      taskStore.runContinuousBuilding();
+
       // 准备评估上下文
       const context = await prepareEvaluationContext();
-      
+
       // 计算剩余迭代次数
-      const remainingIterations = treeBuilderStore.maxIterations - treeBuilderStore.currentIteration;
-      
+      const maxIterations = taskStore.algorithmState?.maxIterations || 50;
+      const currentIteration = taskStore.algorithmState?.currentIteration || 0;
+      const remainingIterations = maxIterations - currentIteration;
+
       // 执行连续迭代
       const results = await controllerRef.current.runContinuousIterations(
         currentTree,
@@ -233,37 +272,30 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
         remainingIterations,
         (iteration, result) => {
           // 进度回调
-          treeBuilderStore.addIterationResult(result);
-          treeBuilderStore.updateBuildingStatus(
+          taskStore.addIterationResult(result);
+          taskStore.updateBuildingStatus(
             `连续构建中: ${iteration}/${remainingIterations} ` +
             `(最新奖励: ${result.reward.toFixed(3)})`
           );
         }
       );
       
-      // 更新最终状态
-      treeBuilderStore.updateStatistics({
-        totalIterations: treeBuilderStore.statistics.totalIterations + results.length,
-        successfulExpansions: treeBuilderStore.statistics.successfulExpansions + 
-          results.filter(r => r.expandedNode).length
-      });
-      
       // 刷新树数据
       await refreshCurrentTree();
-      
+
       // 完成构建
-      treeBuilderStore.completeBuildingSession();
+      taskStore.updateBuildingStatus('连续构建已完成');
       toast.success(`连续构建完成，共执行 ${results.length} 次迭代`);
       
     } catch (error) {
       console.error('连续构建失败:', error);
       const errorMsg = error instanceof Error ? error.message : '连续构建失败';
       setError(new Error(errorMsg));
-      treeBuilderStore.handleError(new Error(errorMsg));
+      taskStore.updateBuildingStatus(`连续构建失败: ${errorMsg}`);
     } finally {
       isExecutingRef.current = false;
     }
-  }, [currentTree, treeBuilderStore]);
+  }, [taskStore, getCurrentTree]);
 
   // ==================== 控制方法 ====================
   
@@ -271,91 +303,97 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
     if (controllerRef.current) {
       controllerRef.current.pause();
     }
-    treeBuilderStore.pauseBuildingSession();
+    taskStore.pauseBuilding();
     toast.info('构建已暂停');
-  }, [treeBuilderStore]);
+  }, [taskStore]);
 
   const resumeBuilding = useCallback(() => {
     if (controllerRef.current) {
       controllerRef.current.resume();
     }
-    treeBuilderStore.resumeBuildingSession();
+    taskStore.resumeBuilding();
     toast.info('构建已恢复');
-  }, [treeBuilderStore]);
+  }, [taskStore]);
 
   const stopBuilding = useCallback(() => {
     if (controllerRef.current) {
       controllerRef.current.stop();
     }
-    treeBuilderStore.stopBuildingSession();
+    taskStore.stopBuilding();
     isExecutingRef.current = false;
     toast.info('构建已停止');
-  }, [treeBuilderStore]);
+  }, [taskStore]);
 
   // ==================== 配置管理 ====================
   
   const updateAlgorithmConfig = useCallback((config: Partial<AlgorithmConfiguration>) => {
-    treeBuilderStore.updateAlgorithmConfig(config);
-    
-    // 如果有活跃的控制器，需要重新初始化
-    if (controllerRef.current && currentTree && treeBuilderStore.currentSession) {
-      toast.info('算法配置已更新，将在下次迭代生效');
-    }
-  }, [treeBuilderStore, currentTree]);
+    if (taskStore.algorithmState && taskStore.algorithmState.algorithmConfig) {
+      const updatedConfig = {
+        ...taskStore.algorithmState.algorithmConfig,
+        ...config
+      };
+      taskStore.updateAlgorithmConfig(updatedConfig);
 
-  const switchAlgorithmPreset = useCallback((presetName: string) => {
-    treeBuilderStore.switchAlgorithmPreset(presetName);
-    toast.success(`已切换到算法预设: ${presetName}`);
-  }, [treeBuilderStore]);
+      // 如果有活跃的控制器，需要重新初始化
+      if (controllerRef.current && taskStore.treeId && taskStore.algorithmState.currentSession) {
+        toast.info('算法配置已更新，将在下次迭代生效');
+      }
+    }
+  }, [taskStore]);
 
   // ==================== UI交互方法 ====================
-  
+
   const selectNode = useCallback((nodeId: string | null) => {
-    treeBuilderStore.selectNode(nodeId);
-  }, [treeBuilderStore]);
+    if (taskStore.algorithmState) {
+      taskStore.updateAlgorithmState({
+        uiState: {
+          ...taskStore.algorithmState.uiState,
+          selectedNodeId: nodeId
+        }
+      });
+    }
+  }, [taskStore]);
 
   const setStepMode = useCallback((enabled: boolean) => {
-    treeBuilderStore.setStepMode(enabled);
-    toast.info(`${enabled ? '启用' : '禁用'}单步执行模式`);
-  }, [treeBuilderStore]);
-
-  const setMaxIterations = useCallback((max: number) => {
-    treeBuilderStore.setMaxIterations(max);
-  }, [treeBuilderStore]);
-
-  // ==================== 工具方法 ====================
-  
-  const refreshCurrentTree = useCallback(async () => {
-    if (!treeBuilderStore.currentSession) return;
-    
-    try {
-      const updatedTree = await treeService.getTreeById(treeBuilderStore.currentSession.treeId);
-      if (updatedTree) {
-        setCurrentTree(updatedTree);
-      }
-    } catch (error) {
-      console.error('刷新树数据失败:', error);
+    if (taskStore.algorithmState) {
+      taskStore.updateAlgorithmState({
+        uiState: {
+          ...taskStore.algorithmState.uiState,
+          stepMode: enabled
+        }
+      });
     }
-  }, [treeBuilderStore.currentSession]);
+    toast.info(`${enabled ? '启用' : '禁用'}单步执行模式`);
+  }, [taskStore]);
+
+  const refreshCurrentTree = useCallback(async () => {
+    // 🎯 这个方法现在主要用于触发重新渲染，实际数据从TaskStore读取
+    // 可以在这里添加一些缓存刷新逻辑
+    console.log('🔄 刷新树数据 - TreeId:', taskStore.treeId);
+  }, [taskStore.treeId]);
 
   const exportSession = useCallback(() => {
-    if (!treeBuilderStore.currentSession) {
+    if (!taskStore.algorithmState?.currentSession) {
       toast.warning('没有活跃的构建会话');
       return null;
     }
-    
-    return treeBuilderStore.exportSession(treeBuilderStore.currentSession.id);
-  }, [treeBuilderStore]);
 
-  const clearError = useCallback(() => {
-    setError(null);
-    treeBuilderStore.clearError();
-  }, [treeBuilderStore]);
+    return {
+      session: taskStore.algorithmState.currentSession,
+      iterationHistory: taskStore.algorithmState.iterationHistory,
+      algorithmConfig: taskStore.algorithmState.algorithmConfig
+    };
+  }, [taskStore]);
+
+  // const clearError = useCallback(() => {
+  //   setError(null);
+  //   treeBuilderStore.clearError();
+  // }, [treeBuilderStore]);
 
   // ==================== 私有辅助方法 ====================
   
   /**
-   * 初始化MCTS控制器
+   * 初始化MCTS控制器（统一使用模块化算法）
    */
   const initializeMCTSController = useCallback(async (
     tree: LiteratureTree,
@@ -363,65 +401,73 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
     researchTopic: string
   ) => {
     try {
-      // 创建算法套件
-      const algorithmSuite = algorithmFactory.createAlgorithmSuite(
-        treeBuilderStore.algorithmConfig
-      );
-      
-      // 创建控制器实例
-      controllerRef.current = new SGMCTSController(
-        {
-          evaluator: algorithmSuite.evaluator,
-          expander: algorithmSuite.expander,
-          selector: algorithmSuite.selector
-        },
-        algorithmSuite.config
-      );
-      
-      treeBuilderStore.updateBuildingStatus('MCTS控制器已初始化');
-      
+      // 🎯 创建模块化算法套件
+      const modularAlgorithms = createDefaultModularAlgorithmSuite();
+
+      // 创建默认MCTS配置
+      const config = {
+        explorationConstant: 1.41,
+        semanticWeight: 0.4,
+        maxIterations: 50,
+        maxDepth: 8,
+        temperatureDecay: 0.9,
+        batchSize: 3
+      };
+
+      // 创建模块化控制器实例
+      controllerRef.current = new SGMCTSController(modularAlgorithms, config);
+
+      taskStore.updateBuildingStatus('模块化MCTS控制器已初始化');
+
     } catch (error) {
-      throw new Error(`初始化MCTS控制器失败: ${error.message}`);
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
+      throw new Error(`初始化MCTS控制器失败: ${errorMsg}`);
     }
-  }, [treeBuilderStore]);
+  }, [taskStore]);
 
   /**
    * 准备评估上下文
    */
   const prepareEvaluationContext = useCallback(async (): Promise<EvaluationContext> => {
-    if (!currentTree || !treeBuilderStore.currentSession) {
+    if (!taskStore.treeId || !taskStore.algorithmState?.currentSession) {
       throw new Error('缺少必要的上下文信息');
     }
-    
+
+    // 🎯 获取当前树对象
+    const currentTree = await getCurrentTree();
+    if (!currentTree) {
+      throw new Error('无法获取当前树对象');
+    }
+
     // 获取当前路径
-    const selectedNodeId = treeBuilderStore.uiState.selectedNodeId || currentTree.rootNodeId;
-    const currentPath = selectedNodeId ? 
-      treeService.getPathToNode(currentTree, selectedNodeId) : 
+    const selectedNodeId = taskStore.algorithmState.uiState.selectedNodeId || currentTree.rootNodeId;
+    const currentPath = selectedNodeId ?
+      treeService.getPathToNode(currentTree, selectedNodeId) :
       [currentTree.nodes[currentTree.rootNodeId]];
-    
+
     // 获取可用文献
     const availableLiterature = libraryStore.items;
-    
+
     return {
       currentPath,
       availableLiterature,
-      researchTopic: treeBuilderStore.currentSession.researchTopic,
-      iterationCount: treeBuilderStore.currentIteration,
+      researchTopic: taskStore.algorithmState.currentSession.researchTopic,
+      iterationCount: taskStore.algorithmState.currentIteration,
       treeDepth: treeService.getTreeStats(currentTree).maxDepth
     };
-  }, [currentTree, treeBuilderStore, libraryStore.items]);
+  }, [taskStore, libraryStore.items, getCurrentTree]);
 
   // ==================== 生命周期效果 ====================
   
   // 监听当前会话变化，刷新树数据
   useEffect(() => {
-    if (treeBuilderStore.currentSession) {
+    if (taskStore.algorithmState?.currentSession) {
       refreshCurrentTree();
     } else {
-      setCurrentTree(null);
+      // 🎯 会话结束时清理控制器，但不需要清理currentTree（由TaskStore管理）
       controllerRef.current = null;
     }
-  }, [treeBuilderStore.currentSession, refreshCurrentTree]);
+  }, [taskStore.algorithmState?.currentSession, refreshCurrentTree]);
 
   // 组件卸载时清理资源
   useEffect(() => {
@@ -436,22 +482,35 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
   // ==================== 返回Hook接口 ====================
   
   return {
-    // 数据
-    isBuilding: treeBuilderStore.isBuilding,
-    buildingStatus: treeBuilderStore.buildingStatus,
-    currentSession: treeBuilderStore.currentSession,
-    currentIteration: treeBuilderStore.currentIteration,
-    maxIterations: treeBuilderStore.maxIterations,
-    currentTree,
-    selectedNode: currentTree && treeBuilderStore.uiState.selectedNodeId ? 
-      currentTree.nodes[treeBuilderStore.uiState.selectedNodeId] : null,
-    iterationHistory: treeBuilderStore.iterationHistory,
-    statistics: treeBuilderStore.statistics,
-    realtimeMetrics: treeBuilderStore.realtimeMetrics,
-    error: error || treeBuilderStore.realtimeMetrics.lastError,
-    canResume: treeBuilderStore.canResume,
-    
-    // 行为
+    // 🎯 数据（从TaskStore.algorithmState读取）
+    isBuilding: taskStore.algorithmState?.isBuilding || false,
+    buildingStatus: taskStore.algorithmState?.buildingStatus || (taskStore.algorithmState ? '等待开始构建' : '未初始化'),
+    currentSession: taskStore.algorithmState?.currentSession || null,
+    currentIteration: taskStore.algorithmState?.currentIteration || 0,
+    maxIterations: taskStore.algorithmState?.maxIterations || 50,
+    algorithmConfig: taskStore.algorithmState?.algorithmConfig,
+    currentTreeId: taskStore.treeId, // 🎯 从TaskStore读取树ID
+    selectedNode: null, // TODO: 需要时可以通过treeId异步获取
+    iterationHistory: taskStore.algorithmState?.iterationHistory || [],
+    error: error,
+    canResume: taskStore.algorithmState?.canResume || false,
+
+    // 统计和指标
+    statistics: {
+      totalIterations: 0,
+      successfulExpansions: 0,
+      averageIterationTime: 0,
+      nodesGenerated: 0,
+      maxTreeDepth: 0,
+      totalBuildingTime: 0
+    },
+    realtimeMetrics: {
+      currentPhase: 'idle',
+      nodesPerSecond: 0,
+      memoryUsage: 0
+    },
+
+    // 🎯 行为（使用TaskStore方法和本地方法）
     startTreeBuilding,
     pauseBuilding,
     resumeBuilding,
@@ -459,12 +518,12 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
     runSingleIteration,
     runContinuousBuilding,
     updateAlgorithmConfig,
-    switchAlgorithmPreset,
+    switchAlgorithmPreset: () => {}, // 暂时空实现
     selectNode,
     setStepMode,
-    setMaxIterations,
+    setMaxIterations: taskStore.setMaxIterations,
     refreshCurrentTree,
     exportSession,
-    clearError
+    clearError: () => setError(null)
   };
 }

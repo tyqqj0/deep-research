@@ -27,7 +27,18 @@ import { MCTSNode, LibraryItem, LiteratureTree } from '@/libs/db';
 import { treeService } from '@/libs/tree/TreeService';
 import { libraryService } from '@/libs/db/LibraryService';
 
+// 导入新的模块化组件
+import { IThinker } from './algorithms/modules/Thinker';
+import { IFormulator } from './algorithms/modules/Formulator';
+import { ICiter } from './algorithms/modules/Citer';
+import { IValidator } from './algorithms/modules/Validator';
+import { ILocator } from './algorithms/modules/Locator';
+import { IRewardCalculator } from './algorithms/modules/RewardCalculator';
+import { IExpander, ExpansionRequest } from './algorithms/modules/Expander';
+
 // ==================== 执行状态类型 ====================
+
+export type ExecutionMode = 'traditional' | 'modular';
 
 export interface SGMCTSExecutionState {
   phase: 'selection' | 'expansion' | 'evaluation' | 'backpropagation' | 'idle' | 'error';
@@ -36,6 +47,25 @@ export interface SGMCTSExecutionState {
   lastIterationResult: MCTSIterationResult | null;
   error: Error | null;
   canInterrupt: boolean;
+  mode: ExecutionMode;
+}
+
+// 传统算法组件
+export interface TraditionalAlgorithms {
+  evaluator: NodeEvaluator;
+  expander: NodeExpander;
+  selector: SelectionStrategy;
+}
+
+// 模块化算法组件
+export interface ModularAlgorithms {
+  thinker: IThinker;
+  formulator: IFormulator;
+  citer: ICiter;
+  validator: IValidator;
+  locator: ILocator;
+  rewardCalculator: IRewardCalculator;
+  expander: IExpander;
 }
 
 export interface SGMCTSStatistics {
@@ -59,30 +89,36 @@ export interface SGMCTSStatistics {
 // ==================== 主控制器类 ====================
 
 export class SGMCTSController {
-  private evaluator: NodeEvaluator;
-  private expander: NodeExpander;
-  private selector: SelectionStrategy;
-  private config: MCTSConfig;
+  // 🎯 算法组件 - 统一使用模块化模式
+  private thinker: IThinker;
+  private formulator: IFormulator;
+  private citer: ICiter;
+  private validator: IValidator;
+  private locator: ILocator;
+  private rewardCalculator: IRewardCalculator;
+  private modularExpander: IExpander;
   
+  private config: MCTSConfig;
+
   // 执行状态
   private executionState: SGMCTSExecutionState;
   private statistics: SGMCTSStatistics;
   private shouldStop: boolean = false;
   private shouldPause: boolean = false;
 
-  constructor(
-    algorithms: {
-      evaluator: NodeEvaluator;
-      expander: NodeExpander;
-      selector: SelectionStrategy;
-    },
-    config: MCTSConfig
-  ) {
-    this.evaluator = algorithms.evaluator;
-    this.expander = algorithms.expander;
-    this.selector = algorithms.selector;
+  // 🎯 统一构造函数 - 只支持模块化算法
+  constructor(algorithms: ModularAlgorithms, config: MCTSConfig) {
     this.config = config;
-    
+
+    // 🎯 初始化模块化算法组件
+    this.thinker = algorithms.thinker;
+    this.formulator = algorithms.formulator;
+    this.citer = algorithms.citer;
+    this.validator = algorithms.validator;
+    this.locator = algorithms.locator;
+    this.rewardCalculator = algorithms.rewardCalculator;
+    this.modularExpander = algorithms.expander;
+
     // 初始化状态
     this.executionState = {
       phase: 'idle',
@@ -90,7 +126,8 @@ export class SGMCTSController {
       selectedPath: [],
       lastIterationResult: null,
       error: null,
-      canInterrupt: true
+      canInterrupt: true,
+      mode: 'modular'
     };
     
     this.statistics = this.initializeStatistics();
@@ -122,40 +159,8 @@ export class SGMCTSController {
         throw new AlgorithmError('执行被用户暂停', 'controller');
       }
 
-      // Phase 1: 选择节点
-      this.executionState.phase = 'selection';
-      const selectedNode = await this.selectionPhase(tree, context);
-      
-      // Phase 2: 扩展节点
-      this.executionState.phase = 'expansion';
-      const expandedNode = await this.expansionPhase(selectedNode, tree, context);
-      
-      // Phase 3: 评估节点
-      this.executionState.phase = 'evaluation';
-      const evaluationResult = await this.evaluationPhase(expandedNode || selectedNode, context);
-      
-      // Phase 4: 反向传播
-      this.executionState.phase = 'backpropagation';
-      await this.backpropagationPhase(expandedNode || selectedNode, evaluationResult.reward, tree);
-      
-      const executionTime = Date.now() - startTime;
-      
-      // 创建迭代结果
-      const iterationResult: MCTSIterationResult = {
-        selectedNode,
-        expandedNode,
-        reward: evaluationResult.reward,
-        evaluationDetails: evaluationResult.evaluationDetails,
-        expansionCandidates: evaluationResult.expansionCandidates,
-        executionTime
-      };
-      
-      // 更新统计信息
-      this.updateStatistics(iterationResult, true);
-      this.executionState.lastIterationResult = iterationResult;
-      this.executionState.phase = 'idle';
-      
-      return iterationResult;
+      // 🎯 统一使用模块化算法
+      return await this.runModularIteration(tree, context, startTime);
       
     } catch (error) {
       this.executionState.error = error as Error;
@@ -165,6 +170,66 @@ export class SGMCTSController {
       // 重新抛出错误，让上层处理
       throw error;
     }
+  }
+
+  // 🗑️ 传统算法已移除，统一使用模块化算法
+
+  /**
+   * 模块化模式的MCTS迭代 - 使用TVC流程
+   */
+  private async runModularIteration(
+    tree: LiteratureTree,
+    context: EvaluationContext,
+    startTime: number
+  ): Promise<MCTSIterationResult> {
+    if (!this.locator || !this.modularExpander || !this.rewardCalculator) {
+      throw new AlgorithmError('模块化组件未正确初始化', 'controller');
+    }
+
+    // Phase 1: 选择节点 (使用Locator)
+    this.executionState.phase = 'selection';
+    const selectedNode = await this.modularSelectionPhase(tree, context);
+    
+    // Phase 2: 模块化扩展 (使用完整TVC流程)
+    this.executionState.phase = 'expansion';
+    const expansionResult = await this.modularExpansionPhase(selectedNode, tree, context);
+    
+    // Phase 3: 模块化评估 (使用RewardCalculator)
+    this.executionState.phase = 'evaluation';
+    const evaluationResult = await this.modularEvaluationPhase(
+      expansionResult.expandedNodes.length > 0 ? expansionResult.expandedNodes[0].node : selectedNode,
+      context,
+      expansionResult
+    );
+    
+    // Phase 4: 反向传播 (与传统模式相同)
+    this.executionState.phase = 'backpropagation';
+    const nodeToBackpropagate = expansionResult.expandedNodes.length > 0 ? 
+      expansionResult.expandedNodes[0].node : selectedNode;
+    await this.backpropagationPhase(nodeToBackpropagate, evaluationResult.reward, tree);
+    
+    const executionTime = Date.now() - startTime;
+    
+    // 创建迭代结果
+    const iterationResult: MCTSIterationResult = {
+      selectedNode,
+      expandedNode: expansionResult.expandedNodes.length > 0 ? expansionResult.expandedNodes[0].node : null,
+      reward: evaluationResult.reward,
+      evaluationDetails: {
+        ...evaluationResult.evaluationDetails,
+        tvcDetails: expansionResult.executionSummary,
+        modularMode: true
+      },
+      expansionCandidates: expansionResult.expandedNodes.map(en => en.citations[0]?.literature).filter(Boolean),
+      executionTime
+    };
+    
+    // 更新统计信息
+    this.updateStatistics(iterationResult, true);
+    this.executionState.lastIterationResult = iterationResult;
+    this.executionState.phase = 'idle';
+    
+    return iterationResult;
   }
 
   /**
@@ -241,14 +306,13 @@ export class SGMCTSController {
     return results;
   }
 
-  // ==================== MCTS四个阶段的实现 ====================
+  // ==================== 模块化阶段实现 ====================
 
   /**
-   * 阶段1：选择节点
-   * 使用SG-UCT策略从根节点开始选择到叶节点的路径
+   * 模块化选择阶段 - 使用Locator进行节点选择
    */
-  private async selectionPhase(
-    tree: LiteratureTree, 
+  private async modularSelectionPhase(
+    tree: LiteratureTree,
     context: EvaluationContext
   ): Promise<MCTSNode> {
     const startTime = Date.now();
@@ -256,41 +320,31 @@ export class SGMCTSController {
     try {
       let currentNode = tree.nodes[tree.rootNodeId];
       if (!currentNode) {
-        throw new AlgorithmError('根节点不存在', 'selector');
+        throw new AlgorithmError('根节点不存在', 'locator');
       }
-      
+
       const path: MCTSNode[] = [currentNode];
       
-      // 沿着树向下选择，直到叶节点或可扩展节点
+      // 使用Locator进行智能节点选择
       while (true) {
         const children = Object.values(tree.nodes).filter(
           node => node.parentId === currentNode.id
         );
         
-        // 如果没有子节点，这是一个叶节点
         if (children.length === 0) {
           break;
         }
         
-        // 使用选择策略选择最佳子节点
-        const selectionResult = await this.selector.selectBestChild(
+        // 使用Locator选择最佳节点
+        const selectionResult = await this.locator!.selectBestNode(
           children,
-          currentNode,
-          this.config,
           context
         );
         
         currentNode = selectionResult.selectedNode;
         path.push(currentNode);
         
-        // 如果选中的节点未被访问过，可以在此扩展
-        if (currentNode.visits === 0) {
-          break;
-        }
-        
-        // 防止无限循环
-        if (path.length > this.config.maxDepth) {
-          console.warn(`路径深度超过最大限制 ${this.config.maxDepth}`);
+        if (currentNode.visits === 0 || path.length > this.config.maxDepth) {
           break;
         }
       }
@@ -298,7 +352,7 @@ export class SGMCTSController {
       this.executionState.selectedPath = path;
       this.executionState.currentNode = currentNode;
       
-      // 更新阶段统计
+      // 更新统计
       const phaseTime = Date.now() - startTime;
       this.statistics.phaseStatistics.selection.totalTime += phaseTime;
       this.statistics.phaseStatistics.selection.count += 1;
@@ -307,22 +361,21 @@ export class SGMCTSController {
       
     } catch (error) {
       throw new AlgorithmError(
-        `选择阶段失败: ${error.message}`,
-        'selector',
+        `模块化选择阶段失败: ${error.message}`,
+        'locator',
         { tree, context, error }
       );
     }
   }
 
   /**
-   * 阶段2：扩展节点
-   * 使用TVC过程为选中的节点生成新的子节点
+   * 模块化扩展阶段 - 使用完整TVC流程
    */
-  private async expansionPhase(
+  private async modularExpansionPhase(
     selectedNode: MCTSNode,
     tree: LiteratureTree,
     context: EvaluationContext
-  ): Promise<MCTSNode | null> {
+  ) {
     const startTime = Date.now();
     
     try {
@@ -331,59 +384,66 @@ export class SGMCTSController {
         node => node.parentId === selectedNode.id
       );
       
-      // 如果已经有足够的子节点，不需要扩展
       const maxChildrenPerNode = this.config.batchSize || 3;
       if (existingChildren.length >= maxChildrenPerNode) {
-        return null;
+        return {
+          success: true,
+          expandedNodes: [],
+          executionSummary: {
+            thinkingResult: { directions: [], pathSummary: '', reasoning: '', confidence: 0, executionTime: 0 },
+            formulationResult: { formulations: [], summary: '', confidence: 0, executionTime: 0 },
+            citationResult: { citations: [], searchSummary: '', totalFound: 0, confidence: 0, executionTime: 0 },
+            validationResults: [],
+            rewardResults: []
+          },
+          totalExecutionTime: Date.now() - startTime
+        };
       }
       
-      // 生成候选扩展
-      const expansionResult = await this.expander.generateCandidates(selectedNode, context);
+      // 执行TVC扩展流程
+      const expansionResult = await this.modularExpander!.expandNode(
+        selectedNode,
+        context,
+        {
+          maxCandidates: this.config.batchSize || 3,
+          minValidationScore: 0.6,
+          minRewardThreshold: 0.5,
+          enableParallelProcessing: true,
+          skipLowQualityNodes: false
+        }
+      );
       
-      if (expansionResult.candidates.length === 0) {
-        console.log(`节点 ${selectedNode.id} 无可用的扩展候选`);
-        return null;
-      }
-      
-      // 选择第一个有效的候选作为新节点
-      for (const candidate of expansionResult.candidates) {
-        // 验证扩展的有效性
-        const validation = await this.expander.validateExpansion(
-          selectedNode,
-          candidate,
-          context
-        );
-        
-        if (validation.isValid) {
-          // 创建新的MCTS节点
-          const newNode = await treeService.addNodeToTree(
-            tree.id,
-            selectedNode.id,
-            candidate.id
-          );
-          
-          // 更新统计信息
-          this.statistics.nodeStatistics.nodesCreated += 1;
-          this.statistics.nodeStatistics.maxDepthReached = Math.max(
-            this.statistics.nodeStatistics.maxDepthReached,
-            this.executionState.selectedPath.length
-          );
-          
-          // 更新阶段统计
-          const phaseTime = Date.now() - startTime;
-          this.statistics.phaseStatistics.expansion.totalTime += phaseTime;
-          this.statistics.phaseStatistics.expansion.count += 1;
-          
-          return newNode;
+      // 将扩展结果中的节点添加到树中
+      for (const expandedNode of expansionResult.expandedNodes) {
+        if (expandedNode.node.id.startsWith('temp_')) {
+          // 创建真实的树节点
+          const literature = expandedNode.citations[0]?.literature;
+          if (literature) {
+            const newNode = await treeService.addNodeToTree(
+              tree.id,
+              selectedNode.id,
+              literature.id
+            );
+            
+            // 更新扩展节点中的ID
+            expandedNode.node = newNode;
+            
+            // 更新统计信息
+            this.statistics.nodeStatistics.nodesCreated += 1;
+          }
         }
       }
       
-      console.log(`节点 ${selectedNode.id} 的所有候选扩展都未通过验证`);
-      return null;
+      // 更新阶段统计
+      const phaseTime = Date.now() - startTime;
+      this.statistics.phaseStatistics.expansion.totalTime += phaseTime;
+      this.statistics.phaseStatistics.expansion.count += 1;
+      
+      return expansionResult;
       
     } catch (error) {
       throw new AlgorithmError(
-        `扩展阶段失败: ${error.message}`,
+        `模块化扩展阶段失败: ${error.message}`,
         'expander',
         { selectedNode, tree, context, error }
       );
@@ -391,12 +451,12 @@ export class SGMCTSController {
   }
 
   /**
-   * 阶段3：评估节点
-   * 计算节点的重要性和奖励值
+   * 模块化评估阶段 - 使用RewardCalculator
    */
-  private async evaluationPhase(
+  private async modularEvaluationPhase(
     nodeToEvaluate: MCTSNode,
-    context: EvaluationContext
+    context: EvaluationContext,
+    expansionResult?: any
   ): Promise<{
     reward: number;
     evaluationDetails: any;
@@ -405,49 +465,49 @@ export class SGMCTSController {
     const startTime = Date.now();
     
     try {
-      // 评估节点重要性
-      const importanceResult = await this.evaluator.evaluateImportance(
-        nodeToEvaluate,
-        context
-      );
-      
-      // 如果是新扩展的节点，还需要评估引用链
-      let citationScore = 0;
-      if (nodeToEvaluate.parentId) {
-        const parentPath = this.executionState.selectedPath;
-        const parentNode = parentPath[parentPath.length - 2]; // 倒数第二个是父节点
-        
-        if (parentNode) {
-          const citationResult = await this.evaluator.evaluateCitationChain(
-            parentNode,
-            nodeToEvaluate,
-            context
-          );
-          citationScore = citationResult.score;
-        }
-      }
-      
-      // 计算生成过程奖励
-      const generatedText = `节点${nodeToEvaluate.id}的技术贡献描述`; // 简化实现
-      const generationResult = await this.evaluator.evaluateGenerationReward(
-        nodeToEvaluate,
-        generatedText,
-        context
-      );
-      
-      // 综合奖励计算
-      const reward = (
-        importanceResult.totalScore * 0.5 +
-        citationScore * 0.3 +
-        generationResult.reward * 0.2
-      );
-      
-      const evaluationDetails = {
-        importanceScore: importanceResult.totalScore,
-        citationScore,
-        semanticScore: importanceResult.llmScore,
-        uctValue: 0 // 将在选择阶段计算
+      // 构建奖励计算组件
+      const rewardComponents = {
+        direction: expansionResult?.expandedNodes[0]?.direction || {
+          id: 'default',
+          title: '默认研究方向',
+          description: '系统生成的研究方向',
+          reasoning: '基于当前节点上下文',
+          confidence: 0.7,
+          keyWords: [],
+          expectedCitations: 3
+        },
+        formulation: expansionResult?.expandedNodes[0]?.formulation || {
+          directionId: 'default',
+          originalTitle: '默认表述',
+          formulation: '研究表述',
+          keywords: [],
+          searchQueries: [],
+          confidence: 0.7,
+          reasoning: '默认表述生成'
+        },
+        citations: expansionResult?.expandedNodes[0]?.citations || [],
+        validation: expansionResult?.expandedNodes[0]?.validation || {
+          isValid: true,
+          validationScore: 0.7,
+          confidence: 0.7,
+          issues: [],
+          recommendations: [],
+          detailedScores: {
+            duplicationScore: 0.8,
+            qualityScore: 0.7,
+            tvcConsistencyScore: 0.8
+          },
+          executionTime: 0
+        },
+        pathContext: this.executionState.selectedPath
       };
+      
+      // 使用RewardCalculator计算奖励
+      const rewardResult = await this.rewardCalculator!.calculateReward(
+        nodeToEvaluate,
+        rewardComponents,
+        context
+      );
       
       // 更新阶段统计
       const phaseTime = Date.now() - startTime;
@@ -455,70 +515,36 @@ export class SGMCTSController {
       this.statistics.phaseStatistics.evaluation.count += 1;
       
       return {
-        reward,
-        evaluationDetails,
-        expansionCandidates: [] // 简化实现
+        reward: rewardResult.totalReward,
+        evaluationDetails: {
+          rewardComponents: rewardResult.components,
+          confidence: rewardResult.confidence,
+          reasoning: rewardResult.reasoning,
+          modularMode: true
+        },
+        expansionCandidates: expansionResult?.expandedNodes?.map((en: any) => 
+          en.citations[0]?.literature
+        ).filter(Boolean) || []
       };
       
     } catch (error) {
       throw new AlgorithmError(
-        `评估阶段失败: ${error.message}`,
-        'evaluator',
+        `模块化评估阶段失败: ${error.message}`,
+        'rewardCalculator',
         { nodeToEvaluate, context, error }
       );
     }
   }
 
-  /**
-   * 阶段4：反向传播
-   * 将奖励值沿路径向上传播，更新所有节点的统计信息
-   */
-  private async backpropagationPhase(
-    startNode: MCTSNode,
-    reward: number,
-    tree: LiteratureTree
-  ): Promise<void> {
-    const startTime = Date.now();
-    
-    try {
-      const path = [...this.executionState.selectedPath];
-      
-      // 如果startNode不在路径中，添加到路径末尾
-      if (!path.find(n => n.id === startNode.id)) {
-        path.push(startNode);
-      }
-      
-      // 沿路径向上传播奖励
-      for (const node of path) {
-        const updatedVisits = node.visits + 1;
-        const updatedWins = node.wins + reward;
-        
-        // 更新节点统计信息
-        await treeService.updateNodeStats(
-          tree.id,
-          node.id,
-          updatedVisits,
-          updatedWins
-        );
-        
-        // 更新本地节点对象
-        node.visits = updatedVisits;
-        node.wins = updatedWins;
-      }
-      
-      // 更新阶段统计
-      const phaseTime = Date.now() - startTime;
-      this.statistics.phaseStatistics.backpropagation.totalTime += phaseTime;
-      this.statistics.phaseStatistics.backpropagation.count += 1;
-      
-    } catch (error) {
-      throw new AlgorithmError(
-        `反向传播阶段失败: ${error.message}`,
-        'controller',
-        { startNode, reward, tree, error }
-      );
-    }
-  }
+  // ==================== 传统MCTS方法已移除 ====================
+  // 🗑️ 传统的selectionPhase、expansionPhase、evaluationPhase已移除
+  // 统一使用模块化的 modularSelectionPhase、modularExpansionPhase、modularEvaluationPhase
+
+  // 🗑️ 传统expansionPhase已移除
+
+  // 🗑️ 传统evaluationPhase已移除
+
+  // 🗑️ 传统backpropagationPhase已移除
 
   // ==================== 控制方法 ====================
 
@@ -572,6 +598,56 @@ export class SGMCTSController {
 
   isRunning(): boolean {
     return this.executionState.phase !== 'idle' && this.executionState.phase !== 'error';
+  }
+
+  /**
+   * 获取当前执行模式
+   */
+  getExecutionMode(): ExecutionMode {
+    return this.mode;
+  }
+
+  /**
+   * 检查是否支持模块化执行
+   */
+  supportsModularExecution(): boolean {
+    return this.mode === 'modular' && 
+           this.thinker !== undefined &&
+           this.formulator !== undefined &&
+           this.citer !== undefined &&
+           this.validator !== undefined &&
+           this.locator !== undefined &&
+           this.rewardCalculator !== undefined &&
+           this.modularExpander !== undefined;
+  }
+
+  /**
+   * 获取算法组件信息
+   */
+  getAlgorithmInfo() {
+    if (this.mode === 'traditional') {
+      return {
+        mode: 'traditional',
+        components: {
+          evaluator: this.evaluator?.constructor.name || 'unknown',
+          expander: this.expander?.constructor.name || 'unknown',
+          selector: this.selector?.constructor.name || 'unknown'
+        }
+      };
+    } else {
+      return {
+        mode: 'modular',
+        components: {
+          thinker: this.thinker?.constructor.name || 'unknown',
+          formulator: this.formulator?.constructor.name || 'unknown',
+          citer: this.citer?.constructor.name || 'unknown',
+          validator: this.validator?.constructor.name || 'unknown',
+          locator: this.locator?.constructor.name || 'unknown',
+          rewardCalculator: this.rewardCalculator?.constructor.name || 'unknown',
+          expander: this.modularExpander?.constructor.name || 'unknown'
+        }
+      };
+    }
   }
 
   // ==================== 私有辅助方法 ====================

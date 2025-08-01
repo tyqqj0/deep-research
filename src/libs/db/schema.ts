@@ -63,7 +63,7 @@ export const LibraryItemSchema = z.object({
   doi: z.string().nullable().optional(),
   url: z.string().url().nullable().optional(),
   pdfPath: z.string().nullable().optional(),
-  topics: z.array(z.string()).optional(), // 🏷️ 话题/关键词标签
+  associatedSessions: z.array(z.string()).optional(), // 🔗 关联的研究会话
 
   // 🚀 解析内容字段 - 存储从后端解析的引文数据
   parsedContent: z.object({
