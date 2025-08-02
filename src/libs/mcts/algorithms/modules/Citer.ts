@@ -341,20 +341,38 @@ export class DefaultCiter implements ICiter {
     const allCitations: Citation[] = [];
     let totalFound = 0;
 
-    // 获取当前节点的被引文献列表
+    // 🎯 获取当前节点的被引文献列表
     let currentNodeId: string;
+    let currentLiteratureId: string;
 
-    if (context.currentPath.length > 0) {
-      // 使用路径中的最后一个节点
-      currentNodeId = context.currentPath[context.currentPath.length - 1].id;
+    console.log(`🔍 [DefaultCiter] 新版本代码生效！检查context:`, {
+      hasCurrentNode: !!context.currentNode,
+      currentPathLength: context.currentPath.length,
+      currentNodeId: context.currentNode?.id,
+      currentNodeLiteratureId: context.currentNode?.libraryItemId
+    });
+
+    if (context.currentNode) {
+      // 🎯 优先使用context.currentNode（新的方式）
+      currentNodeId = context.currentNode.id;
+      currentLiteratureId = context.currentNode.libraryItemId;
+      console.log(`🎯 [DefaultCiter] 使用currentNode获取节点信息: ${currentNodeId}, literatureId: ${currentLiteratureId}`);
+    } else if (context.currentPath.length > 0) {
+      // 🔄 向后兼容：使用路径中的最后一个节点
+      const lastNode = context.currentPath[context.currentPath.length - 1];
+      currentNodeId = lastNode.id;
+      currentLiteratureId = lastNode.libraryItemId;
+      console.log(`🔄 [DefaultCiter] 使用currentPath获取节点信息: ${currentNodeId}, literatureId: ${currentLiteratureId}`);
     } else {
-      // 如果路径为空，说明是根节点，需要从其他地方获取
-      console.warn(`⚠️ [DefaultCiter] 路径为空，无法获取当前节点ID，降级到假数据`);
-      return await this.searchWithMockData(formulations, context, startTime);
+      // ❌ 这种情况不应该再发生
+      console.error(`❌ [DefaultCiter] 无法获取当前节点信息，context.currentNode和currentPath都为空`);
+      throw new Error('无法获取当前节点信息，请检查EvaluationContext配置');
     }
 
     // 🎯 获取treeId - 从SessionConnector获取当前树ID
     const treeId = this.sessionConnector!.getCurrentTreeId();
+
+    console.log(`🔍 [DefaultCiter] 开始获取被引文献: nodeId=${currentNodeId}, literatureId=${currentLiteratureId}, treeId=${treeId}`);
 
     const availableLiterature = await this.sessionConnector!.getAvailableCitedByLiterature(
       currentNodeId,

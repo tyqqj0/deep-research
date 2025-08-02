@@ -17,6 +17,7 @@ import { MCTSNode, LibraryItem } from '@/libs/db';
 
 export interface EvaluationContext {
   currentPath: MCTSNode[];           // 当前路径上的所有节点
+  currentNode?: MCTSNode;            // 🎯 当前正在扩展的节点
   availableLiterature: LibraryItem[]; // 可用的文献库
   researchTopic: string;             // 研究主题
   iterationCount: number;            // 当前迭代次数

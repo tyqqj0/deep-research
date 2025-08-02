@@ -440,10 +440,18 @@ export class SGMCTSController {
         };
       }
       
+      // 🎯 创建增强的context，包含当前节点信息
+      const enhancedContext: EvaluationContext = {
+        ...context,
+        currentNode: selectedNode  // 直接传递当前正在扩展的节点
+      };
+
+      console.log(`🎯 [SGMCTSController] 传递当前节点给Expander: ${selectedNode.id}, literatureId: ${selectedNode.libraryItemId}`);
+
       // 执行TVC扩展流程
       const expansionResult = await this.modularExpander!.expandNode(
         selectedNode,
-        context,
+        enhancedContext,  // 使用增强的context
         {
           maxCandidates: this.config.batchSize || 3,
           minValidationScore: 0.6,
@@ -453,8 +461,31 @@ export class SGMCTSController {
         }
       );
       
-      // 🎯 将扩展结果中的节点添加到TreeController中
-      for (const expandedNode of expansionResult.expandedNodes) {
+      // 🎯 分析扩展结果中的节点
+      const validExpandedNodes = expansionResult.expandedNodes.filter(node =>
+        node.citations && node.citations.length > 0
+      );
+      const nodesWithoutCitations = expansionResult.expandedNodes.filter(node =>
+        !node.citations || node.citations.length === 0
+      );
+
+      console.log(`🔍 [SGMCTSController] 扩展结果分析:`, {
+        总节点数: expansionResult.expandedNodes.length,
+        有效节点数: validExpandedNodes.length,
+        无引用节点数: nodesWithoutCitations.length
+      });
+
+      // 🎯 处理无引用的节点（为将来的搜索扩展功能预留）
+      if (nodesWithoutCitations.length > 0) {
+        console.log(`📝 [SGMCTSController] 发现${nodesWithoutCitations.length}个无引用节点，标记为待扩展`);
+        // TODO: 将来可以在这里实现搜索扩展功能
+        // 例如：调用外部搜索API、使用LLM生成相关文献等
+        for (const node of nodesWithoutCitations) {
+          console.log(`🔖 [SGMCTSController] 标记节点待扩展: ${node.node.id} (原因: 无匹配的被引文献)`);
+        }
+      }
+
+      for (const expandedNode of validExpandedNodes) {
         if (expandedNode.node.id.startsWith('temp_')) {
           // 🎯 使用TreeController创建真实的树节点
           const citation = expandedNode.citations[0];
@@ -485,12 +516,15 @@ export class SGMCTSController {
           }
         }
       }
-      
+
+      // 🎯 更新expansionResult，只包含有效节点（避免后续处理临时节点）
+      expansionResult.expandedNodes = validExpandedNodes;
+
       // 更新阶段统计
       const phaseTime = Date.now() - startTime;
       this.statistics.phaseStatistics.expansion.totalTime += phaseTime;
       this.statistics.phaseStatistics.expansion.count += 1;
-      
+
       return expansionResult;
       
     } catch (error) {
@@ -621,11 +655,17 @@ export class SGMCTSController {
         throw new Error(`节点不存在: ${node.id}`);
       }
 
+      // 🎯 处理NaN值，确保数据有效性
+      const validReward = isNaN(reward) ? 0 : reward;
+      if (isNaN(reward)) {
+        console.warn(`⚠️ [SGMCTSController] 检测到NaN reward，使用0代替: ${reward} → ${validReward}`);
+      }
+
       // 🎯 向上传播，更新所有祖先节点
       while (currentNode) {
         // 更新访问次数和胜利次数
         currentNode.visits += 1;
-        currentNode.wins += reward;
+        currentNode.wins += validReward;
 
         console.log(`🔄 [SGMCTSController] 更新节点统计: ${currentNode.id}, visits: ${currentNode.visits}, wins: ${currentNode.wins.toFixed(3)}`);
 

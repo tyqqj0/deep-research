@@ -100,9 +100,9 @@ const TreeNode = memo(({ data }: { data: any }) => {
   const isDetailed = levelOfDetail === 'detailed';
 
   // 调试：随机输出节点渲染信息
-  if (Math.random() < 0.001) { // 5%概率
-    console.log(`🎨 Node ${node.id} rendering: ${levelOfDetail} mode (${isDetailed ? 'detailed' : 'simplified'})`);
-  }
+  // if (Math.random() < 0.001) { // 5%概率
+  //   console.log(`🎨 Node ${node.id} rendering: ${levelOfDetail} mode (${isDetailed ? 'detailed' : 'simplified'})`);
+  // }
 
   // 计算UCT值和胜率
   const winRate = node.visits > 0 ? (node.wins / node.visits) : 0;
