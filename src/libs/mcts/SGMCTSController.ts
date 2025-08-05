@@ -461,64 +461,39 @@ export class SGMCTSController {
         }
       );
       
-      // 🎯 分析扩展结果中的节点
-      const validExpandedNodes = expansionResult.expandedNodes.filter(node =>
-        node.citations && node.citations.length > 0
-      );
-      const nodesWithoutCitations = expansionResult.expandedNodes.filter(node =>
-        !node.citations || node.citations.length === 0
-      );
+      // 🎯 信任Expander的判断，创建所有扩展节点
+      console.log(`🔍 [SGMCTSController] 扩展结果分析: 总共${expansionResult.expandedNodes.length}个节点，全部创建`);
 
-      console.log(`🔍 [SGMCTSController] 扩展结果分析:`, {
-        总节点数: expansionResult.expandedNodes.length,
-        有效节点数: validExpandedNodes.length,
-        无引用节点数: nodesWithoutCitations.length
-      });
-
-      // 🎯 处理无引用的节点（为将来的搜索扩展功能预留）
-      if (nodesWithoutCitations.length > 0) {
-        console.log(`📝 [SGMCTSController] 发现${nodesWithoutCitations.length}个无引用节点，标记为待扩展`);
-        // TODO: 将来可以在这里实现搜索扩展功能
-        // 例如：调用外部搜索API、使用LLM生成相关文献等
-        for (const node of nodesWithoutCitations) {
-          console.log(`🔖 [SGMCTSController] 标记节点待扩展: ${node.node.id} (原因: 无匹配的被引文献)`);
-        }
-      }
-
-      for (const expandedNode of validExpandedNodes) {
+      // 🎯 现在所有expandedNode都应该有有效的citations
+      for (const expandedNode of expansionResult.expandedNodes) {
         if (expandedNode.node.id.startsWith('temp_')) {
-          // 🎯 使用TreeController创建真实的树节点
-          const citation = expandedNode.citations[0];
-          if (citation) {
-            console.log('🌳 [SGMCTSController] 使用TreeController创建节点:', {
-              parentId: selectedNode.id,
-              literatureId: citation.literatureId,
-              literatureTitle: citation.literature?.title,
-              isValidUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(citation.literatureId)
-            });
+          const citation = expandedNode.citations[0]; // 现在总是存在的
 
-            // 🎯 使用TreeController添加子节点
-            const newNode = this.treeController.addChild(
-              selectedNode.id,
-              citation.literatureId
-            );
+          console.log('🌳 [SGMCTSController] 创建真实文献节点:', {
+            parentId: selectedNode.id,
+            literatureId: citation.literatureId,
+            literatureTitle: citation.literature?.title,
+            isValidUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(citation.literatureId)
+          });
 
-            console.log(`✅ [SGMCTSController] TreeController创建节点成功: ${newNode.id}`);
+          // 🎯 使用TreeController添加真实文献子节点
+          const newNode = this.treeController.addChild(
+            selectedNode.id,
+            citation.literatureId
+          );
 
-            // 🎯 保存到数据库
-            await this.treeController.save();
+          console.log(`✅ [SGMCTSController] 真实文献节点创建成功: ${newNode.id}`);
 
-            // 更新扩展节点中的ID
-            expandedNode.node = newNode;
+          // 更新扩展节点中的ID
+          expandedNode.node = newNode;
 
-            // 更新统计信息
-            this.statistics.nodeStatistics.nodesCreated += 1;
-          }
+          // 🎯 保存到数据库
+          await this.treeController.save();
+
+          // 更新统计信息
+          this.statistics.nodeStatistics.nodesCreated += 1;
         }
       }
-
-      // 🎯 更新expansionResult，只包含有效节点（避免后续处理临时节点）
-      expansionResult.expandedNodes = validExpandedNodes;
 
       // 更新阶段统计
       const phaseTime = Date.now() - startTime;

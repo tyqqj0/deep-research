@@ -37,6 +37,7 @@ import {
   AlgorithmError,
   AlgorithmConfiguration 
 } from '@/libs/mcts/algorithms/interfaces';
+import { algorithmTemplateService } from '@/libs/mcts/templates/AlgorithmTemplateService';
 
 // ==================== Hook返回类型定义 ====================
 
@@ -49,6 +50,7 @@ export interface TreeBuilderData {
   maxIterations: number;
   algorithmConfig: any;
   iterationHistory: MCTSIterationResult[];
+  activeTemplateId: string; // 🆕 新增
 
   // 树和节点数据 - 使用TaskStore统一管理
   currentTreeId: string | undefined; // 🎯 从TaskStore读取的树ID
@@ -76,7 +78,7 @@ export interface TreeBuilderActions {
   
   // 配置管理
   updateAlgorithmConfig: (config: Partial<AlgorithmConfiguration>) => void;
-  switchAlgorithmPreset: (presetName: string) => void;
+  switchAlgorithmTemplate: (templateId: string) => void; // 🔄 重命名
   
   // UI交互
   selectNode: (nodeId: string | null) => void;
@@ -357,6 +359,34 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
       }
     }
   }, [taskStore]);
+  
+  const switchAlgorithmTemplate = useCallback(async (templateId: string) => {
+    try {
+      const template = algorithmTemplateService.getTemplate(templateId);
+      if (!template) {
+        throw new Error(`未找到ID为 ${templateId} 的算法模板`);
+      }
+
+      // 更新TaskStore中的配置和当前模板ID
+      taskStore.updateAlgorithmConfig(template.configuration);
+      taskStore.setActiveTemplateId(templateId);
+
+      // 如果已有会话，则重新初始化控制器
+      if (controllerRef.current && taskStore.treeId && taskStore.algorithmState?.currentSession) {
+        const { rootItem, researchTopic } = taskStore.algorithmState.currentSession;
+        const currentTree = await getCurrentTree();
+        if (currentTree) {
+          await initializeMCTSController(currentTree, rootItem, researchTopic, templateId);
+          toast.success(`算法模板已切换为: ${template.name}`);
+        }
+      }
+    } catch (error) {
+      console.error('切换算法模板失败:', error);
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
+      setError(new Error(`切换模板失败: ${errorMsg}`));
+      toast.error(`切换模板失败: ${errorMsg}`);
+    }
+  }, [taskStore, getCurrentTree]);
 
   // ==================== UI交互方法 ====================
 
@@ -415,7 +445,8 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
   const initializeMCTSController = useCallback(async (
     tree: LiteratureTree,
     rootItem: LibraryItem,
-    researchTopic: string
+    researchTopic: string,
+    templateId: string = 'default-balanced'
   ) => {
     try {
       // 🎯 创建SessionLiteratureConnector
@@ -430,7 +461,12 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
 
       // 🎯 创建模块化算法套件（注入SessionConnector）
       console.log('🔧 [TreeBuilder] 创建模块化算法套件...');
-      const modularAlgorithms = createDefaultModularAlgorithmSuite(sessionConnector);
+      const template = algorithmTemplateService.getTemplate(templateId);
+      if (!template) {
+        throw new Error(`未找到算法模板: ${templateId}`);
+      }
+      
+      const modularAlgorithms = algorithmFactory.createSuiteFromTemplate(template, sessionConnector);
 
       console.log('🔧 [TreeBuilder] 模块化算法套件创建完成:', {
         thinker: !!modularAlgorithms.thinker,
@@ -548,7 +584,7 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
     maxIterations: taskStore.algorithmState?.maxIterations || 50,
     algorithmConfig: taskStore.algorithmState?.algorithmConfig,
     currentTreeId: taskStore.treeId, // 🎯 从TaskStore读取树ID
-    selectedNode: null, // TODO: 需要时可以通过treeId异步获取
+    activeTemplateId: taskStore.algorithmState?.activeTemplateId || 'default-balanced',
     iterationHistory: taskStore.algorithmState?.iterationHistory || [],
     error: error,
     canResume: taskStore.algorithmState?.canResume || false,
@@ -576,7 +612,7 @@ export function useTreeBuilder(): TreeBuilderData & TreeBuilderActions {
     runSingleIteration,
     runContinuousBuilding,
     updateAlgorithmConfig,
-    switchAlgorithmPreset: () => {}, // 暂时空实现
+    switchAlgorithmTemplate,
     selectNode,
     setStepMode,
     setMaxIterations: taskStore.setMaxIterations,

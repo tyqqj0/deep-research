@@ -55,6 +55,8 @@ import { toast } from 'sonner';
 import { treeService } from '@/libs/tree/TreeService';
 import { useTaskStore } from '@/store/task';
 import { useHistoryStore } from '@/store/history';
+import { algorithmTemplateService, AlgorithmTemplate } from '@/libs/mcts/templates/AlgorithmTemplateService';
+import { Settings2 } from 'lucide-react';
 
 // ==================== 组件接口 ====================
 
@@ -73,7 +75,13 @@ export default function MCTSControlPanel({
   // 本地状态
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
   const taskStore = useTaskStore();
-  const [selectedPreset, setSelectedPreset] = useState('default');
+  const [activeTemplateId, setActiveTemplateId] = useState(treeBuilder.activeTemplateId || 'default-balanced');
+  const [availableTemplates, setAvailableTemplates] = useState<AlgorithmTemplate[]>([]);
+
+  // ⚙️ Effect to load templates on mount
+  React.useEffect(() => {
+    setAvailableTemplates(algorithmTemplateService.getTemplates());
+  }, []);
 
   // ==================== 执行控制处理函数 ====================
 
@@ -130,9 +138,9 @@ export default function MCTSControlPanel({
     treeBuilder.setStepMode(checked);
   }, [treeBuilder]);
 
-  const handlePresetChange = useCallback((preset: string) => {
-    setSelectedPreset(preset);
-    treeBuilder.switchAlgorithmPreset(preset);
+  const handleTemplateChange = useCallback((templateId: string) => {
+    setActiveTemplateId(templateId);
+    treeBuilder.switchAlgorithmTemplate(templateId);
   }, [treeBuilder]);
 
   // 🗑️ 智能删除当前树
@@ -430,20 +438,26 @@ export default function MCTSControlPanel({
                 />
               </div>
 
-              {/* 算法预设 */}
+              {/* 算法模板 */}
               <div className="space-y-2">
-                <Label className="text-xs">算法预设</Label>
-                <Select value={selectedPreset} onValueChange={handlePresetChange}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">默认平衡</SelectItem>
-                    <SelectItem value="exploration">探索优先</SelectItem>
-                    <SelectItem value="exploitation">利用优先</SelectItem>
-                    <SelectItem value="semantic">语义增强</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs">算法模板</Label>
+                <div className="flex items-center gap-2">
+                  <Select value={activeTemplateId} onValueChange={handleTemplateChange}>
+                    <SelectTrigger className="h-8 text-xs flex-1">
+                      <SelectValue placeholder="选择一个模板..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTemplates.map(template => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button size="icon" variant="ghost" className="h-8 w-8">
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
             </AccordionContent>

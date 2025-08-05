@@ -71,7 +71,7 @@ export class MatchingEngine {
           .first();
         
         if (urlMatch) {
-          console.log(`✅ [MatchingEngine] URL精确匹配: ${urlMatch.title}`);
+          // console.log(`✅ [MatchingEngine] URL精确匹配: ${urlMatch.title}`);
           return urlMatch;
         }
       }
@@ -80,7 +80,7 @@ export class MatchingEngine {
       if (options.enableTitleMatching && matchData.title && !options.strictMode) {
         // 🚫 跳过临时处理标题的匹配，避免误判
         if (matchData.title.startsWith('Processing: ')) {
-          console.log(`🚫 [MatchingEngine] Skipping title matching for temporary processing title: "${matchData.title}"`);
+          // console.log(`🚫 [MatchingEngine] Skipping title matching for temporary processing title: "${matchData.title}"`);
           return null;
         }
         
@@ -134,7 +134,7 @@ export class MatchingEngine {
 
         if (qualifiedMatches.length > 0) {
           const bestMatch = qualifiedMatches[0];
-          console.log(`✅ [MatchingEngine] 智能匹配成功: "${bestMatch.item.title}" (相似度: ${(bestMatch.totalScore * 100).toFixed(1)}%)`);
+          // console.log(`✅ [MatchingEngine] 智能匹配成功: "${bestMatch.item.title}" (相似度: ${(bestMatch.totalScore * 100).toFixed(1)}%)`);
           return bestMatch.item;
         } else {
           // console.log(`❌ [MatchingEngine] 未找到符合阈值的匹配项 (最高阈值: ${this.thresholds.finalThreshold})`);

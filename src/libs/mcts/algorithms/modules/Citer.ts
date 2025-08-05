@@ -117,15 +117,24 @@ export class DefaultCiter implements ICiter {
     citations: Citation[],
     maxResults: number = 10
   ): Promise<Citation[]> {
-    // 去重 - 根据literature ID
+    // 🎯 修改去重逻辑：基于 literatureId + matchedFormulation 的组合去重
+    // 这样同一篇文献可以被不同的表述匹配，保持正确的对应关系
     const uniqueCitations = citations.reduce((acc, citation) => {
-      const existing = acc.find(c => c.literatureId === citation.literatureId);
+      const key = `${citation.literatureId}_${citation.matchedFormulation}`;
+      const existing = acc.find(c =>
+        `${c.literatureId}_${c.matchedFormulation}` === key
+      );
+
       if (!existing || citation.relevanceScore > existing.relevanceScore) {
-        acc = acc.filter(c => c.literatureId !== citation.literatureId);
+        acc = acc.filter(c =>
+          `${c.literatureId}_${c.matchedFormulation}` !== key
+        );
         acc.push(citation);
       }
       return acc;
     }, [] as Citation[]);
+
+    console.log(`🔍 [DefaultCiter] 去重前: ${citations.length}个citations, 去重后: ${uniqueCitations.length}个`);
 
     // 按相关性评分排序
     uniqueCitations.sort((a, b) => b.relevanceScore - a.relevanceScore);
@@ -345,24 +354,24 @@ export class DefaultCiter implements ICiter {
     let currentNodeId: string;
     let currentLiteratureId: string;
 
-    console.log(`🔍 [DefaultCiter] 新版本代码生效！检查context:`, {
-      hasCurrentNode: !!context.currentNode,
-      currentPathLength: context.currentPath.length,
-      currentNodeId: context.currentNode?.id,
-      currentNodeLiteratureId: context.currentNode?.libraryItemId
-    });
+    // console.log(`🔍 [DefaultCiter] 新版本代码生效！检查context:`, {
+    //   hasCurrentNode: !!context.currentNode,
+    //   currentPathLength: context.currentPath.length,
+    //   currentNodeId: context.currentNode?.id,
+    //   currentNodeLiteratureId: context.currentNode?.libraryItemId
+    // });
 
     if (context.currentNode) {
       // 🎯 优先使用context.currentNode（新的方式）
       currentNodeId = context.currentNode.id;
       currentLiteratureId = context.currentNode.libraryItemId;
-      console.log(`🎯 [DefaultCiter] 使用currentNode获取节点信息: ${currentNodeId}, literatureId: ${currentLiteratureId}`);
+      // console.log(`🎯 [DefaultCiter] 使用currentNode获取节点信息: ${currentNodeId}, literatureId: ${currentLiteratureId}`);
     } else if (context.currentPath.length > 0) {
       // 🔄 向后兼容：使用路径中的最后一个节点
       const lastNode = context.currentPath[context.currentPath.length - 1];
       currentNodeId = lastNode.id;
       currentLiteratureId = lastNode.libraryItemId;
-      console.log(`🔄 [DefaultCiter] 使用currentPath获取节点信息: ${currentNodeId}, literatureId: ${currentLiteratureId}`);
+      // console.log(`🔄 [DefaultCiter] 使用currentPath获取节点信息: ${currentNodeId}, literatureId: ${currentLiteratureId}`);
     } else {
       // ❌ 这种情况不应该再发生
       console.error(`❌ [DefaultCiter] 无法获取当前节点信息，context.currentNode和currentPath都为空`);
@@ -372,18 +381,25 @@ export class DefaultCiter implements ICiter {
     // 🎯 获取treeId - 从SessionConnector获取当前树ID
     const treeId = this.sessionConnector!.getCurrentTreeId();
 
-    console.log(`🔍 [DefaultCiter] 开始获取被引文献: nodeId=${currentNodeId}, literatureId=${currentLiteratureId}, treeId=${treeId}`);
+    // console.log(`🔍 [DefaultCiter] 开始获取被引文献: nodeId=${currentNodeId}, literatureId=${currentLiteratureId}, treeId=${treeId}`);
 
     const availableLiterature = await this.sessionConnector!.getAvailableCitedByLiterature(
       currentNodeId,
       treeId || ''
     );
 
-    console.log(`📚 [DefaultCiter] 获取到${availableLiterature.length}篇可用被引文献`);
+    // console.log(`📚 [DefaultCiter] 获取到${availableLiterature.length}篇可用被引文献`);
 
     if (availableLiterature.length === 0) {
-      console.warn(`⚠️ [DefaultCiter] 当前节点无可用被引文献，降级到假数据`);
-      return await this.searchWithMockData(formulations, context, startTime);
+      console.log(`📝 [DefaultCiter] 当前节点无可用被引文献，返回空结果`);
+      const executionTime = Date.now() - startTime;
+      return {
+        citations: [],
+        totalFound: 0,
+        confidence: 0.0,
+        searchSummary: '当前节点无可用被引文献，无法进行文献检索',
+        executionTime
+      };
     }
 
     // 为每个表述匹配相关文献
@@ -449,31 +465,48 @@ export class DefaultCiter implements ICiter {
     formulation: DirectionFormulation,
     literature: LibraryItem[]
   ): Promise<LibraryItem[]> {
-    console.log(`🔍 [DefaultCiter] 匹配表述与${literature.length}篇文献: ${formulation.formulation}`);
+    // console.log(`🔍 [DefaultCiter] 匹配表述与${literature.length}篇文献: ${formulation.formulation}`);
 
     // 方案1: 简单关键词匹配
     const keywords = formulation.keywords.map(k => k.toLowerCase());
 
-    const matchedLiterature = literature.filter(item => {
+    // 🎯 计算每篇文献的匹配分数，然后只选择最佳匹配
+    const scoredLiterature = literature.map(item => {
       const title = item.title.toLowerCase();
       const abstract = item.abstract?.toLowerCase() || '';
+      let score = 0;
 
-      // 检查是否有关键词匹配
-      const hasKeywordMatch = keywords.some(keyword =>
+      // 关键词匹配分数
+      const keywordMatches = keywords.filter(keyword =>
         title.includes(keyword) || abstract.includes(keyword)
-      );
+      ).length;
+      score += keywordMatches * 2; // 关键词匹配权重更高
 
-      // 检查表述本身的匹配
+      // 表述匹配分数
       const formulationWords = formulation.formulation.toLowerCase().split(/\s+/);
-      const hasFormulationMatch = formulationWords.some(word =>
+      const formulationMatches = formulationWords.filter(word =>
         word.length > 2 && (title.includes(word) || abstract.includes(word))
-      );
+      ).length;
+      score += formulationMatches;
 
-      return hasKeywordMatch || hasFormulationMatch;
-    });
+      // 精确匹配加分
+      if (title === formulation.formulation.toLowerCase()) {
+        score += 10; // 精确匹配最高分
+      }
 
-    console.log(`✅ [DefaultCiter] 匹配到${matchedLiterature.length}篇相关文献`);
-    return matchedLiterature;
+      return { item, score };
+    }).filter(scored => scored.score > 0); // 只保留有匹配的文献
+
+    // 🎯 按分数排序，只返回最佳匹配的1篇文献
+    scoredLiterature.sort((a, b) => b.score - a.score);
+    const bestMatch = scoredLiterature.length > 0 ? [scoredLiterature[0].item] : [];
+
+    console.log(`✅ [DefaultCiter] 匹配到${scoredLiterature.length}篇相关文献，选择最佳匹配${bestMatch.length}篇`);
+    if (bestMatch.length > 0) {
+      console.log(`🎯 [DefaultCiter] 最佳匹配: "${bestMatch[0].title}" (分数: ${scoredLiterature[0].score})`);
+    }
+
+    return bestMatch;
   }
 
   /**

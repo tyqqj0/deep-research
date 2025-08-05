@@ -43,6 +43,7 @@ export interface AlgorithmState {
   currentEvaluationContext: EvaluationContext | null;
 
   // 算法配置管理
+  activeTemplateId: string;
   algorithmConfig: AlgorithmConfiguration;
   availableConfigurations: Array<{
     name: string;
@@ -125,6 +126,7 @@ interface TaskFunction {
   stopBuilding: () => void;
   setMaxIterations: (max: number) => void;
   updateAlgorithmConfig: (config: AlgorithmConfiguration) => void;
+  setActiveTemplateId: (templateId: string) => void;
   addIterationResult: (result: MCTSIterationResult) => void;
   clearAlgorithmState: () => void;
 
@@ -187,7 +189,7 @@ const defaultAlgorithmState: AlgorithmState = {
   maxIterations: 50,
   iterationHistory: [],
   currentEvaluationContext: null,
-  algorithmConfig: defaultAlgorithmConfig,
+  activeTemplateId: 'default-balanced',
   availableConfigurations: [
     {
       name: 'default',
@@ -431,11 +433,11 @@ export const useTaskStore = create(
         }));
       },
 
-      updateAlgorithmConfig: (config: AlgorithmConfiguration) => {
+      setActiveTemplateId: (templateId: string) => {
         set(state => ({
           algorithmState: state.algorithmState ? {
             ...state.algorithmState,
-            algorithmConfig: config
+            activeTemplateId: templateId
           } : undefined
         }));
       },
@@ -444,7 +446,8 @@ export const useTaskStore = create(
         set(state => ({
           algorithmState: state.algorithmState ? {
             ...state.algorithmState,
-            iterationHistory: [...state.algorithmState.iterationHistory, result],
+            // 🎯 限制历史记录数量，避免LocalStorage配额超限
+            iterationHistory: [...state.algorithmState.iterationHistory, result].slice(-50), // 只保留最近50次迭代
             currentIteration: state.algorithmState.currentIteration + 1
           } : undefined
         }));

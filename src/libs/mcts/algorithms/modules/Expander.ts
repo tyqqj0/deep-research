@@ -182,12 +182,48 @@ export class DefaultExpander implements IExpander {
       const expandedNodes: ExpandedNode[] = [];
 
       if (config.enableParallelProcessing) {
-        // 并行处理所有候选
-        const processingPromises = formulationResult.formulations.map(async (formulation, index) => {
+        // 🎯 预先过滤有文献支持的候选
+        const validCandidates = formulationResult.formulations
+          .map((formulation, index) => {
+            const matchedCitations = citationResult.citations.filter(c => c.matchedFormulation === formulation.formulation);
+
+            // 🔍 调试：显示匹配详情
+            console.log(`🔍 [Expander] 候选 ${index} 匹配详情:`, {
+              direction: selectedDirections[index].title,
+              formulation: formulation.formulation,
+              matchedCitations: matchedCitations.length,
+              allCitations: citationResult.citations.length
+            });
+
+            if (matchedCitations.length === 0) {
+              console.log(`🔍 [Expander] 检查所有citations的matchedFormulation:`);
+              citationResult.citations.forEach((c, i) => {
+                console.log(`  Citation ${i}: "${c.matchedFormulation}" vs "${formulation.formulation}" = ${c.matchedFormulation === formulation.formulation}`);
+              });
+            }
+
+            return {
+              formulation,
+              direction: selectedDirections[index],
+              citations: matchedCitations
+            };
+          })
+          .filter(candidate => {
+            if (candidate.citations.length === 0) {
+              console.log(`🔍 跳过无文献支持的候选: ${candidate.direction.title}`);
+              return false;
+            }
+            return true;
+          });
+
+        console.log(`🔍 [Expander] 过滤后的有效候选: ${validCandidates.length}/${formulationResult.formulations.length}`);
+
+        // 并行处理有效候选
+        const processingPromises = validCandidates.map(async (candidate) => {
           return this.processSingleCandidate(
-            selectedDirections[index],
-            formulation,
-            citationResult.citations.filter(c => c.matchedFormulation === formulation.formulation),
+            candidate.direction,
+            candidate.formulation,
+            candidate.citations,
             parentNode,
             context,
             config
@@ -199,7 +235,14 @@ export class DefaultExpander implements IExpander {
           if (result.status === 'fulfilled' && result.value) {
             expandedNodes.push(result.value);
           } else {
-            console.warn(`候选 ${index} 处理失败:`, result.status === 'rejected' ? result.reason : 'Unknown error');
+            const direction = selectedDirections[index];
+            const formulation = formulationResult.formulations[index];
+            console.error(`🔍 候选 ${index} 处理失败:`, {
+              direction: direction.title,
+              formulation: formulation.formulation,
+              error: result.status === 'rejected' ? result.reason : 'Unknown error',
+              status: result.status
+            });
           }
         });
 
@@ -397,6 +440,12 @@ export class DefaultExpander implements IExpander {
     config: ExpansionConfig
   ): Promise<ExpandedNode | null> {
     try {
+      // 🎯 此时citations已经在上层过滤过了，应该总是有效的
+      if (!citations || citations.length === 0) {
+        console.error(`❌ [Expander] 意外的空citations: ${direction.title}`);
+        return null;
+      }
+
       // 创建扩展候选
       const candidate: ExpansionCandidate = {
         direction,
@@ -414,10 +463,11 @@ export class DefaultExpander implements IExpander {
         return null;
       }
 
-      // 创建临时MCTS节点（实际应用中会通过TreeService创建）
+      // 🎯 创建临时MCTS节点，使用第一个有效文献的ID
+      // 注意：此时citations.length > 0 已经在上面验证过了
       const tempNode: MCTSNode = {
         id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        literatureId: citations.length > 0 ? citations[0].literatureId : null,
+        literatureId: citations[0].literatureId, // 现在总是有效的
         parentId: parentNode.id,
         visits: 0,
         wins: 0,

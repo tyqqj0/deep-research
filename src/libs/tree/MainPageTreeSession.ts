@@ -54,7 +54,7 @@ export class MainPageTreeSession {
    */
   getCurrentTreeId(): string | null {
     const treeId = useTaskStore.getState().treeId || null;
-    console.log(`🔍 [MainPageTreeSession] 当前树ID: ${treeId}`);
+    // console.log(`🔍 [MainPageTreeSession] 当前树ID: ${treeId}`);
     return treeId;
   }
 

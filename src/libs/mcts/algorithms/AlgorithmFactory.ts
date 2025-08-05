@@ -12,6 +12,7 @@
  * - 配置驱动的算法选择
  */
 
+import { AlgorithmTemplate } from '../templates/AlgorithmTemplate';
 import {
   NodeEvaluator,
   NodeExpander, 
@@ -444,6 +445,20 @@ export class AlgorithmFactory implements IAlgorithmFactory {
 
   // ==================== 配置驱动的算法套件创建 ====================
 
+  /**
+   * 🆕 从算法模板创建套件
+   * @param template 算法模板
+   * @returns 完整的模块化算法套件
+   */
+  createSuiteFromTemplate(template: AlgorithmTemplate, sessionConnector?: any) {
+    const config = { ...template.configuration };
+    if (sessionConnector) {
+      (config as any).sessionConnector = sessionConnector;
+    }
+    return this.createModularAlgorithmSuite(config);
+  }
+
+
   createAlgorithmSuite(configuration: AlgorithmConfiguration) {
     try {
       const evaluator = this.createEvaluator(
@@ -646,13 +661,13 @@ export class AlgorithmFactory implements IAlgorithmFactory {
         config: {
           maxCitations: 10,
           diversityWeight: 0.3,
-          relevanceThreshold: 0.6
+          relevanceThreshold: 0.3  // 🎯 降低阈值从0.6到0.3，增加匹配成功率
         }
       },
       validator: {
         type: 'default',
         config: {
-          qualityThreshold: 0.6,
+          qualityThreshold: 0.4,  // 🎯 降低质量阈值从0.6到0.4
           duplicationThreshold: 0.8,
           validateTVC: true
         }
@@ -677,9 +692,9 @@ export class AlgorithmFactory implements IAlgorithmFactory {
       expander: {
         type: 'default',
         config: {
-          maxCandidates: 5,
-          minValidationScore: 0.6,
-          minRewardThreshold: 0.5,
+          maxCandidates: 8,  // 🎯 增加候选数量从5到8
+          minValidationScore: 0.4,  // 🎯 降低验证分数阈值从0.6到0.4
+          minRewardThreshold: 0.3,  // 🎯 降低奖励阈值从0.5到0.3
           enableParallelProcessing: true,
           skipLowQualityNodes: false
         }

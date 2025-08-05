@@ -223,50 +223,87 @@ export default function MCTSLiteratureWorkflow({
       //   'https://www.cell.com/cell/fulltext/S0092-8674(23)00001-0', // Cell期刊
       //   'https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0000001' // PLOS ONE
       // ];
-      const mockUrls = [
+            const mockUrls = [
         // --- Part 1: 基石与经典 (Foundations & Classics) ---
-        // 'https://proceedings.neurips.cc/paper/1986/file/2838023a778dfa2b039863695321fed1-Paper.pdf',
-        'https://ieeexplore.ieee.org/document/726791',
-        // 'https://papers.nips.cc/paper/2012/hash/c399862d3b9d6b76c8436e924a68c45b-Abstract.html',
+        // 1. Backpropagation (反向传播) - 神经网络训练的核心算法
+        'https://ieeexplore.ieee.org/document/726791', 
+        // 2. Word2Vec - 现代词嵌入技术的开创者，让词语有了向量表示
+        'https://arxiv.org/abs/1301.3781', 
+        // 3. GloVe - 另一种经典的词嵌入方法，结合了全局矩阵分解和局部上下文窗口
+        'https://arxiv.org/abs/1406.2661',
 
         // --- Part 2: 序列模型与RNN时代 (Sequence Models & The RNN Era) ---
+        // 4. LSTM (Long Short-Term Memory) - 经典RNN，解决了长序列依赖问题。注意：这是1997年的原始论文，不在Arxiv上，这里放一个后来的重要综述。
+        // 'https://www.bioinf.jku.at/publications/older/2604.pdf', // 原始论文链接
+        'https://arxiv.org/abs/1412.3555', // LSTM: A Search Space Odyssey，一篇很好的综述和分析
+        // 5. Seq2Seq - 经典的编码器-解码器架构，是后续所有注意力模型和Transformer的基础
         'https://arxiv.org/abs/1409.3215',
+        // 6. GRU (Gated Recurrent Unit) - LSTM的简化变体，效果类似但更易于计算
         'https://arxiv.org/abs/1406.1078',
+        // 7. Bahdanau Attention - 首次将注意力机制引入NLP的Seq2Seq模型，是Transformer注意力的前身
         'https://arxiv.org/abs/1409.0473',
 
         // --- Part 3: 注意力与Transformer的革命 (The Attention & Transformer Revolution) ---
+        // 8. Attention Is All You Need (Transformer) - 革命性的论文，宣告了Transformer时代的到来
         'https://arxiv.org/abs/1706.03762',
+        // 9. BERT - 基于Transformer的预训练语言模型，通过双向编码器理解上下文，刷新了多项NLP任务记录
         'https://arxiv.org/abs/1810.04805',
+        // 10. RoBERTa - BERT的强大优化版，通过改进训练策略和更多数据显著提升了性能
+        'https://arxiv.org/abs/1907.11692',
+        // 11. T5 (Text-to-Text Transfer Transformer) - 谷歌提出的将所有NLP任务统一为文本到文本格式的模型
+        'https://arxiv.org/abs/1910.10683',
 
         // --- Part 4: GPT系列与大语言模型 (The GPT Series & LLMs) ---
-        // 'https://s3-us-west-2.amazonaws.com/openai-assets/research-covers/language-unsupervised/language_understanding_paper.pdf',
-        // 'https://d4mucfpksywv.cloudfront.net/better-language-models/language-models.pdf',
+        // 12. GPT-1 - GPT系列的开山之作，证明了生成式预训练的巨大潜力
+        // 'https://s3-us-west-2.amazonaws.com/openai-assets/research-papers/language-unsupervised-generative-pre-training.pdf', // OpenAI 官网PDF
+        // 13. GPT-2 - 展示了LLM在无监督多任务学习上的惊人能力，因其强大而最初未完全开源
+        // 'https://d4mucfpksywv.cloudfront.net/better-language-models/language_models_are_unsupervised_multitask_learners.pdf', // OpenAI 官网PDF
+        // 14. GPT-3 - 开启大模型时代，展示了强大的零样本和少样本学习能力
         'https://arxiv.org/abs/2005.14165',
+        // 15. InstructGPT - 提出了基于人类反馈的强化学习（RLHF）来对齐模型与人类意图，是ChatGPT的技术基础
         'https://arxiv.org/abs/2203.02155',
-
-        // --- Part 5: RAG与模型增强技术 (RAG & Model Enhancement) ---
-        'https://arxiv.org/abs/2005.11401',
+        // 16. PaLM - 谷歌发布的大规模模型，展示了在推理等方面的卓越性能
+        'https://arxiv.org/abs/2204.02311',
+        
+        // --- Part 5: LLM推理、增强与微调 (Reasoning, Enhancement & Fine-tuning) ---
+        // 17. Chain-of-Thought (CoT) - 提示LLM进行逐步思考，显著提升了其在复杂推理任务上的表现
         'https://arxiv.org/abs/2201.11903',
+        // 18. Self-Consistency - CoT的改进，通过生成多个推理路径并投票选出最一致的答案，进一步提升准确性
+        'https://arxiv.org/abs/2203.11171',
+        // 19. RAG (Retrieval-Augmented Generation) - 结合检索系统与生成模型，让LLM能利用外部知识回答问题
+        'https://arxiv.org/abs/2005.11401',
+        // 20. Toolformer - 让LLM自主学习使用外部工具（如计算器、搜索引擎），增强其能力边界
+        'https://arxiv.org/abs/2302.04761',
+        // 21. LoRA - 高效微调（PEFT）的代表性技术，通过低秩适配器在少量参数上实现LLM微调
         'https://arxiv.org/abs/2106.09685',
+        // 22. PAL (Program-aided Language Models) - 让模型生成代码（如Python）来解决复杂问题，而不是直接生成答案
+        'https://arxiv.org/abs/2211.10435',
 
         // --- Part 6: 当代开源模型与创新 (Modern Open Models & Innovations) ---
+        // 23. LLaMA - Meta发布的开源模型，开启了高质量开源LLM的生态
         'https://arxiv.org/abs/2302.13971',
+        // 24. Llama 2 - LLaMA的第二代，提供了更强大的基座和可商用的对话模型
         'https://arxiv.org/abs/2307.09288',
-        'https://arxiv.org/abs/2401.02385',
-        'https://arxiv.org/abs/2311.16101',
+        // 25. Mistral 7B - Mistral AI发布的强大7B模型，在同尺寸模型中表现卓越
+        'https://arxiv.org/abs/2310.06825',
+        // 26. Switch Transformers (MoE) - 谷歌提出的稀疏激活的混合专家模型（MoE）架构，能以更低成本扩展模型规模
         'https://arxiv.org/abs/2101.03961',
+        // 27. Mixtral of Experts - Mistral AI发布的开源MoE模型，性能媲美GPT-3.5
         'https://arxiv.org/abs/2401.04088',
-
-        // --- Part 7: 其他重要期刊/来源 (Other Important Venues) ---
-        // 'https://www.nature.com/articles/s41586-021-03819-2',
-        // 'https://www.science.org/doi/10.1126/science.abq1158',
-        // 'https://www.cell.com/cancer-cell/fulltext/S1535-6108(20)30154-3',
-
-        // --- Part 8: 测试/边缘情况URL (Testing & Edge Cases) ---
-        // 'https://arxiv.org/abs/9999.99999',
-        // 'https://fake-journal-of-science.my-domain/article/123456',
-        // 'http://example.com/not-a-paper.html'
+        // 28. Phi-2 - 微软发布的高质量小模型（SLM），证明了“小而精”模型的潜力
+        'https://arxiv.org/abs/2312.17238',
+        // 29. DeepSeek-LLM - DeepSeek发布的强大的开源基座模型
+        'https://arxiv.org/abs/2401.15950',
+        // 30. DeepSeek-Coder - DeepSeek发布的在代码生成方面非常强大的模型
+        'https://arxiv.org/abs/2401.02385',
+        // 31. DeepSeekMath - DeepSeek发布的在数学推理方面领先的开源模型
+        'https://arxiv.org/abs/2311.16101',
+        // 32. Gemma - 谷歌发布的轻量级开源模型系列，源自其Gemini技术
+        'https://arxiv.org/abs/2403.08295',
+        // 33. vLLM - 一个高效的LLM推理和服务引擎，极大地提升了LLM的吞吐量
+        'https://arxiv.org/abs/2309.06180',
       ];
+
 
 
       console.log(`[MockDataGen] 开始为话题 "${topic}" 生成模拟数据`);

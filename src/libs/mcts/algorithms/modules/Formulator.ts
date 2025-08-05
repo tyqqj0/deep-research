@@ -103,9 +103,19 @@ export class DefaultFormulator implements IFormulator {
     direction: ResearchDirection,
     context: EvaluationContext
   ): Promise<DirectionFormulation> {
-    // 生成核心表述
-    const variants = await this.generateFormulationVariants(direction, context);
-    const formulation = variants.bestVariant;
+    // 🎯 检查是否为合成方向，如果是则直接使用原标题
+    let formulation: string;
+
+    if ((direction as any).originalTitle) {
+      // 这是合成方向，直接使用原文献标题确保100%匹配
+      formulation = (direction as any).originalTitle;
+      console.log(`🎯 [DefaultFormulator] 合成方向使用原标题: "${formulation}"`);
+    } else {
+      // 原始方向，使用正常的表述生成
+      const variants = await this.generateFormulationVariants(direction, context);
+      formulation = variants.bestVariant;
+      console.log(`📝 [DefaultFormulator] 原始方向生成表述: "${formulation}"`);
+    }
 
     // 提取关键词
     const keywords = [

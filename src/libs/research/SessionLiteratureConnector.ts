@@ -425,7 +425,7 @@ export class SessionLiteratureConnector {
         }
       }
 
-      console.log(`✅ [SessionConnector] 找到${available.length}篇可用被引文献 (总共${citedBy.length}篇)`);
+      // console.log(`✅ [SessionConnector] 找到${available.length}篇可用被引文献 (总共${citedBy.length}篇)`);
       return available;
 
     } catch (error) {

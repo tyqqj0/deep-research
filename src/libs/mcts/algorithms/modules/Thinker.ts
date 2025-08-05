@@ -174,14 +174,22 @@ export class DefaultThinker implements IThinker {
     const pathAnalysis = await this.analyzePathWithRealData(pathLiterature, context);
 
     // 🎯 基于真实数据生成方向（后续可替换为LLM）
-    const directions = await this.generateDirectionsFromRealData(pathLiterature, context, pathAnalysis);
+    const originalDirections = await this.generateDirectionsFromRealData(pathLiterature, context, pathAnalysis);
+
+    // 🚀 快速修复：添加随机被引文献方向
+    const syntheticDirections = await this.generateSyntheticDirections(currentNode, context);
+
+    // 合并原始方向和合成方向
+    const allDirections = [...originalDirections, ...syntheticDirections];
+
+    console.log(`🧠 [DefaultThinker] 生成方向总数: ${allDirections.length} (原始: ${originalDirections.length}, 合成: ${syntheticDirections.length})`);
 
     const executionTime = Date.now() - startTime;
 
     return {
-      directions,
+      directions: allDirections,
       pathSummary: pathAnalysis.pathTheme,
-      reasoning: `基于${pathLiterature.length}篇真实文献的路径分析，识别出${directions.length}个研究方向`,
+      reasoning: `基于${pathLiterature.length}篇真实文献的路径分析，识别出${originalDirections.length}个研究方向。额外基于被引文献生成${syntheticDirections.length}个扩展方向`,
       confidence: 0.85, // 真实数据置信度更高
       executionTime
     };
@@ -480,6 +488,90 @@ export class DefaultThinker implements IThinker {
     directions.push(...baseDirections);
 
     return directions.slice(0, 4); // 限制数量
+  }
+
+  /**
+   * 🚀 快速修复：基于被引文献生成合成研究方向
+   */
+  private async generateSyntheticDirections(
+    currentNode: MCTSNode,
+    context: EvaluationContext
+  ): Promise<ResearchDirection[]> {
+    try {
+      if (!this.sessionConnector) {
+        console.log(`🔄 [DefaultThinker] 无SessionConnector，跳过合成方向生成`);
+        return [];
+      }
+
+      // 1. 获取当前节点的被引文献
+      const citedByLiterature = await this.sessionConnector.getCitedByLiterature(currentNode.id);
+
+      if (citedByLiterature.length === 0) {
+        console.log(`📝 [DefaultThinker] 当前节点无被引文献，跳过合成方向生成`);
+        return [];
+      }
+
+      console.log(`🎯 [DefaultThinker] 获取到${citedByLiterature.length}篇被引文献，开始生成合成方向`);
+
+      // 2. 随机选择4-6篇被引文献（增加数量）
+      const shuffled = [...citedByLiterature].sort(() => Math.random() - 0.5);
+      const maxSelection = Math.min(6, citedByLiterature.length); // 最多选择6篇
+      const minSelection = Math.min(4, citedByLiterature.length); // 最少选择4篇
+      const selectionCount = Math.max(minSelection, Math.floor(Math.random() * (maxSelection - minSelection + 1)) + minSelection);
+      const selectedLiterature = shuffled.slice(0, selectionCount);
+
+      // 3. 为每篇文献生成简单的研究方向
+      const syntheticDirections: ResearchDirection[] = selectedLiterature.map((lit, index) => ({
+        id: crypto.randomUUID(),
+        title: `基于"${lit.title}"的${context.researchTopic}扩展研究`,
+        description: `探索"${lit.title}"在${context.researchTopic}领域的深入应用和扩展可能性`,
+        reasoning: `该文献引用了当前研究，表明存在相关性，值得进一步探索`,
+        confidence: 0.6, // 较低的置信度，表明是合成方向
+        keyWords: this.extractSimpleKeywords(lit.title, context.researchTopic),
+        expectedCitations: Math.floor(Math.random() * 5) + 3, // 3-7篇随机
+        // 🎯 添加源文献信息，确保能够匹配回去
+        sourceLiterature: {
+          id: lit.id,
+          title: lit.title
+        },
+        // 🎯 添加原标题字段，用于精确匹配
+        originalTitle: lit.title
+      }));
+
+      console.log(`✅ [DefaultThinker] 生成${syntheticDirections.length}个合成研究方向`);
+      return syntheticDirections;
+
+    } catch (error) {
+      console.error(`❌ [DefaultThinker] 合成方向生成失败:`, error);
+      return []; // 失败时返回空数组，不影响主流程
+    }
+  }
+
+  /**
+   * 🔧 改进的关键词提取 - 确保能匹配回原文献
+   */
+  private extractSimpleKeywords(title: string, researchTopic: string): string[] {
+    const keywords = [];
+
+    // 🎯 优先添加原文献标题的关键部分
+    const titleWords = title.toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(word => word.length > 2) // 降低长度要求
+      .filter(word => !['the', 'and', 'or', 'with', 'for', 'to', 'of', 'in', 'on', 'at'].includes(word)) // 过滤停用词
+      .slice(0, 4); // 增加关键词数量
+
+    keywords.push(...titleWords);
+
+    // 添加研究主题（但优先级较低）
+    keywords.push(researchTopic);
+
+    // 添加一些通用的扩展词
+    keywords.push('扩展', '应用');
+
+    console.log(`🔧 [DefaultThinker] 为文献"${title}"提取关键词: [${keywords.join(', ')}]`);
+
+    return keywords.slice(0, 6); // 增加关键词数量限制
   }
 }
 
