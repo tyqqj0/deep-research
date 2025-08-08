@@ -45,6 +45,7 @@ export default async function Config(phase: string) {
     experimental: {
       reactCompiler: true,
     },
+    serverExternalPackages: ["tsyringe", "reflect-metadata"],
     env: {
       NEXT_PUBLIC_VERSION: pkg.version,
     },
